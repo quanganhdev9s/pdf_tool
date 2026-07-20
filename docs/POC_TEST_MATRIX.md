@@ -48,7 +48,9 @@ Recommended content:
 
 Purpose:
 
-- Confirm absence of selectable text before OCR
+- Confirm absence of an embedded PDF text layer before OCR
+- Record whether PDFKit/system Live Text still allows selection and copying on
+  the tested OS and device
 - Vision OCR
 - Vietnamese and English recognition
 - Bounding-box mapping
@@ -148,6 +150,7 @@ Test password:
 
 | Test | Expected result |
 |---|---|
+| Picker Cubit and viewer Bloc shell | Picker opens event-driven Bloc viewer controls |
 | Open valid PDF | PDF renders |
 | Open invalid path | Typed error |
 | Open invalid data | Typed error |
@@ -162,11 +165,18 @@ Test password:
 |---|---|
 | Search existing word | Result count > 0 |
 | Search missing word | Zero results, no error |
-| Search scan-only PDF | No searchable text state |
+| Search scan-only PDF | No embedded PDF text layer state, unless the file unexpectedly contains embedded text |
+| Select text in scan-only PDF | Record actual behavior by OS and device; Live Text may allow selection on supported Apple platforms |
+| Copy text in scan-only PDF | Record actual behavior by OS and device; successful copy may come from Live Text, not an embedded PDF text layer |
 | Next/previous result | Correct active result |
 | Select multi-line text | Full selection available |
 | Copy selection | Clipboard matches selection |
 | Copy with no selection | Typed unavailable result |
+
+Do not use “can copy text” as the only detector for an embedded PDF text layer.
+Search results and PDF page string inspection indicate embedded PDF text; Live
+Text selection/copy is a system-recognized interaction layer and is not saved
+back into the PDF.
 
 ### Highlight and underline
 
@@ -184,6 +194,10 @@ Test password:
 | Test | Expected result |
 |---|---|
 | Add text box | Visible |
+| Select area and drag on one page | Flutter text field opens above keyboard |
+| Add text after selecting area | Annotation appears inside selected rectangle |
+| Cancel selected area composer | No annotation is added |
+| Filter simulator console by `PDF Event` | Free-text area flow emits Flutter and native events |
 | Change font size | Appearance updates |
 | Save/reopen | Persists |
 | Empty text | Validation behavior documented |
@@ -223,6 +237,10 @@ Test password:
 | Bounding box | Overlay aligns visibly |
 | Large document | UI remains responsive |
 
+Keep Vision OCR testing even on devices where Live Text works. Vision OCR is the
+controlled POC path for confidence, bounding boxes, progress, cancellation,
+caching, and exportable OCR results.
+
 ### Compression
 
 | Test | Expected result |
@@ -246,10 +264,13 @@ Record:
 
 - Device or simulator
 - iOS version
+- Hardware model and whether Live Text is available
 - Input file
 - Steps
 - Expected result
 - Actual result
+- For search, selection, and copy: record embedded PDF text behavior separately
+  from system-recognized Live Text behavior
 - Screenshots or logs when useful
 - Pass, fail, or partial
 - Known limitation

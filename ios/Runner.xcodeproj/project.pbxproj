@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A00000000000000000000001 /* PdfPocApi.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000011 /* PdfPocApi.g.swift */; };
+		A00000000000000000000002 /* PdfPocRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* PdfPocRuntime.swift */; };
+		A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* PdfWorkspaceView.swift */; };
+		A00000000000000000000004 /* PdfPlatformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* PdfPlatformView.swift */; };
+		A00000000000000000000005 /* PdfPocHostApiImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* PdfPocHostApiImpl.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -42,6 +47,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A00000000000000000000011 /* PdfPocApi.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocApi.g.swift; sourceTree = "<group>"; };
+		A00000000000000000000012 /* PdfPocRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocRuntime.swift; sourceTree = "<group>"; };
+		A00000000000000000000013 /* PdfWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfWorkspaceView.swift; sourceTree = "<group>"; };
+		A00000000000000000000014 /* PdfPlatformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPlatformView.swift; sourceTree = "<group>"; };
+		A00000000000000000000015 /* PdfPocHostApiImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocHostApiImpl.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -73,6 +83,26 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A00000000000000000000020 /* PdfPoc */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000021 /* Bridge */,
+				A00000000000000000000012 /* PdfPocRuntime.swift */,
+				A00000000000000000000013 /* PdfWorkspaceView.swift */,
+				A00000000000000000000014 /* PdfPlatformView.swift */,
+				A00000000000000000000015 /* PdfPocHostApiImpl.swift */,
+			);
+			path = PdfPoc;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000021 /* Bridge */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000011 /* PdfPocApi.g.swift */,
+			);
+			path = Bridge;
+			sourceTree = "<group>";
+		};
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -124,6 +154,7 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				A00000000000000000000020 /* PdfPoc */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -282,6 +313,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
+				A00000000000000000000001 /* PdfPocApi.g.swift in Sources */,
+				A00000000000000000000002 /* PdfPocRuntime.swift in Sources */,
+				A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */,
+				A00000000000000000000004 /* PdfPlatformView.swift in Sources */,
+				A00000000000000000000005 /* PdfPocHostApiImpl.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 			);
@@ -360,7 +396,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = iphoneos;
@@ -487,7 +523,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -538,7 +574,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = iphoneos;

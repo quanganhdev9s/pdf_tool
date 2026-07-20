@@ -39,7 +39,9 @@ Read:
 - Navigate to next and previous results.
 - Scroll to and visually indicate the active result.
 - Clear search state.
-- Return a meaningful state when the document has no searchable text layer.
+- Return a meaningful state when the document has no embedded PDF text layer.
+- Do not use successful selection or copy as the only way to detect an embedded
+  PDF text layer.
 - Keep the UI responsive on larger documents.
 
 ### Text selection and copy
@@ -48,6 +50,12 @@ Read:
 - Expose selected text to Flutter.
 - Copy selected text using the iOS clipboard.
 - Return a typed unavailable result when there is no selection.
+- Treat embedded PDF text and system-recognized Live Text as different sources
+  of selectable text.
+- `scanned_vi_en.pdf` contains no embedded PDF text layer, but selection and
+  copying may still work through PDFKit Live Text interaction on supported Apple
+  platforms.
+- Do not claim Live Text has been embedded or saved into the PDF.
 - Do not implement OCR in POC 0.
 
 ### Highlight and underline
@@ -134,7 +142,11 @@ Support at least:
 - Page count and current page are visible in Flutter.
 - Previous, next, and jump-to-page work.
 - Search works on `text_document.pdf`.
-- Search on `scanned_vi_en.pdf` returns a meaningful no-text-layer state.
+- Search on `scanned_vi_en.pdf` records whether PDFKit finds embedded text or
+  returns a meaningful no-text-layer state.
+- Selection and copy behavior on `scanned_vi_en.pdf` is recorded by OS and
+  device because supported Apple platforms may expose Live Text even when the PDF
+  has no embedded text layer.
 - Selected text can be copied.
 - Highlight persists after close and reopen.
 - Underline persists after close and reopen.

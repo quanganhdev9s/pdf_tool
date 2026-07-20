@@ -23,6 +23,8 @@ Validate the Flutter–UIKit boundary, native PDF lifecycle, selectable-text beh
 
 #### Viewer
 
+- Manage the simple PDF picker with Cubit
+- Manage the PDF viewer with Bloc events and state
 - Embed `PDFView` using `UiKitView`
 - Zoom
 - Scroll
@@ -41,7 +43,9 @@ Validate the Flutter–UIKit boundary, native PDF lifecycle, selectable-text beh
 - Navigate previous result
 - Scroll to active result
 - Visually indicate active result
-- Handle documents without searchable text
+- Handle documents without an embedded PDF text layer
+- Do not use successful selection or copy as the only signal that an embedded
+  PDF text layer exists
 
 #### Selection and copy
 
@@ -49,6 +53,8 @@ Validate the Flutter–UIKit boundary, native PDF lifecycle, selectable-text beh
 - Return selected text to Flutter
 - Copy selected text to iOS clipboard
 - Return a typed unavailable state when no text is selected
+- Record whether selection and copy come from embedded PDF text or
+  system-recognized Live Text when testing scan-only documents
 
 #### Markup annotations
 
@@ -69,9 +75,12 @@ Validate the Flutter–UIKit boundary, native PDF lifecycle, selectable-text beh
 - Save and reopen
 - Document limitations of selection, move, and resize behavior in PDFKit
 
-For POC 0, free-text placement uses fixed bounds supplied by Flutter in PDF page
-coordinates. Moving, resizing, and selecting free-text annotations are deferred
-unless PDFKit provides acceptable behavior without custom editing controls.
+For POC 0, free-text placement uses either fixed bounds supplied by Flutter or a
+native drag rectangle converted to PDF page coordinates. The user-selected
+rectangle then opens a Flutter text field above the keyboard before the
+free-text annotation is created. Moving, resizing, and selecting existing
+free-text annotations are deferred unless PDFKit provides acceptable behavior
+without custom editing controls.
 
 ### Out of scope
 
@@ -89,7 +98,11 @@ unless PDFKit provides acceptable behavior without custom editing controls.
 - Zoom and scroll work
 - Page callbacks are correct
 - Search works on a text PDF
-- Search on a scan-only PDF returns a meaningful limitation
+- Search on a scan-only PDF records whether PDFKit finds an embedded text layer
+  or returns a meaningful no-text-layer limitation
+- Selection and copy behavior on scan-only PDFs is recorded by OS and device,
+  because supported Apple platforms may expose Live Text even when PDF search
+  has no embedded text layer
 - Text can be selected and copied
 - Highlight persists after reopen
 - Underline persists after reopen

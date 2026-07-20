@@ -8,6 +8,7 @@ Bộ tài liệu này dùng để giao Codex xây dựng technical POC cho ứng
 - PencilKit
 - Vision OCR
 - Pigeon
+- Bloc/Cubit for Flutter-side POC state and controls
 - Không dùng SDK PDF thương mại
 - Chỉ hỗ trợ iOS
 
@@ -31,3 +32,43 @@ Bộ tài liệu này dùng để giao Codex xây dựng technical POC cho ứng
 6. POC 5 — Compression
 
 Không yêu cầu Codex triển khai toàn bộ roadmap trong một task.
+
+## Flutter state management
+
+POC 0 uses `flutter_bloc` with separate state layers for the simple picker and
+the more complex PDF viewer.
+
+- The PDF asset picker uses `PdfAssetPickerCubit` because it only owns a static
+  asset list and selection logging.
+- The PDF viewer uses `PdfViewerBloc` because it handles commands, async Pigeon
+  calls, native callbacks, busy/status state, and selected free-text-area flow.
+- Viewer widgets render controls and own UI-only objects such as text
+  controllers and focus nodes.
+- Native Swift/PDFKit still owns all PDF objects, coordinates, annotations,
+  saving, and clipboard access.
+- Do not call generated Pigeon APIs directly from widgets for new POC 0 viewer
+  controls; dispatch a `PdfViewerEvent` instead.
+
+Current Flutter structure:
+
+- `lib/main.dart`: app entrypoint only.
+- `lib/pdf_picker/cubit/`: simple Cubit and state for choosing a test asset.
+- `lib/pdf_picker/screens/`: asset picker screen.
+- `lib/pdf_viewer/bloc/`: `PdfViewerBloc`, `PdfViewerEvent`,
+  `PdfViewerState`, and Bloc barrel.
+- `lib/pdf_viewer/screens/`: PDF viewer screen and compatibility barrels.
+- `lib/pdf_viewer/widgets/`: reusable viewer controls and composer widgets.
+- `lib/pdf_viewer/data/`: test asset metadata and diagnostic logging helpers.
+- `lib/pdf_viewer/screens/pdf_bloc_app.dart`: compatibility barrel that exports
+  the active picker/viewer screens.
+
+## Debug logging
+
+POC 0 emits diagnostic events with the stable filter key `PDF Event`.
+
+- Flutter UI/control events: `PDF Event | flutter | ...`
+- Native Swift/PDFKit events: `PDF Event | native | ...`
+
+When testing on the iOS simulator from Android Studio, filter the Run/Debug
+console by `PDF Event`. When testing from Xcode, filter the Xcode console by the
+same key.

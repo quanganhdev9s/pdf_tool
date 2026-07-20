@@ -58,6 +58,7 @@ class PdfSearchState {
 enum PdfMarkupType {
   highlight,
   underline,
+  strikeout,
 }
 
 class PdfFreeTextRequest {
@@ -66,6 +67,11 @@ class PdfFreeTextRequest {
   PdfRect bounds;
   double fontSize;
   PdfColor textColor;
+}
+
+class PdfFreeTextAreaSelection {
+  int pageIndex;
+  PdfRect bounds;
 }
 
 class PdfSaveRequest {
@@ -144,6 +150,8 @@ abstract class PdfPocHostApi {
 
   void addFreeText(PdfFreeTextRequest request);
 
+  void beginFreeTextAreaSelection();
+
   void save(PdfSaveRequest request);
 }
 ```
@@ -181,6 +189,8 @@ abstract class PdfPocHostApi {
   void addMarkupFromCurrentSelection(PdfMarkupType type);
 
   void addFreeText(PdfFreeTextRequest request);
+
+  void beginFreeTextAreaSelection();
 
   void save(PdfSaveRequest request);
 
@@ -235,6 +245,8 @@ abstract class PdfPocFlutterApi {
 
   void onSelectionChanged(String? selectedText);
 
+  void onFreeTextAreaSelected(PdfFreeTextAreaSelection selection);
+
   void onOperationFailed(
     String operationId,
     PdfOperationError error,
@@ -256,6 +268,8 @@ abstract class PdfPocFlutterApi {
   void onSearchStateChanged(PdfSearchState state);
 
   void onSelectionChanged(String? selectedText);
+
+  void onFreeTextAreaSelected(PdfFreeTextAreaSelection selection);
 
   void onOperationProgress(
     String operationId,

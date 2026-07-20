@@ -76,6 +76,19 @@ Validate:
 
 A free-text annotation must never be described as editing existing PDF text.
 
+Text interaction must distinguish these cases:
+
+- Embedded PDF text layer: text stored in the PDF structure and searchable by
+  PDFKit document search.
+- System-recognized Live Text: text Apple platforms may recognize from rendered
+  page images at interaction time.
+
+The image-only file `scanned_vi_en.pdf` has no embedded PDF text layer. However,
+on supported OS and device combinations, PDFKit may still expose Live Text
+selection and copying. Do not treat successful selection or copy as proof that a
+PDF has an embedded text layer. Do not claim Live Text has been embedded or saved
+into the PDF.
+
 ### POC 1 — Ink annotation
 
 Validate:
@@ -132,6 +145,12 @@ Required:
 - Report progress
 - Support cancellation
 - Highlight an OCR result position in the viewer
+
+Keep Vision OCR in POC 4 even when Live Text works on a device. Vision OCR is
+required because it provides controlled recognition requests, returned text,
+confidence, bounding boxes, progress, cancellation, caching, and exportable
+results. Live Text is a system interaction feature and must not be treated as an
+OCR export pipeline or searchable-PDF generation step.
 
 Experimental:
 

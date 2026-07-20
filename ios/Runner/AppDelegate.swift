@@ -12,5 +12,11 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let applicationRegistrar = engineBridge.applicationRegistrar
+    PdfPocRuntime.shared.configure(binaryMessenger: applicationRegistrar.messenger())
+    applicationRegistrar.register(
+      PdfPlatformViewFactory(),
+      withId: "pdf_poc_view"
+    )
   }
 }

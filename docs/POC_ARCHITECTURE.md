@@ -35,6 +35,55 @@ Flutter owns:
 - Displaying OCR results
 - Displaying compression metrics
 
+Flutter POC state is split by screen complexity:
+
+- `PdfAssetPickerPage` uses `PdfAssetPickerCubit` because the picker only owns a
+  static asset list and selection logging.
+- `PdfViewerPage` uses `PdfViewerBloc` because the viewer owns command events,
+  async Pigeon host calls, native callback events, operation busy/status state,
+  and selected free-text-area flow.
+- `PdfViewerBloc` owns `PdfViewerState` and consumes `PdfViewerEvent` objects.
+- Widgets must not call generated Pigeon APIs directly for viewer actions.
+  Dispatch a `PdfViewerEvent` so logging, typed errors, and state transitions
+  remain centralized.
+- Widget-owned objects such as `TextEditingController` and `FocusNode` stay in
+  the widget layer because they are UI lifecycle objects, not PDF state.
+
+Flutter source layout:
+
+```text
+lib/
+├── main.dart
+├── pdf_poc_api.g.dart
+├── pdf_picker/
+│   ├── cubit/
+│   │   ├── pdf_asset_picker_bloc.dart
+│   │   ├── pdf_asset_picker_cubit.dart
+│   │   └── pdf_asset_picker_state.dart
+│   └── screens/
+│       └── pdf_asset_picker_page.dart
+└── pdf_viewer/
+    ├── bloc/
+    │   ├── pdf_viewer_bloc.dart
+    │   ├── pdf_viewer_event.dart
+    │   └── pdf_viewer_state.dart
+    ├── data/
+    │   ├── pdf_assets.dart
+    │   └── pdf_event_log.dart
+    ├── screens/
+    │   ├── pdf_asset_picker_page.dart
+    │   ├── pdf_bloc_app.dart
+    │   └── pdf_viewer_page.dart
+    └── widgets/
+        ├── free_text_area_composer.dart
+        ├── native_pdf_workspace.dart
+        ├── pdf_control_panel.dart
+        └── selection_action_toolbar.dart
+```
+
+`pdf_bloc_app.dart` and `pdf_viewer/screens/pdf_asset_picker_page.dart` are only
+small compatibility barrels. They must not become large widget files.
+
 Flutter must not own:
 
 - `PDFDocument`
@@ -87,6 +136,7 @@ Do not add SwiftUI.
 Flutter configuration:
 
 - Declare POC PDF assets under `assets/poc/`.
+- Use `flutter_bloc` for Flutter-side POC state management.
 - Use `UiKitView` for the native PDF workspace.
 - Use generated Pigeon APIs for Dart-Swift communication.
 - Do not use a direct `MethodChannel` for POC commands.
@@ -245,7 +295,7 @@ Do not pass `PDFSelection` objects to Flutter.
 
 ## Annotation architecture
 
-Highlight and underline:
+Highlight, underline, and strikeout:
 
 ```text
 current PDFSelection
@@ -258,8 +308,9 @@ current PDFSelection
 Free text:
 
 ```text
-Flutter request
+Flutter fixed-bounds request or native drag-rectangle callback
 → validate page and bounds
+→ collect free-text contents in Flutter UI
 → create free-text PDFAnnotation
 → set contents and appearance properties
 → add to PDFPage
@@ -267,9 +318,10 @@ Flutter request
 ```
 
 For POC 0, free-text annotations are placed from explicit Flutter-provided
-bounds. Native selection, moving, and resizing of free-text annotations are
-limitations to document unless a later POC explicitly adds custom annotation
-editing controls.
+bounds or a native drag rectangle converted to PDF page coordinates. Native
+selection, moving, and resizing of existing free-text annotations are limitations
+to document unless a later POC explicitly adds custom annotation editing
+controls.
 
 Ink:
 
@@ -296,6 +348,14 @@ Use Pigeon Flutter APIs or event callbacks for:
 - Typed error
 
 Avoid polling where event callbacks are available.
+
+Diagnostic logs use the stable filter key `PDF Event`:
+
+- Flutter controls and callback handlers log as `PDF Event | flutter | ...`.
+- Swift PDFKit operations and Pigeon callback forwarding log as
+  `PDF Event | native | ...`.
+- Logs are for simulator/device debugging only. They are not a persisted audit
+  trail and must not include sensitive PDF contents.
 
 ## Threading
 
