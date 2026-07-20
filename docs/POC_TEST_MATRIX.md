@@ -138,6 +138,10 @@ Purpose:
 - No crash
 - Future password-flow decision
 
+Test password:
+
+- `poc123`
+
 ## Test dimensions
 
 ### Viewer

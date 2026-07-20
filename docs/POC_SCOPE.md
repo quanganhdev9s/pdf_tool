@@ -17,6 +17,22 @@ It does not attempt to provide a polished end-user application.
 - No paid PDF SDK
 - Minimum iOS deployment target must be selected and documented during the audit
 
+The repository may contain Android files from the default Flutter template.
+They are unused scaffolding for this technical POC and must not be implemented
+or used to expand scope.
+
+Recommended minimum iOS deployment target:
+
+- iOS 15.0
+
+Reasons:
+
+- Provides a practical modern baseline for Flutter platform-view embedding.
+- Supports the Apple frameworks required across the POC sequence.
+- Gives a stronger floor for PencilKit behavior and Vision text recognition in
+  later POCs.
+- Keeps simulator and device validation realistic without increasing POC scope.
+
 ## Input documents
 
 Do not implement a file manager.

@@ -82,6 +82,25 @@ Use programmatic Auto Layout.
 
 Do not add SwiftUI.
 
+## Required Flutter and Xcode configuration
+
+Flutter configuration:
+
+- Declare POC PDF assets under `assets/poc/`.
+- Use `UiKitView` for the native PDF workspace.
+- Use generated Pigeon APIs for Dart-Swift communication.
+- Do not use a direct `MethodChannel` for POC commands.
+- Keep Android template files unused for this iOS-only POC.
+
+Xcode configuration:
+
+- Set the iOS deployment target to 15.0 for the app and test targets.
+- Register the `FlutterPlatformViewFactory` from the iOS app delegate or
+  equivalent Flutter plugin registration path.
+- Keep the native PDF workspace UIKit-only and programmatic.
+- Add PDFKit for POC 0; add PencilKit, Vision, Core Graphics, and
+  UIGraphicsPDFRenderer only when the corresponding POC requires them.
+
 ## Suggested native files
 
 ```text
@@ -138,6 +157,11 @@ create platform view
 → dispose platform view
 ```
 
+POC 0 should use this lifecycle without PencilKit, signature, crop, OCR, or
+compression services. The first native workspace can support one active document
+session; if that shortcut is used, document the single-session limitation before
+adding multi-view support.
+
 The session must own:
 
 - Input path
@@ -175,6 +199,16 @@ The implementation must document and test these coordinate spaces:
 6. Vision normalized image coordinates
 
 Persist annotations in PDF page coordinates.
+
+Coordinate contract for POC 0:
+
+- Dart and Swift use zero-based page indexes.
+- Free-text bounds are expressed in PDF page coordinates.
+- Bounds are relative to the page `cropBox`.
+- The PDF page origin is bottom-left unless a method explicitly documents a
+  different origin.
+- Rotation must be handled by PDFKit conversion APIs, not by manually applying
+  display scale or scroll offsets.
 
 Use PDFKit conversion APIs rather than manually guessing scale or offsets.
 
@@ -231,6 +265,11 @@ Flutter request
 → add to PDFPage
 → mark document dirty
 ```
+
+For POC 0, free-text annotations are placed from explicit Flutter-provided
+bounds. Native selection, moving, and resizing of free-text annotations are
+limitations to document unless a later POC explicitly adds custom annotation
+editing controls.
 
 Ink:
 

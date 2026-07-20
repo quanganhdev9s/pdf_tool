@@ -69,6 +69,10 @@ Validate the Flutter–UIKit boundary, native PDF lifecycle, selectable-text beh
 - Save and reopen
 - Document limitations of selection, move, and resize behavior in PDFKit
 
+For POC 0, free-text placement uses fixed bounds supplied by Flutter in PDF page
+coordinates. Moving, resizing, and selecting free-text annotations are deferred
+unless PDFKit provides acceptable behavior without custom editing controls.
+
 ### Out of scope
 
 - PencilKit

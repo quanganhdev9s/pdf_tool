@@ -111,6 +111,46 @@ class PdfCompressionResult {
 
 The exact method signatures may be adapted to Pigeon version constraints.
 
+Minimum Host API for POC 0:
+
+```dart
+@HostApi()
+abstract class PdfPocHostApi {
+  PdfDocumentInfo openAssetWorkingCopy(String assetKey);
+
+  void closeDocument();
+
+  void resetWorkingCopy(String assetKey);
+
+  void goToPage(int pageIndex);
+
+  void goToNextPage();
+
+  void goToPreviousPage();
+
+  PdfSearchState search(PdfSearchRequest request);
+
+  PdfSearchState goToNextSearchResult();
+
+  PdfSearchState goToPreviousSearchResult();
+
+  void clearSearch();
+
+  String? getSelectedText();
+
+  void copySelectedText();
+
+  void addMarkupFromCurrentSelection(PdfMarkupType type);
+
+  void addFreeText(PdfFreeTextRequest request);
+
+  void save(PdfSaveRequest request);
+}
+```
+
+POC 0 should not implement ink, signature, crop, page operations, OCR, or
+compression methods.
+
 ```dart
 @HostApi()
 abstract class PdfPocHostApi {
@@ -178,6 +218,30 @@ abstract class PdfPocHostApi {
 
 ## Flutter callback API
 
+Minimum Flutter callback API for POC 0:
+
+```dart
+@FlutterApi()
+abstract class PdfPocFlutterApi {
+  void onDocumentOpened(PdfDocumentInfo info);
+
+  void onDocumentClosed();
+
+  void onCurrentPageChanged(int pageIndex, int pageCount);
+
+  void onDirtyStateChanged(bool isDirty);
+
+  void onSearchStateChanged(PdfSearchState state);
+
+  void onSelectionChanged(String? selectedText);
+
+  void onOperationFailed(
+    String operationId,
+    PdfOperationError error,
+  );
+}
+```
+
 ```dart
 @FlutterApi()
 abstract class PdfPocFlutterApi {
@@ -221,9 +285,12 @@ For a single-view POC, one active session may be acceptable, but this limitation
 For `PdfFreeTextRequest.bounds` and page-operation rectangles:
 
 - Coordinates must be PDF page coordinates.
-- The origin convention must be documented.
-- Rotation handling must be documented.
-- Crop-box versus media-box reference must be documented.
+- For POC 0, bounds are relative to the page `cropBox`.
+- For POC 0, the origin is bottom-left in PDF page space.
+- Rotation handling must use PDFKit conversion APIs and be documented by the
+  native implementation.
+- Crop-box versus media-box reference must be documented for every rectangle
+  model that crosses the Dart-Swift boundary.
 
 For OCR bounding boxes:
 
