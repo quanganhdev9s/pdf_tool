@@ -96,6 +96,18 @@ class PdfFreeTextAreaSelection {
   PdfRect bounds;
 }
 
+class PdfExportResult {
+  PdfExportResult({
+    required this.outputPath,
+    required this.pageCount,
+    required this.fileSizeBytes,
+  });
+
+  String outputPath;
+  int pageCount;
+  int fileSizeBytes;
+}
+
 @HostApi()
 abstract class PdfPocHostApi {
   PdfDocumentInfo openAssetWorkingCopy(String assetKey, Uint8List assetBytes);
@@ -135,6 +147,24 @@ abstract class PdfPocHostApi {
   void commitCurrentInkToPdf();
 
   void deleteSelectedAnnotation();
+
+  void captureElectronicSignature();
+
+  void clearElectronicSignatureCapture();
+
+  void confirmElectronicSignatureCapture();
+
+  void beginSignaturePlacement();
+
+  void resizeSignaturePlacement(double scale);
+
+  void commitSignaturePlacement();
+
+  void cancelSignaturePlacement();
+
+  void deleteSelectedSignature();
+
+  PdfExportResult exportFlattenedCopy();
 
   PdfDocumentInfo save();
 }

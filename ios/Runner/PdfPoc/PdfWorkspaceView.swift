@@ -4,6 +4,7 @@ import PencilKit
 import UIKit
 
 let pdfEventTag = "PDF Event"
+private let electronicSignatureAnnotationContents = "PDF POC electronic signature"
 
 func logPdfEvent(_ event: String, _ details: String? = nil) {
   let suffix = details.map { " | \($0)" } ?? ""
@@ -26,6 +27,10 @@ final class PdfWorkspaceView: UIView {
 
   private let pdfView = PocPdfView()
   private let inkCanvasView = PKCanvasView()
+  private let signatureCaptureView = UIView()
+  private let signatureCaptureLabel = UILabel()
+  private let signatureCaptureCanvasView = PKCanvasView()
+  private let signaturePlacementImageView = UIImageView()
   private let selectionToolbar = PdfSelectionToolbar()
   private let freeTextAreaCaptureView = UIView()
   private let freeTextAreaOverlay = UIView()
@@ -46,9 +51,22 @@ final class PdfWorkspaceView: UIView {
   private var isInkModeEnabled = false
   private weak var selectedInkAnnotation: PDFAnnotation?
   private weak var selectedInkPage: PDFPage?
+  private var capturedSignatureDrawing: PKDrawing?
+  private var capturedSignatureImage: UIImage?
+  private weak var signaturePlacementPage: PDFPage?
+  private weak var selectedSignatureAnnotation: PDFAnnotation?
+  private weak var selectedSignaturePage: PDFPage?
   private lazy var annotationTapGesture = UITapGestureRecognizer(
     target: self,
     action: #selector(handleAnnotationTap(_:))
+  )
+  private lazy var signaturePlacementPanGesture = UIPanGestureRecognizer(
+    target: self,
+    action: #selector(handleSignaturePlacementPan(_:))
+  )
+  private lazy var signaturePlacementPinchGesture = UIPinchGestureRecognizer(
+    target: self,
+    action: #selector(handleSignaturePlacementPinch(_:))
   )
 
   override init(frame: CGRect) {
@@ -69,6 +87,7 @@ final class PdfWorkspaceView: UIView {
     super.layoutSubviews()
     inkCanvasView.frame = pdfView.frame
     inkCanvasView.contentSize = pdfView.bounds.size
+    layoutSignatureCaptureView()
     freeTextAreaCaptureView.frame = pdfView.frame
     layoutSelectionToolbar()
   }
@@ -126,6 +145,11 @@ final class PdfWorkspaceView: UIView {
     clearInkSelection()
     inkCanvasView.drawing = PKDrawing()
     setInkModeVisualState(enabled: false)
+    cancelSignatureCapture()
+    cancelSignaturePlacementOverlay()
+    clearSignatureSelection()
+    capturedSignatureDrawing = nil
+    capturedSignatureImage = nil
     pdfView.document = nil
     session = nil
     delegate?.workspaceViewDidClose(self)
@@ -488,6 +512,230 @@ final class PdfWorkspaceView: UIView {
     logPdfEvent("delete_selected_annotation_success")
   }
 
+  func captureElectronicSignature() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("capture_electronic_signature_start")
+    cancelFreeTextAreaSelection()
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    setInkModeVisualState(enabled: false)
+    isInkModeEnabled = false
+    signatureCaptureCanvasView.drawing = capturedSignatureDrawing ?? PKDrawing()
+    signatureCaptureView.isHidden = false
+    bringSubviewToFront(signatureCaptureView)
+    signatureCaptureCanvasView.becomeFirstResponder()
+  }
+
+  func clearElectronicSignatureCapture() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent(
+      "clear_electronic_signature_capture",
+      "strokes=\(signatureCaptureCanvasView.drawing.strokes.count)"
+    )
+    signatureCaptureCanvasView.drawing = PKDrawing()
+  }
+
+  func confirmElectronicSignatureCapture() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    let drawing = signatureCaptureCanvasView.drawing
+    logPdfEvent("confirm_electronic_signature_capture", "strokes=\(drawing.strokes.count)")
+    guard !drawing.strokes.isEmpty, !drawing.bounds.isEmpty else {
+      throw PdfPocError(
+        code: "no_signature_input",
+        message: "Draw an electronic signature before confirming capture.",
+        details: nil
+      )
+    }
+    capturedSignatureDrawing = drawing
+    capturedSignatureImage = signatureImage(from: drawing)
+    signatureCaptureCanvasView.resignFirstResponder()
+    signatureCaptureView.isHidden = true
+    logPdfEvent("confirm_electronic_signature_success", "bounds=\(drawing.bounds)")
+  }
+
+  func beginSignaturePlacement() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    guard let image = capturedSignatureImage else {
+      throw PdfPocError(
+        code: "no_signature_capture",
+        message: "Capture and confirm an electronic signature before placement.",
+        details: nil
+      )
+    }
+    guard let page = pdfView.currentPage else {
+      throw PdfPocError.pageOutOfRange(currentPageIndex())
+    }
+    logPdfEvent("begin_signature_placement", "pageIndex=\(currentPageIndex())")
+    cancelFreeTextAreaSelection()
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    setInkModeVisualState(enabled: false)
+    isInkModeEnabled = false
+    clearSignatureSelection()
+    signaturePlacementPage = page
+    signaturePlacementImageView.image = image
+    signaturePlacementImageView.isHidden = false
+    signaturePlacementImageView.frame = defaultSignaturePlacementFrame(
+      imageSize: image.size,
+      page: page
+    )
+    bringSubviewToFront(signaturePlacementImageView)
+  }
+
+  func resizeSignaturePlacement(_ scale: CGFloat) throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    guard !signaturePlacementImageView.isHidden else {
+      throw PdfPocError(
+        code: "no_signature_placement",
+        message: "Place the electronic signature before resizing it.",
+        details: nil
+      )
+    }
+    resizeSignaturePlacementFrame(by: scale)
+    logPdfEvent("resize_signature_placement", "scale=\(scale) frame=\(signaturePlacementImageView.frame)")
+  }
+
+  func commitSignaturePlacement() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    guard let drawing = capturedSignatureDrawing,
+          let page = signaturePlacementPage,
+          !signaturePlacementImageView.isHidden else {
+      throw PdfPocError(
+        code: "no_signature_placement",
+        message: "Place the electronic signature before committing it.",
+        details: nil
+      )
+    }
+    let pageRect = signaturePlacementPageRect(page: page)
+    guard pageRect.width >= 16, pageRect.height >= 8 else {
+      throw PdfPocError(
+        code: "invalid_annotation_bounds",
+        message: "Electronic signature placement is too small.",
+        details: "bounds=\(pageRect)"
+      )
+    }
+    let paths = signaturePaths(from: drawing, in: pageRect)
+    guard !paths.isEmpty else {
+      throw PdfPocError(
+        code: "annotation_creation_failed",
+        message: "The captured electronic signature could not be converted to PDF paths.",
+        details: nil
+      )
+    }
+    let annotation = PDFAnnotation(
+      bounds: page.bounds(for: .cropBox),
+      forType: .ink,
+      withProperties: nil
+    )
+    annotation.contents = electronicSignatureAnnotationContents
+    annotation.color = UIColor.label.withAlphaComponent(0.95)
+    let border = PDFBorder()
+    border.lineWidth = 2
+    annotation.border = border
+    for path in paths {
+      annotation.add(path)
+    }
+    page.addAnnotation(annotation)
+    selectedSignatureAnnotation = annotation
+    selectedSignaturePage = page
+    cancelSignaturePlacementOverlay()
+    markDirty()
+    logPdfEvent("commit_electronic_signature_success", "bounds=\(pageRect)")
+  }
+
+  func cancelSignaturePlacement() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("cancel_signature_placement")
+    cancelSignaturePlacementOverlay()
+  }
+
+  func deleteSelectedSignature() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    guard let annotation = selectedSignatureAnnotation,
+          let page = selectedSignaturePage else {
+      throw PdfPocError(
+        code: "no_annotation_selection",
+        message: "Tap an electronic signature annotation before deleting.",
+        details: nil
+      )
+    }
+    guard isElectronicSignatureAnnotation(annotation) else {
+      throw PdfPocError(
+        code: "unsupported_annotation_type",
+        message: "POC 2 only deletes selected electronic signature annotations.",
+        details: annotation.type
+      )
+    }
+    page.removeAnnotation(annotation)
+    clearSignatureSelection()
+    markDirty()
+    logPdfEvent("delete_selected_signature_success")
+  }
+
+  func exportFlattenedCopy() throws -> PdfExportResult {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    let outputURL = flattenedOutputURL(for: session.workingURL)
+    logPdfEvent("export_flattened_start", "path=\(outputURL.path)")
+    let pageCount = session.document.pageCount
+    guard pageCount > 0 else {
+      throw PdfPocError(
+        code: "invalid_pdf",
+        message: "The open PDF has no pages to export.",
+        details: nil
+      )
+    }
+    do {
+      try FileManager.default.createDirectory(
+        at: outputURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+      )
+      let renderer = UIGraphicsPDFRenderer(bounds: .zero)
+      try renderer.writePDF(to: outputURL) { context in
+        for pageIndex in 0..<pageCount {
+          guard let page = session.document.page(at: pageIndex) else { continue }
+          let pageBounds = page.bounds(for: .cropBox)
+          context.beginPage(withBounds: CGRect(origin: .zero, size: pageBounds.size), pageInfo: [:])
+          let cgContext = context.cgContext
+          cgContext.saveGState()
+          cgContext.translateBy(x: -pageBounds.origin.x, y: pageBounds.height + pageBounds.origin.y)
+          cgContext.scaleBy(x: 1, y: -1)
+          page.draw(with: .cropBox, to: cgContext)
+          cgContext.restoreGState()
+        }
+      }
+      let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
+      let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+      logPdfEvent(
+        "export_flattened_success",
+        "path=\(outputURL.path) pages=\(pageCount) bytes=\(fileSize)"
+      )
+      return PdfExportResult(
+        outputPath: outputURL.path,
+        pageCount: Int64(pageCount),
+        fileSizeBytes: fileSize
+      )
+    } catch let error as PdfPocError {
+      throw error
+    } catch {
+      throw PdfPocError(
+        code: "export_failed",
+        message: "Could not export a flattened PDF copy.",
+        details: error.localizedDescription
+      )
+    }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try ensureMainThread()
     guard let session else {
@@ -526,11 +774,15 @@ final class PdfWorkspaceView: UIView {
     pdfView.backgroundColor = .secondarySystemBackground
     addSubview(pdfView)
     configureInkCanvasView()
+    configureSignatureCaptureView()
+    configureSignaturePlacementView()
     configureSelectionToolbar()
     configureFreeTextAreaSelection()
     pdfView.addGestureRecognizer(annotationTapGesture)
     annotationTapGesture.delegate = self
     addSubview(inkCanvasView)
+    addSubview(signatureCaptureView)
+    addSubview(signaturePlacementImageView)
     addSubview(selectionToolbar)
     NSLayoutConstraint.activate([
       pdfView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -563,6 +815,59 @@ final class PdfWorkspaceView: UIView {
     } else {
       inkCanvasView.resignFirstResponder()
     }
+  }
+
+  private func configureSignatureCaptureView() {
+    signatureCaptureView.isHidden = true
+    signatureCaptureView.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.96)
+    signatureCaptureView.layer.borderColor = UIColor.separator.cgColor
+    signatureCaptureView.layer.borderWidth = 1
+    signatureCaptureView.layer.cornerRadius = 8
+    signatureCaptureView.clipsToBounds = true
+
+    signatureCaptureLabel.text = "Draw electronic signature"
+    signatureCaptureLabel.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+    signatureCaptureLabel.textColor = .secondaryLabel
+    signatureCaptureLabel.textAlignment = .center
+    signatureCaptureView.addSubview(signatureCaptureLabel)
+
+    signatureCaptureCanvasView.backgroundColor = .clear
+    signatureCaptureCanvasView.isOpaque = false
+    signatureCaptureCanvasView.drawingPolicy = .anyInput
+    signatureCaptureCanvasView.minimumZoomScale = 1
+    signatureCaptureCanvasView.maximumZoomScale = 1
+    signatureCaptureCanvasView.isScrollEnabled = false
+    signatureCaptureCanvasView.contentInset = .zero
+    signatureCaptureCanvasView.tool = PKInkingTool(.pen, color: .label, width: 3)
+    signatureCaptureView.addSubview(signatureCaptureCanvasView)
+  }
+
+  private func configureSignaturePlacementView() {
+    signaturePlacementImageView.isHidden = true
+    signaturePlacementImageView.isUserInteractionEnabled = true
+    signaturePlacementImageView.contentMode = .scaleAspectFit
+    signaturePlacementImageView.backgroundColor = UIColor.systemYellow.withAlphaComponent(0.12)
+    signaturePlacementImageView.layer.borderColor = UIColor.systemBlue.cgColor
+    signaturePlacementImageView.layer.borderWidth = 2
+    signaturePlacementImageView.layer.cornerRadius = 4
+    signaturePlacementImageView.clipsToBounds = true
+    signaturePlacementPanGesture.delegate = self
+    signaturePlacementPinchGesture.delegate = self
+    signaturePlacementImageView.addGestureRecognizer(signaturePlacementPanGesture)
+    signaturePlacementImageView.addGestureRecognizer(signaturePlacementPinchGesture)
+  }
+
+  private func layoutSignatureCaptureView() {
+    let outerFrame = pdfView.frame.insetBy(dx: 16, dy: 16)
+    signatureCaptureView.frame = outerFrame
+    signatureCaptureLabel.frame = CGRect(x: 12, y: 10, width: outerFrame.width - 24, height: 24)
+    signatureCaptureCanvasView.frame = CGRect(
+      x: 12,
+      y: 42,
+      width: max(outerFrame.width - 24, 0),
+      height: max(outerFrame.height - 54, 0)
+    )
+    signatureCaptureCanvasView.contentSize = signatureCaptureCanvasView.bounds.size
   }
 
   private func configureFreeTextAreaSelection() {
@@ -821,12 +1126,26 @@ final class PdfWorkspaceView: UIView {
       return
     }
     let pagePoint = pdfView.convert(point, to: page)
-    guard let annotation = page.annotation(at: pagePoint),
-          annotation.type == PDFAnnotationSubtype.ink.rawValue else {
+    guard let annotation = page.annotation(at: pagePoint) else {
       clearInkSelection()
-      logPdfEvent("annotation_tap_no_ink", "point=\(pagePoint)")
+      clearSignatureSelection()
+      logPdfEvent("annotation_tap_no_annotation", "point=\(pagePoint)")
       return
     }
+    if isElectronicSignatureAnnotation(annotation) {
+      clearInkSelection()
+      selectedSignatureAnnotation = annotation
+      selectedSignaturePage = page
+      logPdfEvent("electronic_signature_selected", "bounds=\(annotation.bounds)")
+      return
+    }
+    guard annotation.type == PDFAnnotationSubtype.ink.rawValue else {
+      clearInkSelection()
+      clearSignatureSelection()
+      logPdfEvent("annotation_tap_unsupported", "type=\(annotation.type ?? "nil")")
+      return
+    }
+    clearSignatureSelection()
     selectedInkAnnotation = annotation
     selectedInkPage = page
     logPdfEvent("ink_annotation_selected", "bounds=\(annotation.bounds)")
@@ -835,6 +1154,129 @@ final class PdfWorkspaceView: UIView {
   private func clearInkSelection() {
     selectedInkAnnotation = nil
     selectedInkPage = nil
+  }
+
+  private func signatureImage(from drawing: PKDrawing) -> UIImage {
+    let drawingBounds = drawing.bounds.insetBy(dx: -12, dy: -12)
+    let bounds = drawingBounds.isEmpty
+      ? CGRect(x: 0, y: 0, width: 320, height: 120)
+      : drawingBounds
+    return drawing.image(from: bounds, scale: UIScreen.main.scale)
+  }
+
+  private func defaultSignaturePlacementFrame(imageSize: CGSize, page: PDFPage) -> CGRect {
+    let pageViewRect = pdfView.convert(page.bounds(for: .cropBox), from: page)
+    let workspacePageRect = pdfView.convert(pageViewRect, to: self)
+    let targetWidth = min(max(workspacePageRect.width * 0.45, 140), 260)
+    let aspect = imageSize.width > 0 ? imageSize.height / imageSize.width : 0.35
+    let targetHeight = max(targetWidth * aspect, 56)
+    return CGRect(
+      x: workspacePageRect.midX - targetWidth / 2,
+      y: workspacePageRect.midY - targetHeight / 2,
+      width: targetWidth,
+      height: targetHeight
+    )
+  }
+
+  private func signaturePlacementPageRect(page: PDFPage) -> CGRect {
+    let viewRect = pdfView.convert(signaturePlacementImageView.frame, from: self)
+    let pagePointA = pdfView.convert(viewRect.origin, to: page)
+    let pagePointB = pdfView.convert(
+      CGPoint(x: viewRect.maxX, y: viewRect.maxY),
+      to: page
+    )
+    return normalizedRect(from: pagePointA, to: pagePointB)
+  }
+
+  private func signaturePaths(from drawing: PKDrawing, in pageRect: CGRect) -> [UIBezierPath] {
+    let sourceBounds = drawing.bounds
+    guard sourceBounds.width > 0, sourceBounds.height > 0 else {
+      return []
+    }
+    var paths: [UIBezierPath] = []
+    for stroke in drawing.strokes {
+      var activePath: UIBezierPath?
+      var pointCount = 0
+      for strokePoint in stroke.path {
+        let location = strokePoint.location
+        let normalizedX = (location.x - sourceBounds.minX) / sourceBounds.width
+        let normalizedY = (location.y - sourceBounds.minY) / sourceBounds.height
+        let pagePoint = CGPoint(
+          x: pageRect.minX + normalizedX * pageRect.width,
+          y: pageRect.maxY - normalizedY * pageRect.height
+        )
+        if activePath == nil {
+          activePath = UIBezierPath()
+          activePath?.move(to: pagePoint)
+          pointCount = 1
+        } else {
+          activePath?.addLine(to: pagePoint)
+          pointCount += 1
+        }
+      }
+      if pointCount > 1, let activePath {
+        paths.append(activePath)
+      }
+    }
+    logPdfEvent("signature_paths_collected", "paths=\(paths.count)")
+    return paths
+  }
+
+  private func cancelSignatureCapture() {
+    signatureCaptureCanvasView.resignFirstResponder()
+    signatureCaptureView.isHidden = true
+  }
+
+  private func cancelSignaturePlacementOverlay() {
+    signaturePlacementImageView.isHidden = true
+    signaturePlacementImageView.image = nil
+    signaturePlacementPage = nil
+  }
+
+  private func isElectronicSignatureAnnotation(_ annotation: PDFAnnotation) -> Bool {
+    annotation.contents == electronicSignatureAnnotationContents
+  }
+
+  private func clearSignatureSelection() {
+    selectedSignatureAnnotation = nil
+    selectedSignaturePage = nil
+  }
+
+  private func flattenedOutputURL(for workingURL: URL) -> URL {
+    let baseName = workingURL.deletingPathExtension().lastPathComponent
+    return workingURL.deletingLastPathComponent()
+      .appendingPathComponent("\(baseName)_flattened.pdf")
+  }
+
+  @objc private func handleSignaturePlacementPan(_ recognizer: UIPanGestureRecognizer) {
+    guard !signaturePlacementImageView.isHidden else { return }
+    let translation = recognizer.translation(in: self)
+    signaturePlacementImageView.center = CGPoint(
+      x: signaturePlacementImageView.center.x + translation.x,
+      y: signaturePlacementImageView.center.y + translation.y
+    )
+    recognizer.setTranslation(.zero, in: self)
+    logPdfEvent("signature_placement_pan", "frame=\(signaturePlacementImageView.frame)")
+  }
+
+  @objc private func handleSignaturePlacementPinch(_ recognizer: UIPinchGestureRecognizer) {
+    guard !signaturePlacementImageView.isHidden else { return }
+    resizeSignaturePlacementFrame(by: recognizer.scale)
+    recognizer.scale = 1
+    logPdfEvent("signature_placement_pinch", "frame=\(signaturePlacementImageView.frame)")
+  }
+
+  private func resizeSignaturePlacementFrame(by scale: CGFloat) {
+    let currentFrame = signaturePlacementImageView.frame
+    let newWidth = clamp(currentFrame.width * scale, 80, max(bounds.width - 32, 80))
+    let aspect = currentFrame.height / max(currentFrame.width, 1)
+    let newHeight = clamp(newWidth * aspect, 40, max(bounds.height - 32, 40))
+    signaturePlacementImageView.frame = CGRect(
+      x: currentFrame.midX - newWidth / 2,
+      y: currentFrame.midY - newHeight / 2,
+      width: newWidth,
+      height: newHeight
+    )
   }
 
   private func openDocument(at url: URL) throws -> PDFDocument {
@@ -1299,6 +1741,18 @@ extension PdfWorkspaceView: UIGestureRecognizerDelegate {
       return isSelectingFreeTextArea
     }
     return true
+  }
+
+  func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+  ) -> Bool {
+    let signatureGestures: Set<UIGestureRecognizer> = [
+      signaturePlacementPanGesture,
+      signaturePlacementPinchGesture,
+    ]
+    return signatureGestures.contains(gestureRecognizer)
+      && signatureGestures.contains(otherGestureRecognizer)
   }
 }
 

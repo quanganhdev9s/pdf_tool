@@ -232,10 +232,24 @@ Apple Pencil input must be verified on a physical supported device.
 
 | Test | Expected result |
 |---|---|
-| Capture signature | PencilKit signature capture opens |
-| Place signature | Signature remains correctly positioned |
+| Open Electronic signature panel | Controls are labeled as electronic signature, not digital signature |
+| Capture signature | Native PencilKit signature capture overlay opens |
+| Clear capture | Current capture strokes are removed |
+| Confirm empty capture | Typed `no_signature_input` error |
+| Confirm drawn capture | Reusable session-local signature representation is stored |
+| Place signature | Signature preview appears on the current page |
+| Move preview | Preview moves before commit |
+| Resize preview by pinch | Preview resizes before commit |
+| Resize preview by toolbar buttons | Preview resizes before commit on simulator-friendly controls |
+| Commit placement | Editable PDF annotation is added on the intended page |
 | Save/reopen | Editable signature representation persists |
-| Flatten signature | Not editable afterward |
+| Tap signature annotation | Signature annotation becomes selected for deletion |
+| Delete selected signature | Selected electronic signature annotation is removed |
+| Export flattened copy | Separate flattened PDF is written |
+| Inspect flattened copy | Signature is visible and no longer exposed as an editable annotation |
+
+Do not record POC 2 as certificate-based digital signing. It is a handwritten
+electronic signature annotation plus a flattened export experiment.
 
 ### Page operations
 

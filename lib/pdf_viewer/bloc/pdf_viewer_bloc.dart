@@ -48,6 +48,29 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerDeleteSelectedAnnotationRequested>(
       _onDeleteSelectedAnnotationRequested,
     );
+    on<PdfViewerCaptureSignatureRequested>(_onCaptureSignatureRequested);
+    on<PdfViewerClearSignatureCaptureRequested>(
+      _onClearSignatureCaptureRequested,
+    );
+    on<PdfViewerConfirmSignatureCaptureRequested>(
+      _onConfirmSignatureCaptureRequested,
+    );
+    on<PdfViewerBeginSignaturePlacementRequested>(
+      _onBeginSignaturePlacementRequested,
+    );
+    on<PdfViewerResizeSignaturePlacementRequested>(
+      _onResizeSignaturePlacementRequested,
+    );
+    on<PdfViewerCommitSignaturePlacementRequested>(
+      _onCommitSignaturePlacementRequested,
+    );
+    on<PdfViewerCancelSignaturePlacementRequested>(
+      _onCancelSignaturePlacementRequested,
+    );
+    on<PdfViewerDeleteSelectedSignatureRequested>(
+      _onDeleteSelectedSignatureRequested,
+    );
+    on<PdfViewerExportFlattenedCopyRequested>(_onExportFlattenedCopyRequested);
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -379,6 +402,126 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       'delete selected annotation',
       _api.deleteSelectedAnnotation,
     );
+  }
+
+  Future<void> _onCaptureSignatureRequested(
+    PdfViewerCaptureSignatureRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'capture electronic signature', () async {
+      logPdfEvent('capture_electronic_signature_request');
+      await _api.captureElectronicSignature();
+    });
+  }
+
+  Future<void> _onClearSignatureCaptureRequested(
+    PdfViewerClearSignatureCaptureRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(
+      emit,
+      'clear electronic signature capture',
+      _api.clearElectronicSignatureCapture,
+    );
+  }
+
+  Future<void> _onConfirmSignatureCaptureRequested(
+    PdfViewerConfirmSignatureCaptureRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'confirm electronic signature', () async {
+      await _api.confirmElectronicSignatureCapture();
+      emit(
+        state.copyWith(
+          status:
+              'Electronic signature captured. Use Place to position it on the current page.',
+        ),
+      );
+    });
+  }
+
+  Future<void> _onBeginSignaturePlacementRequested(
+    PdfViewerBeginSignaturePlacementRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'place electronic signature', () async {
+      await _api.beginSignaturePlacement();
+      emit(
+        state.copyWith(
+          status:
+              'Move and pinch the electronic signature preview, then commit placement.',
+        ),
+      );
+    });
+  }
+
+  Future<void> _onResizeSignaturePlacementRequested(
+    PdfViewerResizeSignaturePlacementRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'resize electronic signature placement', () async {
+      await _api.resizeSignaturePlacement(event.scale);
+      emit(
+        state.copyWith(
+          status: event.scale >= 1
+              ? 'Electronic signature placement enlarged.'
+              : 'Electronic signature placement reduced.',
+        ),
+      );
+    });
+  }
+
+  Future<void> _onCommitSignaturePlacementRequested(
+    PdfViewerCommitSignaturePlacementRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(
+      emit,
+      'commit electronic signature placement',
+      _api.commitSignaturePlacement,
+    );
+  }
+
+  Future<void> _onCancelSignaturePlacementRequested(
+    PdfViewerCancelSignaturePlacementRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(
+      emit,
+      'cancel electronic signature placement',
+      _api.cancelSignaturePlacement,
+    );
+  }
+
+  Future<void> _onDeleteSelectedSignatureRequested(
+    PdfViewerDeleteSelectedSignatureRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(
+      emit,
+      'delete selected electronic signature',
+      _api.deleteSelectedSignature,
+    );
+  }
+
+  Future<void> _onExportFlattenedCopyRequested(
+    PdfViewerExportFlattenedCopyRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'export flattened copy', () async {
+      final result = await _api.exportFlattenedCopy();
+      logPdfEvent('export_flattened_copy_success', <String, Object?>{
+        'outputPath': result.outputPath,
+        'pageCount': result.pageCount,
+        'fileSizeBytes': result.fileSizeBytes,
+      });
+      emit(
+        state.copyWith(
+          status:
+              'Flattened copy exported: ${result.outputPath} (${result.fileSizeBytes} bytes).',
+        ),
+      );
+    });
   }
 
   void _onNativePageChanged(

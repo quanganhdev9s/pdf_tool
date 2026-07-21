@@ -348,6 +348,27 @@ are not part of POC 1.
 
 Do not rasterize ink by default.
 
+Electronic signature:
+
+```text
+PencilKit signature capture
+→ confirm reusable session-local signature drawing
+→ place preview on current PDF page
+→ move/resize native placement overlay
+→ commit as editable PDF annotation
+→ optionally export separate flattened PDF copy
+```
+
+For POC 2, Swift owns the `PKDrawing` signature representation, placement
+overlay, PDF coordinate conversion, editable annotation creation, annotation
+selection/deletion, and flattened export. Flutter only exposes controls labeled
+as electronic signature and dispatches Pigeon commands through `PdfViewerBloc`.
+
+POC 2 must not claim certificate-based digital signing. The editable output is
+an annotation representation of a handwritten electronic signature. The
+flattened export is a separate PDF where annotations are rendered into page
+content and are no longer expected to remain editable annotations.
+
 ## Event architecture
 
 Use Pigeon Flutter APIs or event callbacks for:

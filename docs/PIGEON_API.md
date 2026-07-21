@@ -203,7 +203,41 @@ abstract class PdfPocHostApi {
 }
 ```
 
-POC 1 should not implement signature, crop, page operations, OCR, or compression
+POC 2 extends the Host API with electronic-signature commands only:
+
+```dart
+class PdfExportResult {
+  String outputPath;
+  int pageCount;
+  int fileSizeBytes;
+}
+```
+
+```dart
+@HostApi()
+abstract class PdfPocHostApi {
+  void captureElectronicSignature();
+
+  void clearElectronicSignatureCapture();
+
+  void confirmElectronicSignatureCapture();
+
+  void beginSignaturePlacement();
+
+  void resizeSignaturePlacement(double scale);
+
+  void commitSignaturePlacement();
+
+  void cancelSignaturePlacement();
+
+  void deleteSelectedSignature();
+
+  PdfExportResult exportFlattenedCopy();
+}
+```
+
+POC 2 must call this an electronic signature, not a certificate-based digital
+signature. POC 2 should not implement crop, page operations, OCR, or compression
 methods.
 
 Future POCs may extend the Host API with methods such as:
@@ -211,9 +245,6 @@ Future POCs may extend the Host API with methods such as:
 ```dart
 @HostApi()
 abstract class PdfPocHostApi {
-  void beginSignatureCapture();
-
-  void placeSavedSignature(int pageIndex, PdfRect bounds);
 
   void rotatePages(List<int> pageIndexes, int degrees);
 

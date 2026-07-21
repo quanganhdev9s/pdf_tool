@@ -103,6 +103,44 @@ final class PdfViewerDeleteSelectedAnnotationRequested extends PdfViewerEvent {
   const PdfViewerDeleteSelectedAnnotationRequested();
 }
 
+final class PdfViewerCaptureSignatureRequested extends PdfViewerEvent {
+  const PdfViewerCaptureSignatureRequested();
+}
+
+final class PdfViewerClearSignatureCaptureRequested extends PdfViewerEvent {
+  const PdfViewerClearSignatureCaptureRequested();
+}
+
+final class PdfViewerConfirmSignatureCaptureRequested extends PdfViewerEvent {
+  const PdfViewerConfirmSignatureCaptureRequested();
+}
+
+final class PdfViewerBeginSignaturePlacementRequested extends PdfViewerEvent {
+  const PdfViewerBeginSignaturePlacementRequested();
+}
+
+final class PdfViewerResizeSignaturePlacementRequested extends PdfViewerEvent {
+  const PdfViewerResizeSignaturePlacementRequested(this.scale);
+
+  final double scale;
+}
+
+final class PdfViewerCommitSignaturePlacementRequested extends PdfViewerEvent {
+  const PdfViewerCommitSignaturePlacementRequested();
+}
+
+final class PdfViewerCancelSignaturePlacementRequested extends PdfViewerEvent {
+  const PdfViewerCancelSignaturePlacementRequested();
+}
+
+final class PdfViewerDeleteSelectedSignatureRequested extends PdfViewerEvent {
+  const PdfViewerDeleteSelectedSignatureRequested();
+}
+
+final class PdfViewerExportFlattenedCopyRequested extends PdfViewerEvent {
+  const PdfViewerExportFlattenedCopyRequested();
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,

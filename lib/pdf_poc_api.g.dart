@@ -506,6 +506,60 @@ class PdfFreeTextAreaSelection {
   }
 }
 
+class PdfExportResult {
+  PdfExportResult({
+    required this.outputPath,
+    required this.pageCount,
+    required this.fileSizeBytes,
+  });
+
+  String outputPath;
+
+  int pageCount;
+
+  int fileSizeBytes;
+
+  List<Object?> _toList() {
+    return <Object?>[outputPath, pageCount, fileSizeBytes];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfExportResult decode(Object result) {
+    result as List<Object?>;
+    return PdfExportResult(
+      outputPath: result[0]! as String,
+      pageCount: result[1]! as int,
+      fileSizeBytes: result[2]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfExportResult || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(pageCount, other.pageCount) &&
+        _deepEquals(fileSizeBytes, other.fileSizeBytes);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfExportResult(outputPath: $outputPath, pageCount: $pageCount, fileSizeBytes: $fileSizeBytes)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -537,6 +591,9 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PdfFreeTextAreaSelection) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
+    } else if (value is PdfExportResult) {
+      buffer.putUint8(137);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -562,6 +619,8 @@ class _PigeonCodec extends StandardMessageCodec {
         return PdfFreeTextRequest.decode(readValue(buffer)!);
       case 136:
         return PdfFreeTextAreaSelection.decode(readValue(buffer)!);
+      case 137:
+        return PdfExportResult.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -951,6 +1010,171 @@ class PdfPocHostApi {
       pigeonVar_channelName,
       isNullValid: true,
     );
+  }
+
+  Future<void> captureElectronicSignature() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.captureElectronicSignature$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> clearElectronicSignatureCapture() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearElectronicSignatureCapture$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> confirmElectronicSignatureCapture() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.confirmElectronicSignatureCapture$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> beginSignaturePlacement() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.beginSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> resizeSignaturePlacement(double scale) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.resizeSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[scale],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> commitSignaturePlacement() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> cancelSignaturePlacement() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> deleteSelectedSignature() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deleteSelectedSignature$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<PdfExportResult> exportFlattenedCopy() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.exportFlattenedCopy$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as PdfExportResult;
   }
 
   Future<PdfDocumentInfo> save() async {

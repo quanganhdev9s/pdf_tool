@@ -116,7 +116,6 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
 
   Widget _buildScaffold(BuildContext context, PdfViewerState state) {
     final info = state.documentInfo;
-    final dirtyText = info?.isDirty ?? false ? 'Dirty' : 'Saved';
     final searchText = state.searchState == null
         ? 'No search'
         : '${state.searchState!.totalResults} results'

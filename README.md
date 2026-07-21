@@ -49,7 +49,8 @@ the more complex PDF viewer.
 - Do not call generated Pigeon APIs directly from widgets for new POC 0 viewer
   controls; dispatch a `PdfViewerEvent` instead.
 - The PDF viewer uses a bottom icon toolbar. Each icon toggles one feature panel
-  such as page controls, search, ink, free text, selection actions, or status.
+  such as page controls, search, ink, free text, electronic signature,
+  selection actions, or status.
 
 Current Flutter structure:
 
@@ -79,3 +80,7 @@ POC 1 ink controls are part of the PDF viewer Bloc. Use Read mode for
 navigation, text selection, and tapping an existing ink annotation; use Ink mode
 to draw on the PencilKit overlay, then commit the draft ink into editable PDF
 ink annotations before saving.
+
+POC 2 electronic-signature controls capture a handwritten signature with
+PencilKit, place it as an editable annotation, and export a separate flattened
+copy. This is not certificate-based PDF digital signing.

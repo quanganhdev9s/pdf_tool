@@ -524,6 +524,51 @@ struct PdfFreeTextAreaSelection: Hashable, CustomStringConvertible {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfExportResult: Hashable, CustomStringConvertible {
+  var outputPath: String
+  var pageCount: Int64
+  var fileSizeBytes: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfExportResult? {
+    let outputPath = pigeonVar_list[0] as! String
+    let pageCount = pigeonVar_list[1] as! Int64
+    let fileSizeBytes = pigeonVar_list[2] as! Int64
+
+    return PdfExportResult(
+      outputPath: outputPath,
+      pageCount: pageCount,
+      fileSizeBytes: fileSizeBytes
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      outputPath,
+      pageCount,
+      fileSizeBytes,
+    ]
+  }
+  static func == (lhs: PdfExportResult, rhs: PdfExportResult) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.outputPath, rhs.outputPath) && PdfPocApiPigeonInternal.deepEquals(lhs.pageCount, rhs.pageCount) && PdfPocApiPigeonInternal.deepEquals(lhs.fileSizeBytes, rhs.fileSizeBytes)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfExportResult")
+    PdfPocApiPigeonInternal.deepHash(value: outputPath, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: pageCount, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fileSizeBytes, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfExportResult(outputPath: \(String(describing: outputPath)), pageCount: \(String(describing: pageCount)), fileSizeBytes: \(String(describing: fileSizeBytes)))"
+  }
+}
+
 private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -547,6 +592,8 @@ private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
       return PdfFreeTextRequest.fromList(self.readValue() as! [Any?])
     case 136:
       return PdfFreeTextAreaSelection.fromList(self.readValue() as! [Any?])
+    case 137:
+      return PdfExportResult.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -578,6 +625,9 @@ private class PdfPocApiPigeonCodecWriter: FlutterStandardWriter {
       super.writeValue(value.toList())
     } else if let value = value as? PdfFreeTextAreaSelection {
       super.writeByte(136)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfExportResult {
+      super.writeByte(137)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -620,6 +670,15 @@ protocol PdfPocHostApi {
   func clearCurrentInkInput() throws
   func commitCurrentInkToPdf() throws
   func deleteSelectedAnnotation() throws
+  func captureElectronicSignature() throws
+  func clearElectronicSignatureCapture() throws
+  func confirmElectronicSignatureCapture() throws
+  func beginSignaturePlacement() throws
+  func resizeSignaturePlacement(scale: Double) throws
+  func commitSignaturePlacement() throws
+  func cancelSignaturePlacement() throws
+  func deleteSelectedSignature() throws
+  func exportFlattenedCopy() throws -> PdfExportResult
   func save() throws -> PdfDocumentInfo
 }
 
@@ -891,6 +950,125 @@ class PdfPocHostApiSetup {
       }
     } else {
       deleteSelectedAnnotationChannel.setMessageHandler(nil)
+    }
+    let captureElectronicSignatureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.captureElectronicSignature\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      captureElectronicSignatureChannel.setMessageHandler { _, reply in
+        do {
+          try api.captureElectronicSignature()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      captureElectronicSignatureChannel.setMessageHandler(nil)
+    }
+    let clearElectronicSignatureCaptureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearElectronicSignatureCapture\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      clearElectronicSignatureCaptureChannel.setMessageHandler { _, reply in
+        do {
+          try api.clearElectronicSignatureCapture()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      clearElectronicSignatureCaptureChannel.setMessageHandler(nil)
+    }
+    let confirmElectronicSignatureCaptureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.confirmElectronicSignatureCapture\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      confirmElectronicSignatureCaptureChannel.setMessageHandler { _, reply in
+        do {
+          try api.confirmElectronicSignatureCapture()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      confirmElectronicSignatureCaptureChannel.setMessageHandler(nil)
+    }
+    let beginSignaturePlacementChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.beginSignaturePlacement\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      beginSignaturePlacementChannel.setMessageHandler { _, reply in
+        do {
+          try api.beginSignaturePlacement()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      beginSignaturePlacementChannel.setMessageHandler(nil)
+    }
+    let resizeSignaturePlacementChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.resizeSignaturePlacement\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      resizeSignaturePlacementChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let scaleArg = args[0] as! Double
+        do {
+          try api.resizeSignaturePlacement(scale: scaleArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      resizeSignaturePlacementChannel.setMessageHandler(nil)
+    }
+    let commitSignaturePlacementChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitSignaturePlacement\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      commitSignaturePlacementChannel.setMessageHandler { _, reply in
+        do {
+          try api.commitSignaturePlacement()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      commitSignaturePlacementChannel.setMessageHandler(nil)
+    }
+    let cancelSignaturePlacementChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSignaturePlacement\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cancelSignaturePlacementChannel.setMessageHandler { _, reply in
+        do {
+          try api.cancelSignaturePlacement()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cancelSignaturePlacementChannel.setMessageHandler(nil)
+    }
+    let deleteSelectedSignatureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deleteSelectedSignature\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      deleteSelectedSignatureChannel.setMessageHandler { _, reply in
+        do {
+          try api.deleteSelectedSignature()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      deleteSelectedSignatureChannel.setMessageHandler(nil)
+    }
+    let exportFlattenedCopyChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.exportFlattenedCopy\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      exportFlattenedCopyChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.exportFlattenedCopy()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      exportFlattenedCopyChannel.setMessageHandler(nil)
     }
     let saveChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

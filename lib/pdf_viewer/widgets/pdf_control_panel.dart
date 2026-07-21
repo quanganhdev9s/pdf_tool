@@ -86,6 +86,8 @@ class PdfControlPanel extends StatelessWidget {
           onAddFreeText: onAddFreeText,
           onBeginFreeTextAreaSelection: onBeginFreeTextAreaSelection,
         );
+      case PdfControlPanelMode.signature:
+        return _SignatureControls(state: state);
       case PdfControlPanelMode.selection:
         return _SelectionControls(state: state);
       case PdfControlPanelMode.status:
@@ -318,6 +320,105 @@ class _FreeTextControls extends StatelessWidget {
           onPressed: state.busy ? null : onBeginFreeTextAreaSelection,
           icon: const Icon(Icons.crop_free, size: 18),
           label: const Text('Select area'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SignatureControls extends StatelessWidget {
+  const _SignatureControls({required this.state});
+
+  final PdfViewerState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<PdfViewerBloc>();
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: <Widget>[
+        FilledButton.tonalIcon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerCaptureSignatureRequested()),
+          icon: const Icon(Icons.gesture, size: 18),
+          label: const Text('Capture'),
+        ),
+        OutlinedButton.icon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerClearSignatureCaptureRequested()),
+          icon: const Icon(Icons.layers_clear_outlined, size: 18),
+          label: const Text('Clear'),
+        ),
+        FilledButton.icon(
+          onPressed: state.busy
+              ? null
+              : () =>
+                    bloc.add(const PdfViewerConfirmSignatureCaptureRequested()),
+          icon: const Icon(Icons.check, size: 18),
+          label: const Text('Confirm'),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: state.busy
+              ? null
+              : () =>
+                    bloc.add(const PdfViewerBeginSignaturePlacementRequested()),
+          icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+          label: const Text('Place'),
+        ),
+        IconButton.outlined(
+          tooltip: 'Smaller signature',
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(
+                  const PdfViewerResizeSignaturePlacementRequested(0.85),
+                ),
+          icon: const Icon(Icons.remove),
+        ),
+        IconButton.outlined(
+          tooltip: 'Larger signature',
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(
+                  const PdfViewerResizeSignaturePlacementRequested(1.15),
+                ),
+          icon: const Icon(Icons.add),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(
+                  const PdfViewerCommitSignaturePlacementRequested(),
+                ),
+          icon: const Icon(Icons.done_all, size: 18),
+          label: const Text('Commit'),
+        ),
+        OutlinedButton.icon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(
+                  const PdfViewerCancelSignaturePlacementRequested(),
+                ),
+          icon: const Icon(Icons.close, size: 18),
+          label: const Text('Cancel placement'),
+        ),
+        OutlinedButton.icon(
+          onPressed: state.busy
+              ? null
+              : () =>
+                    bloc.add(const PdfViewerDeleteSelectedSignatureRequested()),
+          icon: const Icon(Icons.delete_outline, size: 18),
+          label: const Text('Delete selected'),
+        ),
+        OutlinedButton.icon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerExportFlattenedCopyRequested()),
+          icon: const Icon(Icons.file_download_outlined, size: 18),
+          label: const Text('Export flattened'),
         ),
       ],
     );

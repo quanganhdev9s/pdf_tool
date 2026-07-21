@@ -1,5 +1,6 @@
 import Flutter
 import Foundation
+import UIKit
 
 final class PdfPocHostApiImpl: PdfPocHostApi {
   private let runtime: PdfPocRuntime
@@ -108,6 +109,42 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
 
   func deleteSelectedAnnotation() throws {
     try call { try $0.deleteSelectedAnnotation() }
+  }
+
+  func captureElectronicSignature() throws {
+    try call { try $0.captureElectronicSignature() }
+  }
+
+  func clearElectronicSignatureCapture() throws {
+    try call { try $0.clearElectronicSignatureCapture() }
+  }
+
+  func confirmElectronicSignatureCapture() throws {
+    try call { try $0.confirmElectronicSignatureCapture() }
+  }
+
+  func beginSignaturePlacement() throws {
+    try call { try $0.beginSignaturePlacement() }
+  }
+
+  func resizeSignaturePlacement(scale: Double) throws {
+    try call { try $0.resizeSignaturePlacement(CGFloat(scale)) }
+  }
+
+  func commitSignaturePlacement() throws {
+    try call { try $0.commitSignaturePlacement() }
+  }
+
+  func cancelSignaturePlacement() throws {
+    try call { try $0.cancelSignaturePlacement() }
+  }
+
+  func deleteSelectedSignature() throws {
+    try call { try $0.deleteSelectedSignature() }
+  }
+
+  func exportFlattenedCopy() throws -> PdfExportResult {
+    try callWithResult { try $0.exportFlattenedCopy() }
   }
 
   func save() throws -> PdfDocumentInfo {
