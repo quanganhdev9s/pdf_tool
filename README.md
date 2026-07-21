@@ -12,27 +12,6 @@ Bộ tài liệu này dùng để giao Codex xây dựng technical POC cho ứng
 - Không dùng SDK PDF thương mại
 - Chỉ hỗ trợ iOS
 
-## Cách sử dụng
-
-1. Copy toàn bộ nội dung gói này vào root của Flutter repository.
-2. Thêm các PDF test vào `assets/poc/`.
-3. Khai báo các asset này trong `pubspec.yaml`.
-4. Mở repository bằng Codex.
-5. Chạy prompt `prompts/00_audit.md`.
-6. Sau khi audit tài liệu xong, chạy `prompts/01_poc0_viewer_text.md`.
-7. Chỉ chuyển sang POC tiếp theo khi POC hiện tại đạt Definition of Done.
-
-## Thứ tự triển khai
-
-1. POC 0 — Viewer và text interaction
-2. POC 1 — PencilKit ink annotation
-3. POC 2 — Electronic signature
-4. POC 3 — Crop và page operations
-5. POC 4 — OCR
-6. POC 5 — Compression
-
-Không yêu cầu Codex triển khai toàn bộ roadmap trong một task.
-
 ## Flutter state management
 
 POC 0 uses `flutter_bloc` with separate state layers for the simple picker and
@@ -52,22 +31,7 @@ the more complex PDF viewer.
   such as page controls, search, ink, free text, electronic signature,
   selection actions, or status.
 
-Current Flutter structure:
-
-- `lib/main.dart`: app entrypoint only.
-- `lib/pdf_picker/cubit/`: simple Cubit and state for choosing a test asset.
-- `lib/pdf_picker/screens/`: asset picker screen.
-- `lib/pdf_viewer/bloc/`: `PdfViewerBloc`, `PdfViewerEvent`,
-  `PdfViewerState`, and Bloc barrel.
-- `lib/pdf_viewer/screens/`: PDF viewer screen and compatibility barrels.
-- `lib/pdf_viewer/widgets/`: reusable viewer controls and composer widgets.
-- `lib/pdf_viewer/data/`: test asset metadata and diagnostic logging helpers.
-- `lib/pdf_viewer/screens/pdf_bloc_app.dart`: compatibility barrel that exports
-  the active picker/viewer screens.
-
 ## Debug logging
-
-POC 0 and POC 1 emit diagnostic events with the stable filter key `PDF Event`.
 
 - Flutter UI/control events: `PDF Event | flutter | ...`
 - Native Swift/PDFKit events: `PDF Event | native | ...`
