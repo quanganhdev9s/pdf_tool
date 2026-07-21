@@ -11,6 +11,7 @@ class PdfViewerState {
     this.status = 'Đang chuẩn bị viewer...',
     this.busy = false,
     this.openedOnce = false,
+    this.inkModeEnabled = false,
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -20,6 +21,7 @@ class PdfViewerState {
   final String status;
   final bool busy;
   final bool openedOnce;
+  final bool inkModeEnabled;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -31,6 +33,7 @@ class PdfViewerState {
     String? status,
     bool? busy,
     bool? openedOnce,
+    bool? inkModeEnabled,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -48,6 +51,7 @@ class PdfViewerState {
       status: status ?? this.status,
       busy: busy ?? this.busy,
       openedOnce: openedOnce ?? this.openedOnce,
+      inkModeEnabled: inkModeEnabled ?? this.inkModeEnabled,
     );
   }
 }

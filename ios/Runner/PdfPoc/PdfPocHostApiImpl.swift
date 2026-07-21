@@ -94,6 +94,22 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.beginFreeTextAreaSelection() }
   }
 
+  func setInkModeEnabled(enabled: Bool) throws {
+    try call { try $0.setInkModeEnabled(enabled) }
+  }
+
+  func clearCurrentInkInput() throws {
+    try call { try $0.clearCurrentInkInput() }
+  }
+
+  func commitCurrentInkToPdf() throws {
+    try call { try $0.commitCurrentInkToPdf() }
+  }
+
+  func deleteSelectedAnnotation() throws {
+    try call { try $0.deleteSelectedAnnotation() }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try callWithResult { try $0.save() }
   }

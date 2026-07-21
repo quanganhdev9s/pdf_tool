@@ -156,8 +156,7 @@ abstract class PdfPocHostApi {
 }
 ```
 
-POC 0 should not implement ink, signature, crop, page operations, OCR, or
-compression methods.
+POC 1 extends the Host API with PencilKit ink commands only:
 
 ```dart
 @HostApi()
@@ -201,7 +200,17 @@ abstract class PdfPocHostApi {
   void commitCurrentInkToPdf();
 
   void deleteSelectedAnnotation();
+}
+```
 
+POC 1 should not implement signature, crop, page operations, OCR, or compression
+methods.
+
+Future POCs may extend the Host API with methods such as:
+
+```dart
+@HostApi()
+abstract class PdfPocHostApi {
   void beginSignatureCapture();
 
   void placeSavedSignature(int pageIndex, PdfRect bounds);

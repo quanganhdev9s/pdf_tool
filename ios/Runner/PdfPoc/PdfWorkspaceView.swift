@@ -1,5 +1,6 @@
 import Foundation
 import PDFKit
+import PencilKit
 import UIKit
 
 let pdfEventTag = "PDF Event"
@@ -24,6 +25,7 @@ final class PdfWorkspaceView: UIView {
   weak var delegate: PdfWorkspaceViewDelegate?
 
   private let pdfView = PocPdfView()
+  private let inkCanvasView = PKCanvasView()
   private let selectionToolbar = PdfSelectionToolbar()
   private let freeTextAreaCaptureView = UIView()
   private let freeTextAreaOverlay = UIView()
@@ -41,6 +43,13 @@ final class PdfWorkspaceView: UIView {
   private var isSelectingFreeTextArea = false
   private var freeTextDragStartPoint: CGPoint?
   private weak var freeTextDragPage: PDFPage?
+  private var isInkModeEnabled = false
+  private weak var selectedInkAnnotation: PDFAnnotation?
+  private weak var selectedInkPage: PDFPage?
+  private lazy var annotationTapGesture = UITapGestureRecognizer(
+    target: self,
+    action: #selector(handleAnnotationTap(_:))
+  )
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -58,6 +67,8 @@ final class PdfWorkspaceView: UIView {
 
   override func layoutSubviews() {
     super.layoutSubviews()
+    inkCanvasView.frame = pdfView.frame
+    inkCanvasView.contentSize = pdfView.bounds.size
     freeTextAreaCaptureView.frame = pdfView.frame
     layoutSelectionToolbar()
   }
@@ -112,6 +123,9 @@ final class PdfWorkspaceView: UIView {
     clearSearchOnly()
     hideSelectionToolbar()
     cancelFreeTextAreaSelection()
+    clearInkSelection()
+    inkCanvasView.drawing = PKDrawing()
+    setInkModeVisualState(enabled: false)
     pdfView.document = nil
     session = nil
     delegate?.workspaceViewDidClose(self)
@@ -372,6 +386,108 @@ final class PdfWorkspaceView: UIView {
     freeTextAreaPanGesture.isEnabled = true
   }
 
+  func setInkModeEnabled(_ enabled: Bool) throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("set_ink_mode", "enabled=\(enabled)")
+    isInkModeEnabled = enabled
+    if enabled {
+      cancelFreeTextAreaSelection()
+      hideSelectionToolbar()
+      hideSystemSelectionMenu()
+      clearInkSelection()
+    }
+    setInkModeVisualState(enabled: enabled)
+  }
+
+  func clearCurrentInkInput() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("clear_current_ink_input", "strokes=\(inkCanvasView.drawing.strokes.count)")
+    inkCanvasView.drawing = PKDrawing()
+    setInkModeVisualState(enabled: isInkModeEnabled)
+  }
+
+  func commitCurrentInkToPdf() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("commit_ink_request", "strokes=\(inkCanvasView.drawing.strokes.count)")
+    guard !inkCanvasView.drawing.strokes.isEmpty else {
+      throw PdfPocError(
+        code: "no_ink_input",
+        message: "Draw ink before committing it to the PDF.",
+        details: nil
+      )
+    }
+
+    let pagePaths = collectInkPathsByPage(from: inkCanvasView.drawing)
+    guard !pagePaths.isEmpty else {
+      throw PdfPocError(
+        code: "annotation_creation_failed",
+        message: "No drawn ink points were inside a PDF page.",
+        details: nil
+      )
+    }
+
+    var added = 0
+    for (page, paths) in pagePaths {
+      guard !paths.isEmpty else { continue }
+      // Keep the output editable by storing real PDF ink annotations instead of
+      // rasterizing the PencilKit overlay into page pixels.
+      let annotation = PDFAnnotation(
+        bounds: page.bounds(for: .cropBox),
+        forType: .ink,
+        withProperties: nil
+      )
+      annotation.color = UIColor.systemBlue.withAlphaComponent(0.95)
+      let border = PDFBorder()
+      border.lineWidth = 2
+      annotation.border = border
+      for path in paths {
+        annotation.add(path)
+      }
+      page.addAnnotation(annotation)
+      added += 1
+    }
+
+    guard added > 0 else {
+      throw PdfPocError(
+        code: "annotation_creation_failed",
+        message: "PDFKit did not accept the captured ink paths.",
+        details: nil
+      )
+    }
+
+    inkCanvasView.drawing = PKDrawing()
+    clearInkSelection()
+    markDirty()
+    logPdfEvent("commit_ink_success", "annotations=\(added)")
+  }
+
+  func deleteSelectedAnnotation() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    guard let annotation = selectedInkAnnotation,
+          let page = selectedInkPage else {
+      throw PdfPocError(
+        code: "no_annotation_selection",
+        message: "Tap an ink annotation in read mode before deleting.",
+        details: nil
+      )
+    }
+    guard annotation.type == PDFAnnotationSubtype.ink.rawValue else {
+      throw PdfPocError(
+        code: "unsupported_annotation_type",
+        message: "POC 1 only deletes selected ink annotations.",
+        details: annotation.type
+      )
+    }
+    page.removeAnnotation(annotation)
+    clearInkSelection()
+    markDirty()
+    logPdfEvent("delete_selected_annotation_success")
+  }
+
   func save() throws -> PdfDocumentInfo {
     try ensureMainThread()
     guard let session else {
@@ -409,8 +525,12 @@ final class PdfWorkspaceView: UIView {
     pdfView.autoScales = true
     pdfView.backgroundColor = .secondarySystemBackground
     addSubview(pdfView)
+    configureInkCanvasView()
     configureSelectionToolbar()
     configureFreeTextAreaSelection()
+    pdfView.addGestureRecognizer(annotationTapGesture)
+    annotationTapGesture.delegate = self
+    addSubview(inkCanvasView)
     addSubview(selectionToolbar)
     NSLayoutConstraint.activate([
       pdfView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -418,6 +538,31 @@ final class PdfWorkspaceView: UIView {
       pdfView.topAnchor.constraint(equalTo: topAnchor),
       pdfView.bottomAnchor.constraint(equalTo: bottomAnchor),
     ])
+  }
+
+  private func configureInkCanvasView() {
+    inkCanvasView.frame = pdfView.frame
+    inkCanvasView.backgroundColor = .clear
+    inkCanvasView.isOpaque = false
+    inkCanvasView.drawingPolicy = .anyInput
+    inkCanvasView.minimumZoomScale = 1
+    inkCanvasView.maximumZoomScale = 1
+    inkCanvasView.isScrollEnabled = false
+    inkCanvasView.contentInset = .zero
+    inkCanvasView.tool = PKInkingTool(.pen, color: .systemBlue, width: 3)
+    setInkModeVisualState(enabled: false)
+  }
+
+  private func setInkModeVisualState(enabled: Bool) {
+    inkCanvasView.isUserInteractionEnabled = enabled
+    inkCanvasView.isHidden = !enabled && inkCanvasView.drawing.strokes.isEmpty
+    annotationTapGesture.isEnabled = !enabled
+    if enabled {
+      bringSubviewToFront(inkCanvasView)
+      inkCanvasView.becomeFirstResponder()
+    } else {
+      inkCanvasView.resignFirstResponder()
+    }
   }
 
   private func configureFreeTextAreaSelection() {
@@ -607,6 +752,89 @@ final class PdfWorkspaceView: UIView {
       width: abs(firstPoint.x - secondPoint.x),
       height: abs(firstPoint.y - secondPoint.y)
     )
+  }
+
+  private func collectInkPathsByPage(from drawing: PKDrawing) -> [(PDFPage, [UIBezierPath])] {
+    var pagePaths: [(PDFPage, [UIBezierPath])] = []
+
+    func append(_ path: UIBezierPath, to page: PDFPage?) {
+      guard let page else { return }
+      if let index = pagePaths.firstIndex(where: { $0.0 === page }) {
+        pagePaths[index].1.append(path)
+      } else {
+        pagePaths.append((page, [path]))
+      }
+    }
+
+    for stroke in drawing.strokes {
+      var activePage: PDFPage?
+      var activePath: UIBezierPath?
+      var activePointCount = 0
+
+      // A PencilKit stroke can cross a page boundary in continuous scroll mode.
+      // PDF ink annotations are page-owned, so split each stroke whenever the
+      // containing PDFPage changes or the stroke leaves all pages.
+      func finishActivePath() {
+        guard activePointCount > 1, let path = activePath else {
+          activePage = nil
+          activePath = nil
+          activePointCount = 0
+          return
+        }
+        append(path, to: activePage)
+        activePage = nil
+        activePath = nil
+        activePointCount = 0
+      }
+
+      for strokePoint in stroke.path {
+        let canvasPoint = strokePoint.location
+        guard let page = pdfView.page(for: canvasPoint, nearest: false) else {
+          finishActivePath()
+          continue
+        }
+        let pagePoint = pdfView.convert(canvasPoint, to: page)
+        if activePage !== page {
+          finishActivePath()
+          activePage = page
+          activePath = UIBezierPath()
+          activePath?.move(to: pagePoint)
+          activePointCount = 1
+        } else {
+          activePath?.addLine(to: pagePoint)
+          activePointCount += 1
+        }
+      }
+      finishActivePath()
+    }
+
+    logPdfEvent("ink_paths_collected", "pages=\(pagePaths.count)")
+    return pagePaths
+  }
+
+  @objc private func handleAnnotationTap(_ recognizer: UITapGestureRecognizer) {
+    guard !isInkModeEnabled, recognizer.state == .ended else { return }
+    let point = recognizer.location(in: pdfView)
+    guard let page = pdfView.page(for: point, nearest: false) else {
+      clearInkSelection()
+      logPdfEvent("annotation_tap_no_page", "point=\(point)")
+      return
+    }
+    let pagePoint = pdfView.convert(point, to: page)
+    guard let annotation = page.annotation(at: pagePoint),
+          annotation.type == PDFAnnotationSubtype.ink.rawValue else {
+      clearInkSelection()
+      logPdfEvent("annotation_tap_no_ink", "point=\(pagePoint)")
+      return
+    }
+    selectedInkAnnotation = annotation
+    selectedInkPage = page
+    logPdfEvent("ink_annotation_selected", "bounds=\(annotation.bounds)")
+  }
+
+  private func clearInkSelection() {
+    selectedInkAnnotation = nil
+    selectedInkPage = nil
   }
 
   private func openDocument(at url: URL) throws -> PDFDocument {

@@ -332,6 +332,18 @@ PencilKit input
 → save editable annotation
 ```
 
+For POC 1, Swift owns the `PKCanvasView` overlay and the temporary
+`PKDrawing`. Flutter only toggles read/ink mode and sends commands to clear the
+current drawing, commit it to PDF, or delete the selected annotation. A commit
+converts PencilKit canvas points through `PDFView` into `PDFPage` coordinates
+and creates editable PDF ink annotations grouped by page when valid page paths
+exist.
+
+POC 1 annotation selection is intentionally narrow: tap an existing ink
+annotation in read mode, then call the delete command. Custom resize, move,
+color palette, stroke-width controls, and production annotation-selection chrome
+are not part of POC 1.
+
 Do not rasterize ink by default.
 
 ## Event architecture

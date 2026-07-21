@@ -616,6 +616,10 @@ protocol PdfPocHostApi {
   func addMarkupFromCurrentSelection(type: PdfMarkupType) throws
   func addFreeText(request: PdfFreeTextRequest) throws
   func beginFreeTextAreaSelection() throws
+  func setInkModeEnabled(enabled: Bool) throws
+  func clearCurrentInkInput() throws
+  func commitCurrentInkToPdf() throws
+  func deleteSelectedAnnotation() throws
   func save() throws -> PdfDocumentInfo
 }
 
@@ -833,6 +837,60 @@ class PdfPocHostApiSetup {
       }
     } else {
       beginFreeTextAreaSelectionChannel.setMessageHandler(nil)
+    }
+    let setInkModeEnabledChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setInkModeEnabled\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setInkModeEnabledChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let enabledArg = args[0] as! Bool
+        do {
+          try api.setInkModeEnabled(enabled: enabledArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setInkModeEnabledChannel.setMessageHandler(nil)
+    }
+    let clearCurrentInkInputChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearCurrentInkInput\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      clearCurrentInkInputChannel.setMessageHandler { _, reply in
+        do {
+          try api.clearCurrentInkInput()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      clearCurrentInkInputChannel.setMessageHandler(nil)
+    }
+    let commitCurrentInkToPdfChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitCurrentInkToPdf\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      commitCurrentInkToPdfChannel.setMessageHandler { _, reply in
+        do {
+          try api.commitCurrentInkToPdf()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      commitCurrentInkToPdfChannel.setMessageHandler(nil)
+    }
+    let deleteSelectedAnnotationChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deleteSelectedAnnotation\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      deleteSelectedAnnotationChannel.setMessageHandler { _, reply in
+        do {
+          try api.deleteSelectedAnnotation()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      deleteSelectedAnnotationChannel.setMessageHandler(nil)
     }
     let saveChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

@@ -42,6 +42,12 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       _onCancelSelectedFreeTextAreaRequested,
     );
     on<PdfViewerSaveRequested>(_onSaveRequested);
+    on<PdfViewerInkModeChanged>(_onInkModeChanged);
+    on<PdfViewerClearInkRequested>(_onClearInkRequested);
+    on<PdfViewerCommitInkRequested>(_onCommitInkRequested);
+    on<PdfViewerDeleteSelectedAnnotationRequested>(
+      _onDeleteSelectedAnnotationRequested,
+    );
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -324,6 +330,55 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       final info = await _api.save();
       _applyDocumentInfo(emit, info);
     });
+  }
+
+  Future<void> _onInkModeChanged(
+    PdfViewerInkModeChanged event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(
+      emit,
+      event.enabled ? 'enable ink mode' : 'enable read mode',
+      () async {
+        logPdfEvent('set_ink_mode_request', <String, Object?>{
+          'enabled': event.enabled,
+        });
+        await _api.setInkModeEnabled(event.enabled);
+        emit(
+          state.copyWith(
+            inkModeEnabled: event.enabled,
+            status: event.enabled
+                ? 'Ink mode enabled. Draw on the PDF, then commit ink.'
+                : 'Read mode enabled.',
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _onClearInkRequested(
+    PdfViewerClearInkRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'clear ink draft', _api.clearCurrentInkInput);
+  }
+
+  Future<void> _onCommitInkRequested(
+    PdfViewerCommitInkRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'commit ink', _api.commitCurrentInkToPdf);
+  }
+
+  Future<void> _onDeleteSelectedAnnotationRequested(
+    PdfViewerDeleteSelectedAnnotationRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(
+      emit,
+      'delete selected annotation',
+      _api.deleteSelectedAnnotation,
+    );
   }
 
   void _onNativePageChanged(

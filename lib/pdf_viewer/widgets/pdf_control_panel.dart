@@ -108,6 +108,56 @@ class PdfControlPanel extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
+                SegmentedButton<bool>(
+                  segments: const <ButtonSegment<bool>>[
+                    ButtonSegment<bool>(
+                      value: false,
+                      icon: Icon(Icons.pan_tool_alt_outlined, size: 18),
+                      label: Text('Read'),
+                    ),
+                    ButtonSegment<bool>(
+                      value: true,
+                      icon: Icon(Icons.draw_outlined, size: 18),
+                      label: Text('Ink'),
+                    ),
+                  ],
+                  selected: <bool>{state.inkModeEnabled},
+                  onSelectionChanged: state.busy
+                      ? null
+                      : (selection) =>
+                            bloc.add(PdfViewerInkModeChanged(selection.first)),
+                ),
+                OutlinedButton.icon(
+                  onPressed: state.busy
+                      ? null
+                      : () => bloc.add(const PdfViewerClearInkRequested()),
+                  icon: const Icon(Icons.layers_clear_outlined, size: 18),
+                  label: const Text('Clear ink'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: state.busy
+                      ? null
+                      : () => bloc.add(const PdfViewerCommitInkRequested()),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('Commit ink'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: state.busy
+                      ? null
+                      : () => bloc.add(
+                          const PdfViewerDeleteSelectedAnnotationRequested(),
+                        ),
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('Delete selected'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: <Widget>[
                 SizedBox(
                   width: 220,
                   child: TextField(

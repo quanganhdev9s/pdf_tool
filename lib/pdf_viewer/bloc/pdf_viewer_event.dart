@@ -85,6 +85,24 @@ final class PdfViewerSaveRequested extends PdfViewerEvent {
   const PdfViewerSaveRequested();
 }
 
+final class PdfViewerInkModeChanged extends PdfViewerEvent {
+  const PdfViewerInkModeChanged(this.enabled);
+
+  final bool enabled;
+}
+
+final class PdfViewerClearInkRequested extends PdfViewerEvent {
+  const PdfViewerClearInkRequested();
+}
+
+final class PdfViewerCommitInkRequested extends PdfViewerEvent {
+  const PdfViewerCommitInkRequested();
+}
+
+final class PdfViewerDeleteSelectedAnnotationRequested extends PdfViewerEvent {
+  const PdfViewerDeleteSelectedAnnotationRequested();
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,

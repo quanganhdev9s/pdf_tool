@@ -64,7 +64,7 @@ Current Flutter structure:
 
 ## Debug logging
 
-POC 0 emits diagnostic events with the stable filter key `PDF Event`.
+POC 0 and POC 1 emit diagnostic events with the stable filter key `PDF Event`.
 
 - Flutter UI/control events: `PDF Event | flutter | ...`
 - Native Swift/PDFKit events: `PDF Event | native | ...`
@@ -72,3 +72,8 @@ POC 0 emits diagnostic events with the stable filter key `PDF Event`.
 When testing on the iOS simulator from Android Studio, filter the Run/Debug
 console by `PDF Event`. When testing from Xcode, filter the Xcode console by the
 same key.
+
+POC 1 ink controls are part of the PDF viewer Bloc. Use Read mode for
+navigation, text selection, and tapping an existing ink annotation; use Ink mode
+to draw on the PencilKit overlay, then commit the draft ink into editable PDF
+ink annotations before saving.

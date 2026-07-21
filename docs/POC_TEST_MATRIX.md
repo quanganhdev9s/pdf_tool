@@ -204,14 +204,37 @@ back into the PDF.
 | Bounds outside page | Rejected or clamped |
 | Rotated page | Correct position |
 
-### Ink and signature
+### Ink
 
 | Test | Expected result |
 |---|---|
-| Draw after zoom | No shift |
-| Draw after scroll | No shift |
+| Toggle Read mode | PDFView scroll, zoom, text selection, and annotation tap selection are available |
+| Toggle Ink mode | PencilKit overlay accepts drawing and PDF text selection toolbar is suppressed |
+| Draw with touch | Visible draft ink appears on the overlay |
+| Draw with Apple Pencil on device | Visible draft ink appears on the overlay |
+| Clear current ink | Draft strokes are removed without changing committed PDF annotations |
+| Commit ink | Editable PDF ink annotation is added to the correct page |
+| Tap ink annotation in Read mode | Ink annotation becomes the selected native annotation for delete |
+| Delete selected ink annotation | Selected ink annotation is removed and document becomes dirty |
+| Draw after zoom | No visible shift after commit/save/reopen |
+| Draw after scroll | No visible shift after commit/save/reopen |
+| Draw near page edges | Strokes stay on the intended page or invalid off-page points are ignored |
+| Draw on page 2 or later | Ink remains associated with that page |
 | Draw on rotated page | Correct page coordinate |
-| Save/reopen | Persists |
+| Draw on existing crop-box page | Bounds use the page crop box correctly |
+| Save/reopen | Committed ink persists |
+| Open in Preview | Ink annotation is visible and remains an annotation when Preview supports it |
+
+Simulator validation can cover touch drawing, commit, save/reopen, and delete.
+Apple Pencil input must be verified on a physical supported device.
+
+### Signature
+
+| Test | Expected result |
+|---|---|
+| Capture signature | PencilKit signature capture opens |
+| Place signature | Signature remains correctly positioned |
+| Save/reopen | Editable signature representation persists |
 | Flatten signature | Not editable afterward |
 
 ### Page operations

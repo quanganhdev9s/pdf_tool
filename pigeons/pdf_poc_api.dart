@@ -128,6 +128,14 @@ abstract class PdfPocHostApi {
 
   void beginFreeTextAreaSelection();
 
+  void setInkModeEnabled(bool enabled);
+
+  void clearCurrentInkInput();
+
+  void commitCurrentInkToPdf();
+
+  void deleteSelectedAnnotation();
+
   PdfDocumentInfo save();
 }
 
