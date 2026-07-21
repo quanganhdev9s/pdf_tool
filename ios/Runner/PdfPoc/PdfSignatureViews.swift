@@ -45,7 +45,8 @@ final class PdfSignatureCaptureView: UIView {
 
   private func configure() {
     isHidden = true
-    backgroundColor = UIColor.systemBackground.withAlphaComponent(0.96)
+    overrideUserInterfaceStyle = .light
+    backgroundColor = UIColor.white.withAlphaComponent(0.96)
     layer.borderColor = UIColor.separator.cgColor
     layer.borderWidth = 1
     layer.cornerRadius = 8
@@ -53,18 +54,19 @@ final class PdfSignatureCaptureView: UIView {
 
     titleLabel.text = "Draw electronic signature"
     titleLabel.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
-    titleLabel.textColor = .secondaryLabel
+    titleLabel.textColor = .darkGray
     titleLabel.textAlignment = .center
     addSubview(titleLabel)
 
-    canvasView.backgroundColor = .clear
-    canvasView.isOpaque = false
+    canvasView.overrideUserInterfaceStyle = .light
+    canvasView.backgroundColor = .white
+    canvasView.isOpaque = true
     canvasView.drawingPolicy = .anyInput
     canvasView.minimumZoomScale = 1
     canvasView.maximumZoomScale = 1
     canvasView.isScrollEnabled = false
     canvasView.contentInset = .zero
-    canvasView.tool = PKInkingTool(.pen, color: .label, width: 3)
+    canvasView.tool = PKInkingTool(.pen, color: .black, width: 3)
     addSubview(canvasView)
   }
 }
@@ -94,7 +96,7 @@ final class PdfSignaturePlacementView: UIImageView, UIGestureRecognizerDelegate 
   }
 
   func begin(image: UIImage, frame: CGRect) {
-    self.image = image
+    self.image = image.withRenderingMode(.alwaysTemplate)
     self.frame = frame
     isHidden = false
   }
@@ -121,6 +123,7 @@ final class PdfSignaturePlacementView: UIImageView, UIGestureRecognizerDelegate 
     isHidden = true
     isUserInteractionEnabled = true
     contentMode = .scaleAspectFit
+    tintColor = .black
     backgroundColor = UIColor.systemYellow.withAlphaComponent(0.12)
     layer.borderColor = UIColor.systemBlue.cgColor
     layer.borderWidth = 2

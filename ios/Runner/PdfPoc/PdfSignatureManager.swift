@@ -131,7 +131,7 @@ final class PdfSignatureManager {
       withProperties: nil
     )
     annotation.contents = electronicSignatureAnnotationContents
-    annotation.color = UIColor.label.withAlphaComponent(0.95)
+    annotation.color = UIColor.black.withAlphaComponent(0.95)
     let border = PDFBorder()
     border.lineWidth = 2
     annotation.border = border
@@ -201,6 +201,7 @@ final class PdfSignatureManager {
       ? CGRect(x: 0, y: 0, width: 320, height: 120)
       : drawingBounds
     return drawing.image(from: bounds, scale: UIScreen.main.scale)
+      .withRenderingMode(.alwaysTemplate)
   }
 
   private func defaultPlacementFrame(
