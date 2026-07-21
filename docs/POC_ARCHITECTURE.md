@@ -222,6 +222,9 @@ production-oriented folder layout:
 - `PdfOcrManager.swift` owns POC 4 Vision OCR: page rasterization, recognition
   language configuration, confidence/text extraction, normalized bounding boxes,
   progress callbacks, and cooperative cancellation.
+- `PdfCompressionManager.swift` owns POC 5 compression: preservation-oriented
+  PDFKit writes, rasterized JPEG-backed PDF generation, compression metrics,
+  destructive-tradeoff warnings, and cooperative cancellation.
 - `PdfSignatureViews.swift` owns the PencilKit electronic-signature capture view
   and native placement preview gestures.
 - `PdfFlattenedExporter.swift` owns flattened PDF export rendering.
@@ -249,6 +252,21 @@ marks the session dirty when needed, and reports typed results back to Flutter.
   may finish before callbacks stop.
 - Vision OCR output is not embedded into the PDF and does not make the PDF a
   searchable PDF in POC 4.
+
+## POC 5 Compression Flow
+
+- Flutter exposes compression controls through `PdfViewerBloc` and the
+  Compression bottom-bar panel.
+- Preservation mode writes a separate PDFKit output copy and is expected to
+  preserve PDF structure, but size reduction may be minimal.
+- Rasterized mode renders each page at the selected DPI, JPEG-compresses the
+  rendered image, and rebuilds a PDF from those images.
+- Rasterized mode intentionally reports destructive tradeoffs: selectable text,
+  links, forms, vector quality, and editable annotations may be lost.
+- Compression results include input bytes, output bytes, ratio, duration,
+  output path, behavior flags, warning text, and visual-quality notes.
+- Cancellation is cooperative between pages or after a current PDFKit
+  write/render step returns.
 
 POC 3 page operations mutate only the writable PDF session or a derived output
 copy. The source asset under `assets/poc/` remains read-only. Crop operations

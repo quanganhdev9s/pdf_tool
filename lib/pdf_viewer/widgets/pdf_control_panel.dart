@@ -96,6 +96,8 @@ class PdfControlPanel extends StatelessWidget {
         );
       case PdfControlPanelMode.ocr:
         return _OcrControls(state: state);
+      case PdfControlPanelMode.compression:
+        return _CompressionControls(state: state);
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -598,4 +600,187 @@ class _OcrControls extends StatelessWidget {
         .toStringAsFixed(0);
     return 'Page ${block.pageIndex} · $confidence%';
   }
+}
+
+class _CompressionControls extends StatefulWidget {
+  const _CompressionControls({required this.state});
+
+  final PdfViewerState state;
+
+  @override
+  State<_CompressionControls> createState() => _CompressionControlsState();
+}
+
+class _CompressionControlsState extends State<_CompressionControls> {
+  double _dpi = 120;
+  double _jpegQuality = 0.6;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final bloc = context.read<PdfViewerBloc>();
+    final totalPages = state.compressionTotalPages;
+    final progress = totalPages == 0
+        ? null
+        : state.compressionCompletedPages / totalPages.clamp(1, totalPages);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            FilledButton.tonalIcon(
+              onPressed: state.busy || state.compressionRunning
+                  ? null
+                  : () => bloc.add(
+                      const PdfViewerRunPreservationCompressionRequested(),
+                    ),
+              icon: const Icon(Icons.inventory_2_outlined, size: 18),
+              label: const Text('Preserve'),
+            ),
+            FilledButton.icon(
+              onPressed: state.busy || state.compressionRunning
+                  ? null
+                  : () => bloc.add(
+                      PdfViewerRunRasterizedCompressionRequested(
+                        dpi: _dpi.round(),
+                        jpegQuality: _jpegQuality,
+                      ),
+                    ),
+              icon: const Icon(Icons.image_outlined, size: 18),
+              label: const Text('Rasterize'),
+            ),
+            OutlinedButton.icon(
+              onPressed: state.compressionRunning
+                  ? () => bloc.add(const PdfViewerCancelCompressionRequested())
+                  : null,
+              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              label: const Text('Cancel'),
+            ),
+            Text(
+              state.compressionRunning || totalPages > 0
+                  ? '${state.compressionCompletedPages}/$totalPages pages'
+                  : 'No output',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _SliderRow(
+          label: 'DPI',
+          valueLabel: _dpi.round().toString(),
+          value: _dpi,
+          min: 72,
+          max: 300,
+          divisions: 19,
+          onChanged: state.compressionRunning
+              ? null
+              : (value) => setState(() => _dpi = value),
+        ),
+        _SliderRow(
+          label: 'JPEG',
+          valueLabel: '${(_jpegQuality * 100).round()}%',
+          value: _jpegQuality,
+          min: 0.1,
+          max: 0.95,
+          divisions: 17,
+          onChanged: state.compressionRunning
+              ? null
+              : (value) => setState(() => _jpegQuality = value),
+        ),
+        const Text(
+          'Rasterized output may destroy selectable text, links, forms, vector quality, and editable annotations.',
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (state.compressionRunning || totalPages > 0) ...<Widget>[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: progress),
+        ],
+        if (state.compressionResult != null) ...<Widget>[
+          const SizedBox(height: 8),
+          _CompressionResultView(result: state.compressionResult!),
+        ],
+      ],
+    );
+  }
+}
+
+class _SliderRow extends StatelessWidget {
+  const _SliderRow({
+    required this.label,
+    required this.valueLabel,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String valueLabel;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final ValueChanged<double>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        SizedBox(width: 56, child: Text(label)),
+        Expanded(
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: valueLabel,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(width: 48, child: Text(valueLabel, textAlign: TextAlign.end)),
+      ],
+    );
+  }
+}
+
+class _CompressionResultView extends StatelessWidget {
+  const _CompressionResultView({required this.result});
+
+  final PdfCompressionResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (result.compressionRatio * 100).toStringAsFixed(1);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          '${result.outputBytes} / ${result.inputBytes} bytes · $percent% · ${result.durationMilliseconds} ms',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          'Text ${_yesNo(result.textSelectable)} · Annotations ${_yesNo(result.annotationsEditable)} · Links ${_yesNo(result.linksFunctional)} · Forms ${_yesNo(result.formsFunctional)}',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          result.visualQualityNotes,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (result.warning.isNotEmpty)
+          Text(result.warning, maxLines: 3, overflow: TextOverflow.ellipsis),
+        Text(result.outputPath, maxLines: 2, overflow: TextOverflow.ellipsis),
+      ],
+    );
+  }
+
+  String _yesNo(bool value) => value ? 'yes' : 'no';
 }

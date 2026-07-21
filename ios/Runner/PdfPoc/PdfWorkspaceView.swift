@@ -25,6 +25,18 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
   )
   func workspaceView(_ view: PdfWorkspaceView, didFindOcrResult operationId: String, block: PdfOcrBlock)
   func workspaceView(_ view: PdfWorkspaceView, didCompleteOcr operationId: String, cancelled: Bool)
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didUpdateCompressionProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompleteCompression operationId: String,
+    result: PdfCompressionResult?,
+    cancelled: Bool
+  )
   func workspaceView(_ view: PdfWorkspaceView, didFailOperation operationId: String, error: PdfPocError)
 }
 
@@ -38,6 +50,7 @@ final class PdfWorkspaceView: UIView {
   private lazy var freeTextManager = PdfFreeTextManager(pdfView: pdfView)
   private lazy var signatureManager = PdfSignatureManager(pdfView: pdfView)
   private lazy var ocrManager = PdfOcrManager()
+  private lazy var compressionManager = PdfCompressionManager()
   private let pageOperationsManager = PdfPageOperationsManager()
   private let ocrResultOverlayView = UIView()
   private var session: PdfDocumentSession?
@@ -124,6 +137,7 @@ final class PdfWorkspaceView: UIView {
     hideSelectionToolbar()
     freeTextManager.cancelSelection()
     ocrManager.cancel()
+    compressionManager.cancel()
     hideOcrResultOverlay()
     inkManager.close()
     annotationTapGesture.isEnabled = true
@@ -626,6 +640,32 @@ final class PdfWorkspaceView: UIView {
     }
   }
 
+  func compress(_ request: PdfCompressionRequest) throws {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    let outputURL = compressionOutputURL(for: session.workingURL, request: request)
+    logPdfEvent(
+      "compress_request",
+      "mode=\(request.mode) dpi=\(request.rasterDpi) jpegQuality=\(request.jpegQuality)"
+    )
+    try compressionManager.run(
+      request: request,
+      document: session.document,
+      workingURL: session.workingURL,
+      outputURL: outputURL,
+      profile: compressionProfile(for: session.document)
+    )
+  }
+
+  func cancelCompression() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("cancel_compression_request")
+    compressionManager.cancel()
+  }
+
   func pageReorderPreviews(maxPixelSize: CGSize) throws -> [PdfPageReorderPreview] {
     try ensureMainThread()
     let document = try requireDocument()
@@ -672,6 +712,7 @@ final class PdfWorkspaceView: UIView {
     configureSelectionToolbar()
     configureFreeTextAreaSelection()
     configureOcr()
+    configureCompression()
     pdfView.addGestureRecognizer(annotationTapGesture)
     addSubview(inkManager.canvasView)
     addSubview(signatureManager.captureView)
@@ -730,6 +771,31 @@ final class PdfWorkspaceView: UIView {
     }
   }
 
+  private func configureCompression() {
+    compressionManager.onProgress = { [weak self] operationId, completedPages, totalPages in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didUpdateCompressionProgress: operationId,
+        completedPages: completedPages,
+        totalPages: totalPages
+      )
+    }
+    compressionManager.onCompleted = { [weak self] operationId, result, cancelled in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didCompleteCompression: operationId,
+        result: result,
+        cancelled: cancelled
+      )
+    }
+    compressionManager.onError = { [weak self] operationId, error in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
+    }
+  }
+
   @objc private func handleAnnotationTap(_ recognizer: UITapGestureRecognizer) {
     guard !inkManager.isEnabled, recognizer.state == .ended else { return }
     let point = recognizer.location(in: pdfView)
@@ -770,6 +836,44 @@ final class PdfWorkspaceView: UIView {
     let baseName = workingURL.deletingPathExtension().lastPathComponent
     return workingURL.deletingLastPathComponent()
       .appendingPathComponent("\(baseName)_page_ops.pdf")
+  }
+
+  private func compressionOutputURL(for workingURL: URL, request: PdfCompressionRequest) -> URL {
+    let baseName = workingURL.deletingPathExtension().lastPathComponent
+    let suffix: String
+    switch request.mode {
+    case .preserve:
+      suffix = "preserve_compressed"
+    case .rasterized:
+      let quality = Int((request.jpegQuality * 100).rounded())
+      suffix = "raster_\(request.rasterDpi)dpi_q\(quality)"
+    }
+    return workingURL.deletingLastPathComponent()
+      .appendingPathComponent("\(baseName)_\(suffix).pdf")
+  }
+
+  private func compressionProfile(for document: PDFDocument) -> PdfCompressionProfile {
+    var hasAnnotations = false
+    var hasLinks = false
+    var hasForms = false
+    for pageIndex in 0..<document.pageCount {
+      guard let page = document.page(at: pageIndex) else { continue }
+      for annotation in page.annotations {
+        hasAnnotations = true
+        if annotation.type == PDFAnnotationSubtype.link.rawValue {
+          hasLinks = true
+        }
+        if annotation.type == PDFAnnotationSubtype.widget.rawValue {
+          hasForms = true
+        }
+      }
+    }
+    return PdfCompressionProfile(
+      hasSearchableText: PdfSearchManager.hasSearchableText(document),
+      hasAnnotations: hasAnnotations,
+      hasLinks: hasLinks,
+      hasForms: hasForms
+    )
   }
 
   private func finishPageOperation(_ operation: String) {

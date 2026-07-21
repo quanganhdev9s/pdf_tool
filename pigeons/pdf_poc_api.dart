@@ -134,6 +134,48 @@ class PdfOcrBlock {
   PdfRect normalizedBoundingBox;
 }
 
+enum PdfCompressionMode { preserve, rasterized }
+
+class PdfCompressionRequest {
+  PdfCompressionRequest({
+    required this.mode,
+    required this.rasterDpi,
+    required this.jpegQuality,
+  });
+
+  PdfCompressionMode mode;
+  int rasterDpi;
+  double jpegQuality;
+}
+
+class PdfCompressionResult {
+  PdfCompressionResult({
+    required this.outputPath,
+    required this.inputBytes,
+    required this.outputBytes,
+    required this.compressionRatio,
+    required this.durationMilliseconds,
+    required this.textSelectable,
+    required this.annotationsEditable,
+    required this.linksFunctional,
+    required this.formsFunctional,
+    required this.visualQualityNotes,
+    required this.warning,
+  });
+
+  String outputPath;
+  int inputBytes;
+  int outputBytes;
+  double compressionRatio;
+  int durationMilliseconds;
+  bool textSelectable;
+  bool annotationsEditable;
+  bool linksFunctional;
+  bool formsFunctional;
+  String visualQualityNotes;
+  String warning;
+}
+
 @HostApi()
 abstract class PdfPocHostApi {
   PdfDocumentInfo openAssetWorkingCopy(String assetKey, Uint8List assetBytes);
@@ -216,6 +258,10 @@ abstract class PdfPocHostApi {
 
   void showOcrResult(PdfOcrBlock block);
 
+  void compress(PdfCompressionRequest request);
+
+  void cancelCompression();
+
   PdfDocumentInfo save();
 }
 
@@ -240,6 +286,18 @@ abstract class PdfPocFlutterApi {
   void onOcrResult(String operationId, PdfOcrBlock block);
 
   void onOcrCompleted(String operationId, bool cancelled);
+
+  void onCompressionProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onCompressionCompleted(
+    String operationId,
+    PdfCompressionResult? result,
+    bool cancelled,
+  );
 
   void onOperationFailed(
     String operationId,

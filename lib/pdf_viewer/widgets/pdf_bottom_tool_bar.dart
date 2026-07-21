@@ -8,6 +8,7 @@ enum PdfControlPanelMode {
   signature,
   pageOperations,
   ocr,
+  compression,
   status,
 }
 
@@ -85,6 +86,13 @@ class PdfBottomToolBar extends StatelessWidget {
                     activeMode: activeMode,
                     tooltip: 'OCR',
                     icon: Icons.document_scanner_outlined,
+                    onPressed: onModePressed,
+                  ),
+                  _ToolbarIcon(
+                    mode: PdfControlPanelMode.compression,
+                    activeMode: activeMode,
+                    tooltip: 'Compression',
+                    icon: Icons.compress,
                     onPressed: onModePressed,
                   ),
                   _ToolbarIcon(

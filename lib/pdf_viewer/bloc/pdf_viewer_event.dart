@@ -195,6 +195,25 @@ final class PdfViewerShowOcrResultRequested extends PdfViewerEvent {
   final PdfOcrBlock block;
 }
 
+final class PdfViewerRunPreservationCompressionRequested
+    extends PdfViewerEvent {
+  const PdfViewerRunPreservationCompressionRequested();
+}
+
+final class PdfViewerRunRasterizedCompressionRequested extends PdfViewerEvent {
+  const PdfViewerRunRasterizedCompressionRequested({
+    required this.dpi,
+    required this.jpegQuality,
+  });
+
+  final int dpi;
+  final double jpegQuality;
+}
+
+final class PdfViewerCancelCompressionRequested extends PdfViewerEvent {
+  const PdfViewerCancelCompressionRequested();
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,
@@ -282,5 +301,29 @@ final class PdfViewerNativeOcrCompleted extends PdfViewerEvent {
   });
 
   final String operationId;
+  final bool cancelled;
+}
+
+final class PdfViewerNativeCompressionProgress extends PdfViewerEvent {
+  const PdfViewerNativeCompressionProgress({
+    required this.operationId,
+    required this.completedPages,
+    required this.totalPages,
+  });
+
+  final String operationId;
+  final int completedPages;
+  final int totalPages;
+}
+
+final class PdfViewerNativeCompressionCompleted extends PdfViewerEvent {
+  const PdfViewerNativeCompressionCompleted({
+    required this.operationId,
+    required this.result,
+    required this.cancelled,
+  });
+
+  final String operationId;
+  final PdfCompressionResult? result;
   final bool cancelled;
 }

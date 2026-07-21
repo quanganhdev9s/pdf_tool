@@ -16,6 +16,10 @@ class PdfViewerState {
     this.ocrCompletedPages = 0,
     this.ocrTotalPages = 0,
     this.ocrResults = const <PdfOcrBlock>[],
+    this.compressionRunning = false,
+    this.compressionCompletedPages = 0,
+    this.compressionTotalPages = 0,
+    this.compressionResult,
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -30,6 +34,10 @@ class PdfViewerState {
   final int ocrCompletedPages;
   final int ocrTotalPages;
   final List<PdfOcrBlock> ocrResults;
+  final bool compressionRunning;
+  final int compressionCompletedPages;
+  final int compressionTotalPages;
+  final PdfCompressionResult? compressionResult;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -46,6 +54,10 @@ class PdfViewerState {
     int? ocrCompletedPages,
     int? ocrTotalPages,
     List<PdfOcrBlock>? ocrResults,
+    bool? compressionRunning,
+    int? compressionCompletedPages,
+    int? compressionTotalPages,
+    Object? compressionResult = _unset,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -68,6 +80,14 @@ class PdfViewerState {
       ocrCompletedPages: ocrCompletedPages ?? this.ocrCompletedPages,
       ocrTotalPages: ocrTotalPages ?? this.ocrTotalPages,
       ocrResults: ocrResults ?? this.ocrResults,
+      compressionRunning: compressionRunning ?? this.compressionRunning,
+      compressionCompletedPages:
+          compressionCompletedPages ?? this.compressionCompletedPages,
+      compressionTotalPages:
+          compressionTotalPages ?? this.compressionTotalPages,
+      compressionResult: compressionResult == _unset
+          ? this.compressionResult
+          : compressionResult as PdfCompressionResult?,
     );
   }
 }

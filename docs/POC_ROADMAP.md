@@ -298,6 +298,16 @@ Suggested presets:
 - Forms functional
 - Visual quality notes
 
+Implementation note:
+
+- POC 5 exposes preservation and rasterized compression controls in the existing
+  bottom toolbar.
+- Rasterized mode supports configurable DPI and JPEG quality and returns a
+  warning because it may destroy selectable text, links, forms, vector quality,
+  and editable annotations.
+- Compression results are diagnostic measurements, not production quality
+  guarantees.
+
 ### Definition of Done
 
 - Both modes produce openable PDFs

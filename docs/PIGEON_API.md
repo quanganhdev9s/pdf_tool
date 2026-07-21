@@ -98,10 +98,9 @@ enum PdfCompressionMode {
 }
 
 class PdfCompressionRequest {
-  String outputPath;
   PdfCompressionMode mode;
-  int? rasterDpi;
-  double? jpegQuality;
+  int rasterDpi;
+  double jpegQuality;
 }
 
 class PdfCompressionResult {
@@ -110,6 +109,12 @@ class PdfCompressionResult {
   int outputBytes;
   double compressionRatio;
   int durationMilliseconds;
+  bool textSelectable;
+  bool annotationsEditable;
+  bool linksFunctional;
+  bool formsFunctional;
+  String visualQualityNotes;
+  String warning;
 }
 ```
 
@@ -270,7 +275,7 @@ abstract class PdfPocHostApi {
 
   void showOcrResult(PdfOcrBlock block);
 
-  PdfCompressionResult compress(PdfCompressionRequest request);
+  void compress(PdfCompressionRequest request);
 
   void cancelCompression();
 }
@@ -336,6 +341,18 @@ abstract class PdfPocFlutterApi {
   void onOcrResult(String operationId, PdfOcrBlock block);
 
   void onOcrCompleted(String operationId, bool cancelled);
+
+  void onCompressionProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onCompressionCompleted(
+    String operationId,
+    PdfCompressionResult? result,
+    bool cancelled,
+  );
 
   void onOperationCompleted(String operationId);
 

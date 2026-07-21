@@ -149,6 +149,40 @@ extension PdfPocRuntime: PdfWorkspaceViewDelegate {
 
   func workspaceView(
     _ view: PdfWorkspaceView,
+    didUpdateCompressionProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_compression_progress",
+      "operationId=\(operationId) completed=\(completedPages) total=\(totalPages)"
+    )
+    flutterApi?.onCompressionProgress(
+      operationId: operationId,
+      completedPages: completedPages,
+      totalPages: totalPages
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompleteCompression operationId: String,
+    result: PdfCompressionResult?,
+    cancelled: Bool
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_compression_completed",
+      "operationId=\(operationId) cancelled=\(cancelled) output=\(result?.outputPath ?? "")"
+    )
+    flutterApi?.onCompressionCompleted(
+      operationId: operationId,
+      result: result,
+      cancelled: cancelled
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
     didFailOperation operationId: String,
     error: PdfPocError
   ) {

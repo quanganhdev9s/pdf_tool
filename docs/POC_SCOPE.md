@@ -183,6 +183,12 @@ Record:
 - Processing time
 - Peak-memory observations when practical
 
+Current POC 5 implementation keeps compression outputs separate from the input
+asset and the editable working copy. Preservation mode writes a PDFKit copy;
+rasterized mode rebuilds the PDF from JPEG-backed page images at configurable
+DPI and JPEG quality. Rasterized output must be treated as destructive for text
+selection, links, forms, vector quality, and editable annotations.
+
 ## Required exports
 
 The POC must support:

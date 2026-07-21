@@ -91,6 +91,13 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerRunOcrAllPagesRequested>(_onRunOcrAllPagesRequested);
     on<PdfViewerCancelOcrRequested>(_onCancelOcrRequested);
     on<PdfViewerShowOcrResultRequested>(_onShowOcrResultRequested);
+    on<PdfViewerRunPreservationCompressionRequested>(
+      _onRunPreservationCompressionRequested,
+    );
+    on<PdfViewerRunRasterizedCompressionRequested>(
+      _onRunRasterizedCompressionRequested,
+    );
+    on<PdfViewerCancelCompressionRequested>(_onCancelCompressionRequested);
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -102,6 +109,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNativeOcrProgress>(_onNativeOcrProgress);
     on<PdfViewerNativeOcrResult>(_onNativeOcrResult);
     on<PdfViewerNativeOcrCompleted>(_onNativeOcrCompleted);
+    on<PdfViewerNativeCompressionProgress>(_onNativeCompressionProgress);
+    on<PdfViewerNativeCompressionCompleted>(_onNativeCompressionCompleted);
   }
 
   final String assetKey;
@@ -139,6 +148,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           ocrCompletedPages: 0,
           ocrTotalPages: 0,
           ocrResults: <PdfOcrBlock>[],
+          compressionRunning: false,
+          compressionCompletedPages: 0,
+          compressionTotalPages: 0,
+          compressionResult: null,
           status: 'Reset writable copy for ${assetName(assetKey)}.',
         ),
       );
@@ -753,6 +766,55 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     });
   }
 
+  Future<void> _onRunPreservationCompressionRequested(
+    PdfViewerRunPreservationCompressionRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _startCompression(
+      emit,
+      PdfCompressionRequest(
+        mode: PdfCompressionMode.preserve,
+        rasterDpi: 150,
+        jpegQuality: 0.75,
+      ),
+      'preservation compression',
+    );
+  }
+
+  Future<void> _onRunRasterizedCompressionRequested(
+    PdfViewerRunRasterizedCompressionRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _startCompression(
+      emit,
+      PdfCompressionRequest(
+        mode: PdfCompressionMode.rasterized,
+        rasterDpi: event.dpi,
+        jpegQuality: event.jpegQuality,
+      ),
+      'rasterized compression',
+    );
+  }
+
+  Future<void> _onCancelCompressionRequested(
+    PdfViewerCancelCompressionRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('compression_cancel_request');
+      await _api.cancelCompression();
+      emit(state.copyWith(status: 'Cancelling compression...'));
+    } on PlatformException catch (error) {
+      _showError(
+        emit,
+        'cancel compression',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
   void _onNativePageChanged(
     PdfViewerNativePageChanged event,
     Emitter<PdfViewerState> emit,
@@ -805,6 +867,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         ocrCompletedPages: 0,
         ocrTotalPages: 0,
         ocrResults: <PdfOcrBlock>[],
+        compressionRunning: false,
+        compressionCompletedPages: 0,
+        compressionTotalPages: 0,
+        compressionResult: null,
         status: 'Document closed.',
       ),
     );
@@ -822,7 +888,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerNativeOperationFailed event,
     Emitter<PdfViewerState> emit,
   ) {
-    emit(state.copyWith(ocrRunning: false));
+    emit(state.copyWith(ocrRunning: false, compressionRunning: false));
     _showError(
       emit,
       event.operationId,
@@ -899,6 +965,38 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
+  void _onNativeCompressionProgress(
+    PdfViewerNativeCompressionProgress event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        compressionCompletedPages: event.completedPages,
+        compressionTotalPages: event.totalPages,
+        status:
+            'Compression progress: ${event.completedPages}/${event.totalPages} pages.',
+      ),
+    );
+  }
+
+  void _onNativeCompressionCompleted(
+    PdfViewerNativeCompressionCompleted event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    final result = event.result;
+    emit(
+      state.copyWith(
+        compressionRunning: false,
+        compressionResult: result,
+        status: event.cancelled
+            ? 'Compression cancelled.'
+            : result == null
+            ? 'Compression completed without an output result.'
+            : 'Compression output: ${result.outputBytes} / ${result.inputBytes} bytes.',
+      ),
+    );
+  }
+
   Future<void> _openAsset(Emitter<PdfViewerState> emit) async {
     if (state.openedOnce) {
       logPdfEvent('open_skip_already_opened');
@@ -920,6 +1018,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         ocrCompletedPages: 0,
         ocrTotalPages: 0,
         ocrResults: <PdfOcrBlock>[],
+        compressionRunning: false,
+        compressionCompletedPages: 0,
+        compressionTotalPages: 0,
+        compressionResult: null,
         status: 'Opened ${assetName(assetKey)} from a writable copy.',
       ),
     );
@@ -961,6 +1063,46 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       _showError(
         emit,
         'OCR $label',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _startCompression(
+    Emitter<PdfViewerState> emit,
+    PdfCompressionRequest request,
+    String label,
+  ) async {
+    if (state.documentInfo == null) {
+      emit(state.copyWith(status: 'Open a document before compressing.'));
+      return;
+    }
+    logPdfEvent('compression_run_request', <String, Object?>{
+      'label': label,
+      'mode': request.mode.name,
+      'dpi': request.rasterDpi,
+      'jpegQuality': request.jpegQuality,
+    });
+    emit(
+      state.copyWith(
+        compressionRunning: true,
+        compressionCompletedPages: 0,
+        compressionTotalPages: request.mode == PdfCompressionMode.preserve
+            ? 1
+            : state.documentInfo?.pageCount ?? 0,
+        compressionResult: null,
+        status: 'Starting $label...',
+      ),
+    );
+    try {
+      await _api.compress(request);
+    } on PlatformException catch (error) {
+      emit(state.copyWith(compressionRunning: false));
+      _showError(
+        emit,
+        label,
         error.code,
         error.message ?? 'Operation failed.',
         error.details?.toString(),
@@ -1025,6 +1167,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         status:
             '$operationId failed: $code - $message'
             '${details == null ? '' : ' ($details)'}',
+        compressionRunning: false,
       ),
     );
   }
@@ -1188,6 +1331,52 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       add(
         PdfViewerNativeOcrCompleted(
           operationId: operationId,
+          cancelled: cancelled,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onCompressionProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  ) {
+    logPdfEvent('callback_compression_progress', <String, Object?>{
+      'operationId': operationId,
+      'completedPages': completedPages,
+      'totalPages': totalPages,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeCompressionProgress(
+          operationId: operationId,
+          completedPages: completedPages,
+          totalPages: totalPages,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onCompressionCompleted(
+    String operationId,
+    PdfCompressionResult? result,
+    bool cancelled,
+  ) {
+    logPdfEvent('callback_compression_completed', <String, Object?>{
+      'operationId': operationId,
+      'cancelled': cancelled,
+      'outputPath': result?.outputPath,
+      'inputBytes': result?.inputBytes,
+      'outputBytes': result?.outputBytes,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeCompressionCompleted(
+          operationId: operationId,
+          result: result,
           cancelled: cancelled,
         ),
       );

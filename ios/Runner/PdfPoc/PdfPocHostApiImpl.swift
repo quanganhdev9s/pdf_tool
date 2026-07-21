@@ -199,6 +199,14 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.showOcrResult(block) }
   }
 
+  func compress(request: PdfCompressionRequest) throws {
+    try call { try $0.compress(request) }
+  }
+
+  func cancelCompression() throws {
+    try call { try $0.cancelCompression() }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try callWithResult { try $0.save() }
   }

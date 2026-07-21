@@ -288,9 +288,11 @@ caching, and exportable OCR results.
 | Preserve mode on text PDF | Text remains selectable |
 | Preserve mode on annotations | Editability checked |
 | Rasterized mode | Size reduction measured |
+| Rasterized DPI/JPEG settings | Output size and visual quality change with selected settings |
 | Rasterized mode text | Expected loss documented |
 | Forms and links | Preservation measured |
 | Large image PDF | No main-thread freeze |
+| Cancel compression | Operation stops between pages or limitation is recorded |
 
 ## Result recording
 
