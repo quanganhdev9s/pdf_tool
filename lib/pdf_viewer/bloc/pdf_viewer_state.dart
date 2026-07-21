@@ -12,6 +12,10 @@ class PdfViewerState {
     this.busy = false,
     this.openedOnce = false,
     this.inkModeEnabled = false,
+    this.ocrRunning = false,
+    this.ocrCompletedPages = 0,
+    this.ocrTotalPages = 0,
+    this.ocrResults = const <PdfOcrBlock>[],
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -22,6 +26,10 @@ class PdfViewerState {
   final bool busy;
   final bool openedOnce;
   final bool inkModeEnabled;
+  final bool ocrRunning;
+  final int ocrCompletedPages;
+  final int ocrTotalPages;
+  final List<PdfOcrBlock> ocrResults;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -34,6 +42,10 @@ class PdfViewerState {
     bool? busy,
     bool? openedOnce,
     bool? inkModeEnabled,
+    bool? ocrRunning,
+    int? ocrCompletedPages,
+    int? ocrTotalPages,
+    List<PdfOcrBlock>? ocrResults,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -52,6 +64,10 @@ class PdfViewerState {
       busy: busy ?? this.busy,
       openedOnce: openedOnce ?? this.openedOnce,
       inkModeEnabled: inkModeEnabled ?? this.inkModeEnabled,
+      ocrRunning: ocrRunning ?? this.ocrRunning,
+      ocrCompletedPages: ocrCompletedPages ?? this.ocrCompletedPages,
+      ocrTotalPages: ocrTotalPages ?? this.ocrTotalPages,
+      ocrResults: ocrResults ?? this.ocrResults,
     );
   }
 }

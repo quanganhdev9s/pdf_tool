@@ -219,6 +219,9 @@ production-oriented folder layout:
 - `PdfPageReorderView.swift` owns the native reorder screen embedded in Flutter:
   it renders PDFKit page thumbnails in a UIKit collection view, supports
   drag/drop ordering, and stores the pending page order in `PdfPocRuntime`.
+- `PdfOcrManager.swift` owns POC 4 Vision OCR: page rasterization, recognition
+  language configuration, confidence/text extraction, normalized bounding boxes,
+  progress callbacks, and cooperative cancellation.
 - `PdfSignatureViews.swift` owns the PencilKit electronic-signature capture view
   and native placement preview gestures.
 - `PdfFlattenedExporter.swift` owns flattened PDF export rendering.
@@ -230,6 +233,22 @@ services when they gain their own state, gestures, coordinate conversion,
 long-running work, or persistence rules. `PdfWorkspaceView` should remain the
 orchestrator that validates document availability, invokes the feature manager,
 marks the session dirty when needed, and reports typed results back to Flutter.
+
+## POC 4 OCR Flow
+
+- Flutter exposes OCR controls through `PdfViewerBloc` and the OCR bottom-bar
+  panel.
+- Swift renders selected `PDFPage` crop boxes into white-backed images and runs
+  `VNRecognizeTextRequest` with Vietnamese and English language hints.
+- OCR results are sent back as page index, recognized text, confidence, and a
+  Vision-normalized bounding box.
+- Selecting an OCR result calls back into Swift so `PdfWorkspaceView` can map
+  the normalized box into PDF page coordinates and show a transient overlay in
+  the visible `PDFView`.
+- OCR cancellation is cooperative between pages; the in-flight Vision request
+  may finish before callbacks stop.
+- Vision OCR output is not embedded into the PDF and does not make the PDF a
+  searchable PDF in POC 4.
 
 POC 3 page operations mutate only the writable PDF session or a derived output
 copy. The source asset under `assets/poc/` remains read-only. Crop operations

@@ -187,6 +187,18 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try callWithResult { try $0.savePageOperationsCopy() }
   }
 
+  func runOcr(request: PdfOcrRequest) throws {
+    try call { try $0.runOcr(request) }
+  }
+
+  func cancelOcr() throws {
+    try call { try $0.cancelOcr() }
+  }
+
+  func showOcrResult(block: PdfOcrBlock) throws {
+    try call { try $0.showOcrResult(block) }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try callWithResult { try $0.save() }
   }

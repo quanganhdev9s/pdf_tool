@@ -146,6 +146,11 @@ Required:
 - Support cancellation
 - Highlight an OCR result position in the viewer
 
+Current POC 4 implementation keeps OCR as an in-memory diagnostic flow: Flutter
+starts current-page or all-page OCR through `PdfViewerBloc`, Swift runs Vision
+through `PdfOcrManager`, and tapping a result shows a transient viewer overlay.
+The overlay is not a saved PDF annotation.
+
 Keep Vision OCR in POC 4 even when Live Text works on a device. Vision OCR is
 required because it provides controlled recognition requests, returned text,
 confidence, bounding boxes, progress, cancellation, caching, and exportable

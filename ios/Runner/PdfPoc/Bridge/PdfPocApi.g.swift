@@ -569,6 +569,101 @@ struct PdfExportResult: Hashable, CustomStringConvertible {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfOcrRequest: Hashable, CustomStringConvertible {
+  var pageIndexes: [Int64]
+  var recognitionLanguages: [String]
+  var accurateRecognition: Bool
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfOcrRequest? {
+    let pageIndexes = pigeonVar_list[0] as! [Int64]
+    let recognitionLanguages = pigeonVar_list[1] as! [String]
+    let accurateRecognition = pigeonVar_list[2] as! Bool
+
+    return PdfOcrRequest(
+      pageIndexes: pageIndexes,
+      recognitionLanguages: recognitionLanguages,
+      accurateRecognition: accurateRecognition
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      pageIndexes,
+      recognitionLanguages,
+      accurateRecognition,
+    ]
+  }
+  static func == (lhs: PdfOcrRequest, rhs: PdfOcrRequest) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.pageIndexes, rhs.pageIndexes) && PdfPocApiPigeonInternal.deepEquals(lhs.recognitionLanguages, rhs.recognitionLanguages) && PdfPocApiPigeonInternal.deepEquals(lhs.accurateRecognition, rhs.accurateRecognition)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfOcrRequest")
+    PdfPocApiPigeonInternal.deepHash(value: pageIndexes, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: recognitionLanguages, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: accurateRecognition, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfOcrRequest(pageIndexes: \(String(describing: pageIndexes)), recognitionLanguages: \(String(describing: recognitionLanguages)), accurateRecognition: \(String(describing: accurateRecognition)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfOcrBlock: Hashable, CustomStringConvertible {
+  var pageIndex: Int64
+  var text: String
+  var confidence: Double
+  var normalizedBoundingBox: PdfRect
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfOcrBlock? {
+    let pageIndex = pigeonVar_list[0] as! Int64
+    let text = pigeonVar_list[1] as! String
+    let confidence = pigeonVar_list[2] as! Double
+    let normalizedBoundingBox = pigeonVar_list[3] as! PdfRect
+
+    return PdfOcrBlock(
+      pageIndex: pageIndex,
+      text: text,
+      confidence: confidence,
+      normalizedBoundingBox: normalizedBoundingBox
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      pageIndex,
+      text,
+      confidence,
+      normalizedBoundingBox,
+    ]
+  }
+  static func == (lhs: PdfOcrBlock, rhs: PdfOcrBlock) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.pageIndex, rhs.pageIndex) && PdfPocApiPigeonInternal.deepEquals(lhs.text, rhs.text) && PdfPocApiPigeonInternal.deepEquals(lhs.confidence, rhs.confidence) && PdfPocApiPigeonInternal.deepEquals(lhs.normalizedBoundingBox, rhs.normalizedBoundingBox)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfOcrBlock")
+    PdfPocApiPigeonInternal.deepHash(value: pageIndex, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: text, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: confidence, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: normalizedBoundingBox, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfOcrBlock(pageIndex: \(String(describing: pageIndex)), text: \(String(describing: text)), confidence: \(String(describing: confidence)), normalizedBoundingBox: \(String(describing: normalizedBoundingBox)))"
+  }
+}
+
 private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -594,6 +689,10 @@ private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
       return PdfFreeTextAreaSelection.fromList(self.readValue() as! [Any?])
     case 137:
       return PdfExportResult.fromList(self.readValue() as! [Any?])
+    case 138:
+      return PdfOcrRequest.fromList(self.readValue() as! [Any?])
+    case 139:
+      return PdfOcrBlock.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -628,6 +727,12 @@ private class PdfPocApiPigeonCodecWriter: FlutterStandardWriter {
       super.writeValue(value.toList())
     } else if let value = value as? PdfExportResult {
       super.writeByte(137)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfOcrRequest {
+      super.writeByte(138)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfOcrBlock {
+      super.writeByte(139)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -688,6 +793,9 @@ protocol PdfPocHostApi {
   func commitPendingPageReorder() throws
   func cancelPendingPageReorder() throws
   func savePageOperationsCopy() throws -> PdfExportResult
+  func runOcr(request: PdfOcrRequest) throws
+  func cancelOcr() throws
+  func showOcrResult(block: PdfOcrBlock) throws
   func save() throws -> PdfDocumentInfo
 }
 
@@ -1213,6 +1321,49 @@ class PdfPocHostApiSetup {
     } else {
       savePageOperationsCopyChannel.setMessageHandler(nil)
     }
+    let runOcrChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.runOcr\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      runOcrChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! PdfOcrRequest
+        do {
+          try api.runOcr(request: requestArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      runOcrChannel.setMessageHandler(nil)
+    }
+    let cancelOcrChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelOcr\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cancelOcrChannel.setMessageHandler { _, reply in
+        do {
+          try api.cancelOcr()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cancelOcrChannel.setMessageHandler(nil)
+    }
+    let showOcrResultChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.showOcrResult\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      showOcrResultChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let blockArg = args[0] as! PdfOcrBlock
+        do {
+          try api.showOcrResult(block: blockArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      showOcrResultChannel.setMessageHandler(nil)
+    }
     let saveChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       saveChannel.setMessageHandler { _, reply in
@@ -1238,6 +1389,9 @@ protocol PdfPocFlutterApiProtocol {
   func onSearchStateChanged(state stateArg: PdfSearchState, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onSelectionChanged(selectedText selectedTextArg: String?, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onFreeTextAreaSelected(selection selectionArg: PdfFreeTextAreaSelection, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onOcrProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onOcrResult(operationId operationIdArg: String, block blockArg: PdfOcrBlock, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onOcrCompleted(operationId operationIdArg: String, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOperationFailed(operationId operationIdArg: String, code codeArg: String, message messageArg: String, details detailsArg: String?, completion: @escaping (Result<Void, PigeonError>) -> Void)
 }
 class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
@@ -1362,6 +1516,60 @@ class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
     let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onFreeTextAreaSelected\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([selectionArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onOcrProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrProgress\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, completedPagesArg, totalPagesArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onOcrResult(operationId operationIdArg: String, block blockArg: PdfOcrBlock, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrResult\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, blockArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onOcrCompleted(operationId operationIdArg: String, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrCompleted\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, cancelledArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {
         completion(.failure(createConnectionError(withChannelName: channelName)))
         return

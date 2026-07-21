@@ -177,6 +177,24 @@ final class PdfViewerSavePageOperationsCopyRequested extends PdfViewerEvent {
   const PdfViewerSavePageOperationsCopyRequested();
 }
 
+final class PdfViewerRunOcrCurrentPageRequested extends PdfViewerEvent {
+  const PdfViewerRunOcrCurrentPageRequested();
+}
+
+final class PdfViewerRunOcrAllPagesRequested extends PdfViewerEvent {
+  const PdfViewerRunOcrAllPagesRequested();
+}
+
+final class PdfViewerCancelOcrRequested extends PdfViewerEvent {
+  const PdfViewerCancelOcrRequested();
+}
+
+final class PdfViewerShowOcrResultRequested extends PdfViewerEvent {
+  const PdfViewerShowOcrResultRequested(this.block);
+
+  final PdfOcrBlock block;
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,
@@ -233,4 +251,36 @@ final class PdfViewerNativeFreeTextAreaSelected extends PdfViewerEvent {
   const PdfViewerNativeFreeTextAreaSelected(this.selection);
 
   final PdfFreeTextAreaSelection selection;
+}
+
+final class PdfViewerNativeOcrProgress extends PdfViewerEvent {
+  const PdfViewerNativeOcrProgress({
+    required this.operationId,
+    required this.completedPages,
+    required this.totalPages,
+  });
+
+  final String operationId;
+  final int completedPages;
+  final int totalPages;
+}
+
+final class PdfViewerNativeOcrResult extends PdfViewerEvent {
+  const PdfViewerNativeOcrResult({
+    required this.operationId,
+    required this.block,
+  });
+
+  final String operationId;
+  final PdfOcrBlock block;
+}
+
+final class PdfViewerNativeOcrCompleted extends PdfViewerEvent {
+  const PdfViewerNativeOcrCompleted({
+    required this.operationId,
+    required this.cancelled,
+  });
+
+  final String operationId;
+  final bool cancelled;
 }

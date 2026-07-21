@@ -116,6 +116,39 @@ extension PdfPocRuntime: PdfWorkspaceViewDelegate {
 
   func workspaceView(
     _ view: PdfWorkspaceView,
+    didUpdateOcrProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_ocr_progress",
+      "operationId=\(operationId) completed=\(completedPages) total=\(totalPages)"
+    )
+    flutterApi?.onOcrProgress(
+      operationId: operationId,
+      completedPages: completedPages,
+      totalPages: totalPages
+    ) { _ in }
+  }
+
+  func workspaceView(_ view: PdfWorkspaceView, didFindOcrResult operationId: String, block: PdfOcrBlock) {
+    logPdfEvent(
+      "callback_to_flutter_ocr_result",
+      "operationId=\(operationId) pageIndex=\(block.pageIndex) confidence=\(block.confidence)"
+    )
+    flutterApi?.onOcrResult(operationId: operationId, block: block) { _ in }
+  }
+
+  func workspaceView(_ view: PdfWorkspaceView, didCompleteOcr operationId: String, cancelled: Bool) {
+    logPdfEvent(
+      "callback_to_flutter_ocr_completed",
+      "operationId=\(operationId) cancelled=\(cancelled)"
+    )
+    flutterApi?.onOcrCompleted(operationId: operationId, cancelled: cancelled) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
     didFailOperation operationId: String,
     error: PdfPocError
   ) {

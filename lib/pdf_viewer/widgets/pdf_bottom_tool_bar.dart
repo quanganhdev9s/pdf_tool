@@ -7,6 +7,7 @@ enum PdfControlPanelMode {
   freeText,
   signature,
   pageOperations,
+  ocr,
   status,
 }
 
@@ -77,6 +78,13 @@ class PdfBottomToolBar extends StatelessWidget {
                     activeMode: activeMode,
                     tooltip: 'Page operations',
                     icon: Icons.auto_stories_outlined,
+                    onPressed: onModePressed,
+                  ),
+                  _ToolbarIcon(
+                    mode: PdfControlPanelMode.ocr,
+                    activeMode: activeMode,
+                    tooltip: 'OCR',
+                    icon: Icons.document_scanner_outlined,
                     onPressed: onModePressed,
                   ),
                   _ToolbarIcon(

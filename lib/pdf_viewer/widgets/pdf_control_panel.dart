@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../pdf_poc_api.g.dart';
 import '../bloc/pdf_viewer_bloc.dart';
 import 'pdf_bottom_tool_bar.dart';
 
@@ -93,6 +94,8 @@ class PdfControlPanel extends StatelessWidget {
           state: state,
           onOpenPageReorder: onOpenPageReorder,
         );
+      case PdfControlPanelMode.ocr:
+        return _OcrControls(state: state);
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -501,5 +504,98 @@ class _StatusControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(state.status, maxLines: 3, overflow: TextOverflow.ellipsis);
+  }
+}
+
+class _OcrControls extends StatelessWidget {
+  const _OcrControls({required this.state});
+
+  final PdfViewerState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<PdfViewerBloc>();
+    final totalPages = state.ocrTotalPages;
+    final progress = totalPages == 0
+        ? null
+        : state.ocrCompletedPages / totalPages.clamp(1, totalPages);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            FilledButton.tonalIcon(
+              onPressed: state.busy || state.ocrRunning
+                  ? null
+                  : () => bloc.add(const PdfViewerRunOcrCurrentPageRequested()),
+              icon: const Icon(Icons.my_location_outlined, size: 18),
+              label: const Text('Current page'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: state.busy || state.ocrRunning
+                  ? null
+                  : () => bloc.add(const PdfViewerRunOcrAllPagesRequested()),
+              icon: const Icon(Icons.library_books_outlined, size: 18),
+              label: const Text('All pages'),
+            ),
+            OutlinedButton.icon(
+              onPressed: state.ocrRunning
+                  ? () => bloc.add(const PdfViewerCancelOcrRequested())
+                  : null,
+              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              label: const Text('Cancel'),
+            ),
+            Text(
+              state.ocrRunning || totalPages > 0
+                  ? '${state.ocrCompletedPages}/$totalPages pages'
+                  : '${state.ocrResults.length} blocks',
+            ),
+          ],
+        ),
+        if (state.ocrRunning || totalPages > 0) ...<Widget>[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: progress),
+        ],
+        if (state.ocrResults.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 164,
+            child: ListView.separated(
+              padding: EdgeInsets.zero,
+              itemCount: state.ocrResults.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final block = state.ocrResults[index];
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    block.text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(_ocrSubtitle(block)),
+                  trailing: const Icon(Icons.center_focus_strong_outlined),
+                  onTap: state.busy
+                      ? null
+                      : () => bloc.add(PdfViewerShowOcrResultRequested(block)),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _ocrSubtitle(PdfOcrBlock block) {
+    final confidence = (block.confidence * 100)
+        .clamp(0, 100)
+        .toStringAsFixed(0);
+    return 'Page ${block.pageIndex} · $confidence%';
   }
 }

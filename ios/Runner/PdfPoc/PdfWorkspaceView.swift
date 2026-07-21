@@ -17,6 +17,14 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
   func workspaceView(_ view: PdfWorkspaceView, didChangeSearchState state: PdfSearchState)
   func workspaceView(_ view: PdfWorkspaceView, didChangeSelection selectedText: String?)
   func workspaceView(_ view: PdfWorkspaceView, didSelectFreeTextArea selection: PdfFreeTextAreaSelection)
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didUpdateOcrProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  )
+  func workspaceView(_ view: PdfWorkspaceView, didFindOcrResult operationId: String, block: PdfOcrBlock)
+  func workspaceView(_ view: PdfWorkspaceView, didCompleteOcr operationId: String, cancelled: Bool)
   func workspaceView(_ view: PdfWorkspaceView, didFailOperation operationId: String, error: PdfPocError)
 }
 
@@ -29,11 +37,14 @@ final class PdfWorkspaceView: UIView {
   private lazy var inkManager = PdfInkManager(pdfView: pdfView)
   private lazy var freeTextManager = PdfFreeTextManager(pdfView: pdfView)
   private lazy var signatureManager = PdfSignatureManager(pdfView: pdfView)
+  private lazy var ocrManager = PdfOcrManager()
   private let pageOperationsManager = PdfPageOperationsManager()
+  private let ocrResultOverlayView = UIView()
   private var session: PdfDocumentSession?
   private var pageChangedObserver: NSObjectProtocol?
   private var selectionChangedObserver: NSObjectProtocol?
   private var selectionToolbarTargetRect: CGRect?
+  private var activeOcrResultBlock: PdfOcrBlock?
   private lazy var annotationTapGesture = UITapGestureRecognizer(
     target: self,
     action: #selector(handleAnnotationTap(_:))
@@ -59,6 +70,7 @@ final class PdfWorkspaceView: UIView {
     signatureManager.layout(pdfFrame: pdfView.frame)
     freeTextManager.layout(frame: pdfView.frame)
     layoutSelectionToolbar()
+    layoutOcrResultOverlay()
   }
 
   func open(assetKey: String, assetBytes: Data, reset: Bool) throws -> PdfDocumentInfo {
@@ -111,6 +123,8 @@ final class PdfWorkspaceView: UIView {
     searchManager.clear()
     hideSelectionToolbar()
     freeTextManager.cancelSelection()
+    ocrManager.cancel()
+    hideOcrResultOverlay()
     inkManager.close()
     annotationTapGesture.isEnabled = true
     signatureManager.close()
@@ -566,6 +580,52 @@ final class PdfWorkspaceView: UIView {
     return result
   }
 
+  func runOcr(_ request: PdfOcrRequest) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    logPdfEvent(
+      "run_ocr_request",
+      "pages=\(request.pageIndexes) languages=\(request.recognitionLanguages)"
+    )
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    try ocrManager.run(request: request, in: document)
+  }
+
+  func cancelOcr() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("cancel_ocr_request")
+    ocrManager.cancel()
+  }
+
+  func showOcrResult(_ block: PdfOcrBlock) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    guard block.pageIndex >= 0,
+          block.pageIndex < Int64(document.pageCount),
+          let page = document.page(at: Int(block.pageIndex)) else {
+      throw PdfPocError.pageOutOfRange(block.pageIndex)
+    }
+    let pageRect = pageRect(for: block, on: page)
+    guard pageRect.width > 0, pageRect.height > 0 else {
+      throw PdfPocError(
+        code: "invalid_ocr_result",
+        message: "OCR result bounding box is empty.",
+        details: "\(block.normalizedBoundingBox)"
+      )
+    }
+    logPdfEvent(
+      "show_ocr_result",
+      "pageIndex=\(block.pageIndex) rect=\(pageRect) textLength=\(block.text.count)"
+    )
+    activeOcrResultBlock = block
+    pdfView.go(to: pageRect, on: page)
+    DispatchQueue.main.async { [weak self] in
+      self?.layoutOcrResultOverlay()
+    }
+  }
+
   func pageReorderPreviews(maxPixelSize: CGSize) throws -> [PdfPageReorderPreview] {
     try ensureMainThread()
     let document = try requireDocument()
@@ -611,10 +671,12 @@ final class PdfWorkspaceView: UIView {
     addSubview(pdfView)
     configureSelectionToolbar()
     configureFreeTextAreaSelection()
+    configureOcr()
     pdfView.addGestureRecognizer(annotationTapGesture)
     addSubview(inkManager.canvasView)
     addSubview(signatureManager.captureView)
     addSubview(signatureManager.placementView)
+    addSubview(ocrResultOverlayView)
     addSubview(selectionToolbar)
     NSLayoutConstraint.activate([
       pdfView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -634,6 +696,37 @@ final class PdfWorkspaceView: UIView {
     freeTextManager.onError = { [weak self] error in
       guard let self else { return }
       self.delegate?.workspaceView(self, didFailOperation: "free-text area", error: error)
+    }
+  }
+
+  private func configureOcr() {
+    ocrResultOverlayView.isHidden = true
+    ocrResultOverlayView.isUserInteractionEnabled = false
+    ocrResultOverlayView.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.22)
+    ocrResultOverlayView.layer.borderColor = UIColor.systemOrange.cgColor
+    ocrResultOverlayView.layer.borderWidth = 2
+    ocrResultOverlayView.layer.cornerRadius = 4
+
+    ocrManager.onProgress = { [weak self] operationId, completedPages, totalPages in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didUpdateOcrProgress: operationId,
+        completedPages: completedPages,
+        totalPages: totalPages
+      )
+    }
+    ocrManager.onResult = { [weak self] operationId, block in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didFindOcrResult: operationId, block: block)
+    }
+    ocrManager.onCompleted = { [weak self] operationId, cancelled in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didCompleteOcr: operationId, cancelled: cancelled)
+    }
+    ocrManager.onError = { [weak self] operationId, error in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
     }
   }
 
@@ -683,6 +776,7 @@ final class PdfWorkspaceView: UIView {
     searchManager.clear()
     delegate?.workspaceView(self, didChangeSearchState: searchManager.state())
     hideSelectionToolbar()
+    hideOcrResultOverlay()
     pdfView.setNeedsLayout()
     pdfView.setNeedsDisplay()
     markDirty()
@@ -966,6 +1060,43 @@ final class PdfWorkspaceView: UIView {
 
   private func clamp(_ value: CGFloat, _ lower: CGFloat, _ upper: CGFloat) -> CGFloat {
     min(max(value, lower), upper)
+  }
+
+  private func pageRect(for block: PdfOcrBlock, on page: PDFPage) -> CGRect {
+    let cropBox = page.bounds(for: .cropBox)
+    let normalized = block.normalizedBoundingBox
+    let x = cropBox.minX + CGFloat(normalized.x) * cropBox.width
+    let y = cropBox.minY + CGFloat(normalized.y) * cropBox.height
+    let width = CGFloat(normalized.width) * cropBox.width
+    let height = CGFloat(normalized.height) * cropBox.height
+    return CGRect(x: x, y: y, width: width, height: height).intersection(cropBox)
+  }
+
+  private func layoutOcrResultOverlay() {
+    guard let block = activeOcrResultBlock,
+          let document = session?.document,
+          block.pageIndex >= 0,
+          block.pageIndex < Int64(document.pageCount),
+          let page = document.page(at: Int(block.pageIndex)) else {
+      ocrResultOverlayView.isHidden = true
+      return
+    }
+    let pageRect = pageRect(for: block, on: page)
+    guard !pageRect.isNull, pageRect.width > 0, pageRect.height > 0 else {
+      ocrResultOverlayView.isHidden = true
+      return
+    }
+    let pdfViewRect = pdfView.convert(pageRect, from: page)
+    let workspaceRect = pdfView.convert(pdfViewRect, to: self).insetBy(dx: -2, dy: -2)
+    ocrResultOverlayView.frame = workspaceRect
+    ocrResultOverlayView.isHidden = false
+    bringSubviewToFront(ocrResultOverlayView)
+    bringSubviewToFront(selectionToolbar)
+  }
+
+  private func hideOcrResultOverlay() {
+    activeOcrResultBlock = nil
+    ocrResultOverlayView.isHidden = true
   }
 
   private func annotationSubtype(for type: PdfMarkupType) -> PDFAnnotationSubtype {

@@ -108,6 +108,32 @@ class PdfExportResult {
   int fileSizeBytes;
 }
 
+class PdfOcrRequest {
+  PdfOcrRequest({
+    required this.pageIndexes,
+    required this.recognitionLanguages,
+    required this.accurateRecognition,
+  });
+
+  List<int> pageIndexes;
+  List<String> recognitionLanguages;
+  bool accurateRecognition;
+}
+
+class PdfOcrBlock {
+  PdfOcrBlock({
+    required this.pageIndex,
+    required this.text,
+    required this.confidence,
+    required this.normalizedBoundingBox,
+  });
+
+  int pageIndex;
+  String text;
+  double confidence;
+  PdfRect normalizedBoundingBox;
+}
+
 @HostApi()
 abstract class PdfPocHostApi {
   PdfDocumentInfo openAssetWorkingCopy(String assetKey, Uint8List assetBytes);
@@ -184,6 +210,12 @@ abstract class PdfPocHostApi {
 
   PdfExportResult savePageOperationsCopy();
 
+  void runOcr(PdfOcrRequest request);
+
+  void cancelOcr();
+
+  void showOcrResult(PdfOcrBlock block);
+
   PdfDocumentInfo save();
 }
 
@@ -202,6 +234,12 @@ abstract class PdfPocFlutterApi {
   void onSelectionChanged(String? selectedText);
 
   void onFreeTextAreaSelected(PdfFreeTextAreaSelection selection);
+
+  void onOcrProgress(String operationId, int completedPages, int totalPages);
+
+  void onOcrResult(String operationId, PdfOcrBlock block);
+
+  void onOcrCompleted(String operationId, bool cancelled);
 
   void onOperationFailed(
     String operationId,

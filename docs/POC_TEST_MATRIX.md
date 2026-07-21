@@ -274,6 +274,8 @@ electronic signature annotation plus a flattened export experiment.
 | Cancel | Operation stops or limitation documented |
 | Bounding box | Overlay aligns visibly |
 | Large document | UI remains responsive |
+| Tap OCR result | Viewer navigates to the page and shows a transient overlay; no PDF annotation is saved |
+| Live Text comparison | Record whether selection/copy came from embedded PDF text, system Live Text, or Vision OCR result text |
 
 Keep Vision OCR testing even on devices where Live Text works. Vision OCR is the
 controlled POC path for confidence, bounding boxes, progress, cancellation,

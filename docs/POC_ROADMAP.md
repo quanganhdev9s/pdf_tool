@@ -235,6 +235,14 @@ Validate Vision OCR quality, coordinates, performance, cancellation, and integra
 - Cancellation
 - Select an OCR result and show its location on the PDF page
 
+Implementation note:
+
+- POC 4 exposes current-page and all-page OCR controls in the existing bottom
+  toolbar, reports progress/results through Pigeon callbacks, and uses a native
+  transient overlay for result location previews.
+- OCR result text, confidence, and boxes remain in memory for this POC unless a
+  later export/cache feature is explicitly implemented.
+
 ### Experimental deliverable
 
 Attempt searchable-PDF output only after extraction works.

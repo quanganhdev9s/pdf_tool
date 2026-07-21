@@ -268,6 +268,8 @@ abstract class PdfPocHostApi {
 
   void cancelOcr();
 
+  void showOcrResult(PdfOcrBlock block);
+
   PdfCompressionResult compress(PdfCompressionRequest request);
 
   void cancelCompression();
@@ -325,7 +327,15 @@ abstract class PdfPocFlutterApi {
     int totalUnits,
   );
 
-  void onOcrResult(PdfOcrBlock block);
+  void onOcrProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onOcrResult(String operationId, PdfOcrBlock block);
+
+  void onOcrCompleted(String operationId, bool cancelled);
 
   void onOperationCompleted(String operationId);
 
@@ -357,8 +367,10 @@ For `PdfFreeTextRequest.bounds` and page-operation rectangles:
 For OCR bounding boxes:
 
 - Return normalized coordinates in the range 0 to 1.
-- State whether the origin is top-left or bottom-left.
+- POC 4 returns Vision-normalized coordinates with a bottom-left origin.
 - Provide a native conversion helper to map OCR bounds to PDF page coordinates.
+- `showOcrResult` maps the normalized box to the target page crop box and shows
+  a transient viewer overlay. It does not create or save a PDF annotation.
 
 ## Error codes
 

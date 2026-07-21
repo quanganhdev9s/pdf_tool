@@ -87,6 +87,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerSavePageOperationsCopyRequested>(
       _onSavePageOperationsCopyRequested,
     );
+    on<PdfViewerRunOcrCurrentPageRequested>(_onRunOcrCurrentPageRequested);
+    on<PdfViewerRunOcrAllPagesRequested>(_onRunOcrAllPagesRequested);
+    on<PdfViewerCancelOcrRequested>(_onCancelOcrRequested);
+    on<PdfViewerShowOcrResultRequested>(_onShowOcrResultRequested);
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -95,6 +99,9 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNativeSearchStateChanged>(_onNativeSearchStateChanged);
     on<PdfViewerNativeSelectionChanged>(_onNativeSelectionChanged);
     on<PdfViewerNativeFreeTextAreaSelected>(_onNativeFreeTextAreaSelected);
+    on<PdfViewerNativeOcrProgress>(_onNativeOcrProgress);
+    on<PdfViewerNativeOcrResult>(_onNativeOcrResult);
+    on<PdfViewerNativeOcrCompleted>(_onNativeOcrCompleted);
   }
 
   final String assetKey;
@@ -128,6 +135,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           searchState: null,
           selectedText: null,
           pendingFreeTextArea: null,
+          ocrRunning: false,
+          ocrCompletedPages: 0,
+          ocrTotalPages: 0,
+          ocrResults: <PdfOcrBlock>[],
           status: 'Reset writable copy for ${assetName(assetKey)}.',
         ),
       );
@@ -682,6 +693,66 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     });
   }
 
+  Future<void> _onRunOcrCurrentPageRequested(
+    PdfViewerRunOcrCurrentPageRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    final pageIndex = _requireCurrentPageIndex();
+    if (pageIndex == null) {
+      emit(state.copyWith(status: 'Open a document before running OCR.'));
+      return;
+    }
+    await _startOcr(emit, <int>[pageIndex], 'current page');
+  }
+
+  Future<void> _onRunOcrAllPagesRequested(
+    PdfViewerRunOcrAllPagesRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    final info = state.documentInfo;
+    if (info == null) {
+      emit(state.copyWith(status: 'Open a document before running OCR.'));
+      return;
+    }
+    await _startOcr(
+      emit,
+      List<int>.generate(info.pageCount, (index) => index),
+      'all pages',
+    );
+  }
+
+  Future<void> _onCancelOcrRequested(
+    PdfViewerCancelOcrRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('ocr_cancel_request');
+      await _api.cancelOcr();
+      emit(state.copyWith(status: 'Cancelling OCR...'));
+    } on PlatformException catch (error) {
+      _showError(
+        emit,
+        'cancel OCR',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onShowOcrResultRequested(
+    PdfViewerShowOcrResultRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'show OCR result', () async {
+      logPdfEvent('show_ocr_result_request', <String, Object?>{
+        'pageIndex': event.block.pageIndex,
+        'confidence': event.block.confidence,
+      });
+      await _api.showOcrResult(event.block);
+    });
+  }
+
   void _onNativePageChanged(
     PdfViewerNativePageChanged event,
     Emitter<PdfViewerState> emit,
@@ -730,6 +801,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         documentInfo: null,
         searchState: null,
         selectedText: null,
+        ocrRunning: false,
+        ocrCompletedPages: 0,
+        ocrTotalPages: 0,
+        ocrResults: <PdfOcrBlock>[],
         status: 'Document closed.',
       ),
     );
@@ -747,6 +822,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerNativeOperationFailed event,
     Emitter<PdfViewerState> emit,
   ) {
+    emit(state.copyWith(ocrRunning: false));
     _showError(
       emit,
       event.operationId,
@@ -782,6 +858,47 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
+  void _onNativeOcrProgress(
+    PdfViewerNativeOcrProgress event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        ocrCompletedPages: event.completedPages,
+        ocrTotalPages: event.totalPages,
+        status:
+            'OCR progress: ${event.completedPages}/${event.totalPages} pages.',
+      ),
+    );
+  }
+
+  void _onNativeOcrResult(
+    PdfViewerNativeOcrResult event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    final results = List<PdfOcrBlock>.of(state.ocrResults)..add(event.block);
+    emit(
+      state.copyWith(
+        ocrResults: results,
+        status: 'OCR found ${results.length} text blocks.',
+      ),
+    );
+  }
+
+  void _onNativeOcrCompleted(
+    PdfViewerNativeOcrCompleted event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        ocrRunning: false,
+        status: event.cancelled
+            ? 'OCR cancelled at ${state.ocrCompletedPages}/${state.ocrTotalPages} pages.'
+            : 'OCR completed with ${state.ocrResults.length} text blocks.',
+      ),
+    );
+  }
+
   Future<void> _openAsset(Emitter<PdfViewerState> emit) async {
     if (state.openedOnce) {
       logPdfEvent('open_skip_already_opened');
@@ -799,6 +916,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       state.copyWith(
         searchState: null,
         selectedText: null,
+        ocrRunning: false,
+        ocrCompletedPages: 0,
+        ocrTotalPages: 0,
+        ocrResults: <PdfOcrBlock>[],
         status: 'Opened ${assetName(assetKey)} from a writable copy.',
       ),
     );
@@ -807,6 +928,44 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   Future<Uint8List> _loadAssetBytes(String assetKey) async {
     final data = await rootBundle.load(assetKey);
     return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+  }
+
+  Future<void> _startOcr(
+    Emitter<PdfViewerState> emit,
+    List<int> pageIndexes,
+    String label,
+  ) async {
+    logPdfEvent('ocr_run_request', <String, Object?>{
+      'label': label,
+      'pages': pageIndexes,
+    });
+    emit(
+      state.copyWith(
+        ocrRunning: true,
+        ocrCompletedPages: 0,
+        ocrTotalPages: pageIndexes.length,
+        ocrResults: <PdfOcrBlock>[],
+        status: 'Starting OCR for $label...',
+      ),
+    );
+    try {
+      await _api.runOcr(
+        PdfOcrRequest(
+          pageIndexes: pageIndexes,
+          recognitionLanguages: const <String>['vi-VN', 'en-US'],
+          accurateRecognition: true,
+        ),
+      );
+    } on PlatformException catch (error) {
+      emit(state.copyWith(ocrRunning: false));
+      _showError(
+        emit,
+        'OCR $label',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
   }
 
   Future<void> _run(
@@ -985,6 +1144,53 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     });
     if (!isClosed) {
       add(PdfViewerNativeFreeTextAreaSelected(selection));
+    }
+  }
+
+  @override
+  void onOcrProgress(String operationId, int completedPages, int totalPages) {
+    logPdfEvent('callback_ocr_progress', <String, Object?>{
+      'operationId': operationId,
+      'completedPages': completedPages,
+      'totalPages': totalPages,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeOcrProgress(
+          operationId: operationId,
+          completedPages: completedPages,
+          totalPages: totalPages,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onOcrResult(String operationId, PdfOcrBlock block) {
+    logPdfEvent('callback_ocr_result', <String, Object?>{
+      'operationId': operationId,
+      'pageIndex': block.pageIndex,
+      'confidence': block.confidence,
+      'textLength': block.text.trim().length,
+    });
+    if (!isClosed) {
+      add(PdfViewerNativeOcrResult(operationId: operationId, block: block));
+    }
+  }
+
+  @override
+  void onOcrCompleted(String operationId, bool cancelled) {
+    logPdfEvent('callback_ocr_completed', <String, Object?>{
+      'operationId': operationId,
+      'cancelled': cancelled,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeOcrCompleted(
+          operationId: operationId,
+          cancelled: cancelled,
+        ),
+      );
     }
   }
 
