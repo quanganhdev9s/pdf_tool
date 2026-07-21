@@ -18,6 +18,7 @@ class PdfControlPanel extends StatelessWidget {
     required this.onSearch,
     required this.onAddFreeText,
     required this.onBeginFreeTextAreaSelection,
+    required this.onOpenPageReorder,
   });
 
   final PdfControlPanelMode mode;
@@ -31,6 +32,7 @@ class PdfControlPanel extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onAddFreeText;
   final VoidCallback onBeginFreeTextAreaSelection;
+  final VoidCallback onOpenPageReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +88,11 @@ class PdfControlPanel extends StatelessWidget {
         );
       case PdfControlPanelMode.signature:
         return _SignatureControls(state: state);
+      case PdfControlPanelMode.pageOperations:
+        return _PageOperationControls(
+          state: state,
+          onOpenPageReorder: onOpenPageReorder,
+        );
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -415,6 +422,71 @@ class _SignatureControls extends StatelessWidget {
               : () => bloc.add(const PdfViewerExportFlattenedCopyRequested()),
           icon: const Icon(Icons.file_download_outlined, size: 18),
           label: const Text('Export flattened'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PageOperationControls extends StatelessWidget {
+  const _PageOperationControls({
+    required this.state,
+    required this.onOpenPageReorder,
+  });
+
+  final PdfViewerState state;
+  final VoidCallback onOpenPageReorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<PdfViewerBloc>();
+    final pageCount = state.documentInfo?.pageCount ?? 0;
+    final canDelete = pageCount > 1;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: <Widget>[
+        FilledButton.tonalIcon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerRotateCurrentPageRequested(90)),
+          icon: const Icon(Icons.rotate_right, size: 18),
+          label: const Text('Rotate 90'),
+        ),
+        OutlinedButton.icon(
+          onPressed: state.busy || !canDelete
+              ? null
+              : () => bloc.add(const PdfViewerDeleteCurrentPageRequested()),
+          icon: const Icon(Icons.delete_outline, size: 18),
+          label: const Text('Delete page'),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerDuplicateCurrentPageRequested()),
+          icon: const Icon(Icons.copy_all_outlined, size: 18),
+          label: const Text('Duplicate'),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: state.busy ? null : onOpenPageReorder,
+          icon: const Icon(Icons.view_module_outlined, size: 18),
+          label: const Text('Reorder'),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerCropCurrentPageRequested()),
+          icon: const Icon(Icons.crop, size: 18),
+          label: const Text('Crop inset'),
+        ),
+        OutlinedButton.icon(
+          onPressed: state.busy
+              ? null
+              : () =>
+                    bloc.add(const PdfViewerSavePageOperationsCopyRequested()),
+          icon: const Icon(Icons.save_as_outlined, size: 18),
+          label: const Text('Save output'),
         ),
       ],
     );

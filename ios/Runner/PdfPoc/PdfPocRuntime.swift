@@ -8,6 +8,7 @@ final class PdfPocRuntime {
 
   private var workspaceView: PdfWorkspaceView?
   private var flutterApi: PdfPocFlutterApi?
+  private var pendingPageReorder: [Int64]?
 
   private init() {}
 
@@ -43,6 +44,28 @@ final class PdfPocRuntime {
       )
     }
     return workspaceView
+  }
+
+  func setPendingPageReorder(_ pageOrder: [Int64]) {
+    pendingPageReorder = pageOrder
+    logPdfEvent("runtime_pending_page_reorder_changed", "order=\(pageOrder)")
+  }
+
+  func clearPendingPageReorder() {
+    pendingPageReorder = nil
+    logPdfEvent("runtime_pending_page_reorder_cleared")
+  }
+
+  func commitPendingPageReorder() throws {
+    guard let pendingPageReorder else {
+      throw PdfPocError(
+        code: "invalid_page_operation",
+        message: "Reorder pages before applying the new order.",
+        details: nil
+      )
+    }
+    try requireWorkspace().applyPageOrder(pendingPageReorder)
+    clearPendingPageReorder()
   }
 }
 

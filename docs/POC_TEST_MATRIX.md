@@ -258,7 +258,8 @@ electronic signature annotation plus a flattened export experiment.
 | Rotate | Correct after reopen |
 | Delete | Page count decreases |
 | Duplicate | Content duplicated |
-| Reorder | Correct order |
+| Reorder screen | Native page previews appear |
+| Drag page preview and apply | Correct order after reopen |
 | Crop | Correct visible region |
 | Operations with annotations | Annotations preserved |
 

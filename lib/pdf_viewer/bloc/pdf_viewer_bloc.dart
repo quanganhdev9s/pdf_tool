@@ -71,6 +71,22 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       _onDeleteSelectedSignatureRequested,
     );
     on<PdfViewerExportFlattenedCopyRequested>(_onExportFlattenedCopyRequested);
+    on<PdfViewerRotateCurrentPageRequested>(_onRotateCurrentPageRequested);
+    on<PdfViewerDeleteCurrentPageRequested>(_onDeleteCurrentPageRequested);
+    on<PdfViewerDuplicateCurrentPageRequested>(
+      _onDuplicateCurrentPageRequested,
+    );
+    on<PdfViewerMoveCurrentPageRequested>(_onMoveCurrentPageRequested);
+    on<PdfViewerCommitPendingPageReorderRequested>(
+      _onCommitPendingPageReorderRequested,
+    );
+    on<PdfViewerCancelPendingPageReorderRequested>(
+      _onCancelPendingPageReorderRequested,
+    );
+    on<PdfViewerCropCurrentPageRequested>(_onCropCurrentPageRequested);
+    on<PdfViewerSavePageOperationsCopyRequested>(
+      _onSavePageOperationsCopyRequested,
+    );
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -524,6 +540,148 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     });
   }
 
+  Future<void> _onRotateCurrentPageRequested(
+    PdfViewerRotateCurrentPageRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    final pageIndex = _requireCurrentPageIndex();
+    if (pageIndex == null) {
+      emit(state.copyWith(status: 'Open a document before rotating pages.'));
+      return;
+    }
+    await _run(emit, 'rotate page', () async {
+      logPdfEvent('rotate_page_request', <String, Object?>{
+        'pageIndex': pageIndex,
+        'degrees': event.degrees,
+      });
+      await _api.rotatePages(<int>[pageIndex], event.degrees);
+    });
+  }
+
+  Future<void> _onDeleteCurrentPageRequested(
+    PdfViewerDeleteCurrentPageRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    final info = state.documentInfo;
+    if (info == null) {
+      emit(state.copyWith(status: 'Open a document before deleting pages.'));
+      return;
+    }
+    if (info.pageCount <= 1) {
+      emit(state.copyWith(status: 'Cannot delete the only page in the PDF.'));
+      return;
+    }
+    await _run(emit, 'delete page', () async {
+      logPdfEvent('delete_page_request', <String, Object?>{
+        'pageIndex': info.currentPageIndex,
+      });
+      await _api.deletePages(<int>[info.currentPageIndex]);
+    });
+  }
+
+  Future<void> _onDuplicateCurrentPageRequested(
+    PdfViewerDuplicateCurrentPageRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    final info = state.documentInfo;
+    if (info == null) {
+      emit(state.copyWith(status: 'Open a document before duplicating pages.'));
+      return;
+    }
+    final destinationIndex = info.currentPageIndex + 1;
+    await _run(emit, 'duplicate page', () async {
+      logPdfEvent('duplicate_page_request', <String, Object?>{
+        'pageIndex': info.currentPageIndex,
+        'destinationIndex': destinationIndex,
+      });
+      await _api.duplicatePage(info.currentPageIndex, destinationIndex);
+    });
+  }
+
+  Future<void> _onMoveCurrentPageRequested(
+    PdfViewerMoveCurrentPageRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    final info = state.documentInfo;
+    if (info == null) {
+      emit(state.copyWith(status: 'Open a document before reordering pages.'));
+      return;
+    }
+    final destinationIndex = info.currentPageIndex + event.delta;
+    if (destinationIndex < 0 || destinationIndex >= info.pageCount) {
+      emit(
+        state.copyWith(status: 'Page cannot move farther in that direction.'),
+      );
+      return;
+    }
+    await _run(emit, 'move page', () async {
+      logPdfEvent('move_page_request', <String, Object?>{
+        'fromIndex': info.currentPageIndex,
+        'toIndex': destinationIndex,
+      });
+      await _api.movePage(info.currentPageIndex, destinationIndex);
+    });
+  }
+
+  Future<void> _onCommitPendingPageReorderRequested(
+    PdfViewerCommitPendingPageReorderRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'apply page reorder', () async {
+      logPdfEvent('commit_pending_page_reorder_request');
+      await _api.commitPendingPageReorder();
+    });
+  }
+
+  Future<void> _onCancelPendingPageReorderRequested(
+    PdfViewerCancelPendingPageReorderRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'cancel page reorder', () async {
+      logPdfEvent('cancel_pending_page_reorder_request');
+      await _api.cancelPendingPageReorder();
+    });
+  }
+
+  Future<void> _onCropCurrentPageRequested(
+    PdfViewerCropCurrentPageRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    final pageIndex = _requireCurrentPageIndex();
+    if (pageIndex == null) {
+      emit(state.copyWith(status: 'Open a document before cropping pages.'));
+      return;
+    }
+    await _run(emit, 'crop page', () async {
+      const insetPoints = 36.0;
+      logPdfEvent('crop_page_to_inset_request', <String, Object?>{
+        'pageIndex': pageIndex,
+        'insetPoints': insetPoints,
+      });
+      await _api.cropPageToInset(pageIndex, insetPoints);
+    });
+  }
+
+  Future<void> _onSavePageOperationsCopyRequested(
+    PdfViewerSavePageOperationsCopyRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'save page-operations copy', () async {
+      final result = await _api.savePageOperationsCopy();
+      logPdfEvent('save_page_operations_copy_success', <String, Object?>{
+        'outputPath': result.outputPath,
+        'pageCount': result.pageCount,
+        'fileSizeBytes': result.fileSizeBytes,
+      });
+      emit(
+        state.copyWith(
+          status:
+              'Page-operations copy saved and reopened: ${result.outputPath} (${result.pageCount} pages).',
+        ),
+      );
+    });
+  }
+
   void _onNativePageChanged(
     PdfViewerNativePageChanged event,
     Emitter<PdfViewerState> emit,
@@ -720,6 +878,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       'hasSearchableText': info.hasSearchableText,
     });
     emit(state.copyWith(documentInfo: info));
+  }
+
+  int? _requireCurrentPageIndex() {
+    return state.documentInfo?.currentPageIndex;
   }
 
   @override

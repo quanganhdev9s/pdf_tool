@@ -18,5 +18,9 @@ import UIKit
       PdfPlatformViewFactory(),
       withId: "pdf_poc_view"
     )
+    applicationRegistrar.register(
+      PdfPageReorderPlatformViewFactory(runtime: PdfPocRuntime.shared),
+      withId: "pdf_poc_page_reorder_view"
+    )
   }
 }

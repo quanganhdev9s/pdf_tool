@@ -147,6 +147,46 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try callWithResult { try $0.exportFlattenedCopy() }
   }
 
+  func rotatePages(pageIndexes: [Int64], degrees: Int64) throws {
+    try call { try $0.rotatePages(pageIndexes, degrees: degrees) }
+  }
+
+  func deletePages(pageIndexes: [Int64]) throws {
+    try call { try $0.deletePages(pageIndexes) }
+  }
+
+  func duplicatePage(pageIndex: Int64, destinationIndex: Int64) throws {
+    try call { try $0.duplicatePage(pageIndex, destinationIndex: destinationIndex) }
+  }
+
+  func movePage(fromIndex: Int64, toIndex: Int64) throws {
+    try call { try $0.movePage(from: fromIndex, to: toIndex) }
+  }
+
+  func cropPage(pageIndex: Int64, pageBounds: PdfRect) throws {
+    try call { try $0.cropPage(pageIndex, bounds: pageBounds) }
+  }
+
+  func cropPageToInset(pageIndex: Int64, insetPoints: Double) throws {
+    try call { try $0.cropPageToInset(pageIndex, insetPoints: CGFloat(insetPoints)) }
+  }
+
+  func commitPendingPageReorder() throws {
+    do {
+      try runtime.commitPendingPageReorder()
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func cancelPendingPageReorder() throws {
+    runtime.clearPendingPageReorder()
+  }
+
+  func savePageOperationsCopy() throws -> PdfExportResult {
+    try callWithResult { try $0.savePageOperationsCopy() }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try callWithResult { try $0.save() }
   }

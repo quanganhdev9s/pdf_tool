@@ -166,6 +166,24 @@ abstract class PdfPocHostApi {
 
   PdfExportResult exportFlattenedCopy();
 
+  void rotatePages(List<int> pageIndexes, int degrees);
+
+  void deletePages(List<int> pageIndexes);
+
+  void duplicatePage(int pageIndex, int destinationIndex);
+
+  void movePage(int fromIndex, int toIndex);
+
+  void cropPage(int pageIndex, PdfRect pageBounds);
+
+  void cropPageToInset(int pageIndex, double insetPoints);
+
+  void commitPendingPageReorder();
+
+  void cancelPendingPageReorder();
+
+  PdfExportResult savePageOperationsCopy();
+
   PdfDocumentInfo save();
 }
 

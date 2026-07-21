@@ -256,6 +256,14 @@ abstract class PdfPocHostApi {
 
   void cropPage(int pageIndex, PdfRect pageBounds);
 
+  void cropPageToInset(int pageIndex, double insetPoints);
+
+  void commitPendingPageReorder();
+
+  void cancelPendingPageReorder();
+
+  PdfExportResult savePageOperationsCopy();
+
   void runOcr(PdfOcrRequest request);
 
   void cancelOcr();

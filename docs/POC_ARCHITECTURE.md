@@ -213,6 +213,12 @@ production-oriented folder layout:
 - `PdfSignatureManager.swift` owns electronic-signature capture state,
   placement state, conversion of captured PencilKit strokes into PDF ink paths,
   electronic-signature annotation selection, and deletion.
+- `PdfPageOperationsManager.swift` owns POC 3 page mutation logic: rotation,
+  deletion, duplication, reordering, crop-box updates, and page-index
+  validation.
+- `PdfPageReorderView.swift` owns the native reorder screen embedded in Flutter:
+  it renders PDFKit page thumbnails in a UIKit collection view, supports
+  drag/drop ordering, and stores the pending page order in `PdfPocRuntime`.
 - `PdfSignatureViews.swift` owns the PencilKit electronic-signature capture view
   and native placement preview gestures.
 - `PdfFlattenedExporter.swift` owns flattened PDF export rendering.
@@ -224,6 +230,17 @@ services when they gain their own state, gestures, coordinate conversion,
 long-running work, or persistence rules. `PdfWorkspaceView` should remain the
 orchestrator that validates document availability, invokes the feature manager,
 marks the session dirty when needed, and reports typed results back to Flutter.
+
+POC 3 page operations mutate only the writable PDF session or a derived output
+copy. The source asset under `assets/poc/` remains read-only. Crop operations
+set the PDF page crop box for visual clipping; they are not secure deletion and
+must not be presented as redaction.
+
+Page reordering uses a separate Flutter route containing a native UIKit
+platform view. Swift renders thumbnails directly from the open `PDFDocument` and
+updates only a serializable pending page-order list; Flutter never receives page
+bitmap previews through Pigeon. Apply commits the pending order through the
+Bloc/Pigeon flow, while cancel/back clears it.
 
 ## Document lifecycle
 

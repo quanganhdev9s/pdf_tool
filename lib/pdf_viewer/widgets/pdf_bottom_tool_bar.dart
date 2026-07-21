@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 
-enum PdfControlPanelMode { pages, search, ink, freeText, signature, status }
+enum PdfControlPanelMode {
+  pages,
+  search,
+  ink,
+  freeText,
+  signature,
+  pageOperations,
+  status,
+}
 
 class PdfBottomToolBar extends StatelessWidget {
   const PdfBottomToolBar({
@@ -62,6 +70,13 @@ class PdfBottomToolBar extends StatelessWidget {
                     activeMode: activeMode,
                     tooltip: 'Electronic signature',
                     icon: Icons.gesture,
+                    onPressed: onModePressed,
+                  ),
+                  _ToolbarIcon(
+                    mode: PdfControlPanelMode.pageOperations,
+                    activeMode: activeMode,
+                    tooltip: 'Page operations',
+                    icon: Icons.auto_stories_outlined,
                     onPressed: onModePressed,
                   ),
                   _ToolbarIcon(

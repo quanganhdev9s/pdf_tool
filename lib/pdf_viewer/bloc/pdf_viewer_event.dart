@@ -141,6 +141,42 @@ final class PdfViewerExportFlattenedCopyRequested extends PdfViewerEvent {
   const PdfViewerExportFlattenedCopyRequested();
 }
 
+final class PdfViewerRotateCurrentPageRequested extends PdfViewerEvent {
+  const PdfViewerRotateCurrentPageRequested(this.degrees);
+
+  final int degrees;
+}
+
+final class PdfViewerDeleteCurrentPageRequested extends PdfViewerEvent {
+  const PdfViewerDeleteCurrentPageRequested();
+}
+
+final class PdfViewerDuplicateCurrentPageRequested extends PdfViewerEvent {
+  const PdfViewerDuplicateCurrentPageRequested();
+}
+
+final class PdfViewerMoveCurrentPageRequested extends PdfViewerEvent {
+  const PdfViewerMoveCurrentPageRequested(this.delta);
+
+  final int delta;
+}
+
+final class PdfViewerCommitPendingPageReorderRequested extends PdfViewerEvent {
+  const PdfViewerCommitPendingPageReorderRequested();
+}
+
+final class PdfViewerCancelPendingPageReorderRequested extends PdfViewerEvent {
+  const PdfViewerCancelPendingPageReorderRequested();
+}
+
+final class PdfViewerCropCurrentPageRequested extends PdfViewerEvent {
+  const PdfViewerCropCurrentPageRequested();
+}
+
+final class PdfViewerSavePageOperationsCopyRequested extends PdfViewerEvent {
+  const PdfViewerSavePageOperationsCopyRequested();
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,

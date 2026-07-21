@@ -679,6 +679,15 @@ protocol PdfPocHostApi {
   func cancelSignaturePlacement() throws
   func deleteSelectedSignature() throws
   func exportFlattenedCopy() throws -> PdfExportResult
+  func rotatePages(pageIndexes: [Int64], degrees: Int64) throws
+  func deletePages(pageIndexes: [Int64]) throws
+  func duplicatePage(pageIndex: Int64, destinationIndex: Int64) throws
+  func movePage(fromIndex: Int64, toIndex: Int64) throws
+  func cropPage(pageIndex: Int64, pageBounds: PdfRect) throws
+  func cropPageToInset(pageIndex: Int64, insetPoints: Double) throws
+  func commitPendingPageReorder() throws
+  func cancelPendingPageReorder() throws
+  func savePageOperationsCopy() throws -> PdfExportResult
   func save() throws -> PdfDocumentInfo
 }
 
@@ -1069,6 +1078,140 @@ class PdfPocHostApiSetup {
       }
     } else {
       exportFlattenedCopyChannel.setMessageHandler(nil)
+    }
+    let rotatePagesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.rotatePages\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      rotatePagesChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pageIndexesArg = args[0] as! [Int64]
+        let degreesArg = args[1] as! Int64
+        do {
+          try api.rotatePages(pageIndexes: pageIndexesArg, degrees: degreesArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      rotatePagesChannel.setMessageHandler(nil)
+    }
+    let deletePagesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deletePages\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      deletePagesChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pageIndexesArg = args[0] as! [Int64]
+        do {
+          try api.deletePages(pageIndexes: pageIndexesArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      deletePagesChannel.setMessageHandler(nil)
+    }
+    let duplicatePageChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.duplicatePage\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      duplicatePageChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pageIndexArg = args[0] as! Int64
+        let destinationIndexArg = args[1] as! Int64
+        do {
+          try api.duplicatePage(pageIndex: pageIndexArg, destinationIndex: destinationIndexArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      duplicatePageChannel.setMessageHandler(nil)
+    }
+    let movePageChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.movePage\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      movePageChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let fromIndexArg = args[0] as! Int64
+        let toIndexArg = args[1] as! Int64
+        do {
+          try api.movePage(fromIndex: fromIndexArg, toIndex: toIndexArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      movePageChannel.setMessageHandler(nil)
+    }
+    let cropPageChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cropPage\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cropPageChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pageIndexArg = args[0] as! Int64
+        let pageBoundsArg = args[1] as! PdfRect
+        do {
+          try api.cropPage(pageIndex: pageIndexArg, pageBounds: pageBoundsArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cropPageChannel.setMessageHandler(nil)
+    }
+    let cropPageToInsetChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cropPageToInset\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cropPageToInsetChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pageIndexArg = args[0] as! Int64
+        let insetPointsArg = args[1] as! Double
+        do {
+          try api.cropPageToInset(pageIndex: pageIndexArg, insetPoints: insetPointsArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cropPageToInsetChannel.setMessageHandler(nil)
+    }
+    let commitPendingPageReorderChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitPendingPageReorder\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      commitPendingPageReorderChannel.setMessageHandler { _, reply in
+        do {
+          try api.commitPendingPageReorder()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      commitPendingPageReorderChannel.setMessageHandler(nil)
+    }
+    let cancelPendingPageReorderChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPendingPageReorder\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cancelPendingPageReorderChannel.setMessageHandler { _, reply in
+        do {
+          try api.cancelPendingPageReorder()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cancelPendingPageReorderChannel.setMessageHandler(nil)
+    }
+    let savePageOperationsCopyChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.savePageOperationsCopy\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      savePageOperationsCopyChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.savePageOperationsCopy()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      savePageOperationsCopyChannel.setMessageHandler(nil)
     }
     let saveChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

@@ -29,6 +29,7 @@ final class PdfWorkspaceView: UIView {
   private lazy var inkManager = PdfInkManager(pdfView: pdfView)
   private lazy var freeTextManager = PdfFreeTextManager(pdfView: pdfView)
   private lazy var signatureManager = PdfSignatureManager(pdfView: pdfView)
+  private let pageOperationsManager = PdfPageOperationsManager()
   private var session: PdfDocumentSession?
   private var pageChangedObserver: NSObjectProtocol?
   private var selectionChangedObserver: NSObjectProtocol?
@@ -436,6 +437,141 @@ final class PdfWorkspaceView: UIView {
     return result
   }
 
+  func rotatePages(_ pageIndexes: [Int64], degrees: Int64) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    logPdfEvent("rotate_pages_request", "pageIndexes=\(pageIndexes) degrees=\(degrees)")
+    try pageOperationsManager.rotatePages(pageIndexes, degrees: degrees, in: document)
+    finishPageOperation("rotate_pages")
+  }
+
+  func deletePages(_ pageIndexes: [Int64]) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    logPdfEvent("delete_pages_request", "pageIndexes=\(pageIndexes)")
+    _ = try pageOperationsManager.deletePages(pageIndexes, in: document)
+    let targetIndex = min(max(currentPageIndex(), 0), Int64(document.pageCount - 1))
+    if let page = document.page(at: Int(targetIndex)) {
+      pdfView.go(to: page)
+    }
+    finishPageOperation("delete_pages")
+  }
+
+  func duplicatePage(_ pageIndex: Int64, destinationIndex: Int64) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    logPdfEvent(
+      "duplicate_page_request",
+      "pageIndex=\(pageIndex) destinationIndex=\(destinationIndex)"
+    )
+    try pageOperationsManager.duplicatePage(
+      at: pageIndex,
+      destinationIndex: destinationIndex,
+      in: document
+    )
+    if let page = document.page(at: Int(destinationIndex)) {
+      pdfView.go(to: page)
+    }
+    finishPageOperation("duplicate_page")
+  }
+
+  func movePage(from fromIndex: Int64, to toIndex: Int64) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    logPdfEvent("move_page_request", "fromIndex=\(fromIndex) toIndex=\(toIndex)")
+    try pageOperationsManager.movePage(from: fromIndex, to: toIndex, in: document)
+    if let page = document.page(at: Int(toIndex)) {
+      pdfView.go(to: page)
+    }
+    finishPageOperation("move_page")
+  }
+
+  func applyPageOrder(_ pageOrder: [Int64]) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    logPdfEvent("apply_page_order_request", "order=\(pageOrder)")
+    try pageOperationsManager.reorderPages(to: pageOrder, in: document)
+    if let firstPage = document.page(at: 0) {
+      pdfView.go(to: firstPage)
+    }
+    finishPageOperation("apply_page_order")
+  }
+
+  func cropPage(_ pageIndex: Int64, bounds: PdfRect) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    let requestedBounds = CGRect(
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height
+    )
+    logPdfEvent("crop_page_request", "pageIndex=\(pageIndex) bounds=\(requestedBounds)")
+    try pageOperationsManager.cropPage(at: pageIndex, to: requestedBounds, in: document)
+    finishPageOperation("crop_page")
+  }
+
+  func cropPageToInset(_ pageIndex: Int64, insetPoints: CGFloat) throws {
+    try ensureMainThread()
+    let document = try requireDocument()
+    logPdfEvent(
+      "crop_page_to_inset_request",
+      "pageIndex=\(pageIndex) insetPoints=\(insetPoints)"
+    )
+    try pageOperationsManager.cropPageToInset(
+      at: pageIndex,
+      insetPoints: insetPoints,
+      in: document
+    )
+    finishPageOperation("crop_page_to_inset")
+  }
+
+  func savePageOperationsCopy() throws -> PdfExportResult {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    let outputURL = pageOperationsOutputURL(for: session.workingURL)
+    logPdfEvent("save_page_operations_copy_start", "path=\(outputURL.path)")
+    guard session.document.write(to: outputURL) else {
+      throw PdfPocError(
+        code: "save_failed",
+        message: "PDFKit could not save the page-operations output.",
+        details: outputURL.path
+      )
+    }
+    let reopened = try openDocument(at: outputURL)
+    self.session = PdfDocumentSession(
+      assetKey: session.assetKey,
+      workingURL: outputURL,
+      document: reopened
+    )
+    pdfView.document = reopened
+    pdfView.autoScales = true
+    pdfView.goToFirstPage(nil)
+    notifyPageChanged()
+    delegate?.workspaceView(self, didChangeDirtyState: false)
+    let attributes = try FileManager.default.attributesOfItem(atPath: outputURL.path)
+    let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+    let result = PdfExportResult(
+      outputPath: outputURL.path,
+      pageCount: Int64(reopened.pageCount),
+      fileSizeBytes: fileSize
+    )
+    logPdfEvent(
+      "save_page_operations_copy_success",
+      "path=\(result.outputPath) pages=\(result.pageCount) bytes=\(result.fileSizeBytes)"
+    )
+    delegate?.workspaceView(self, didOpen: documentInfo())
+    return result
+  }
+
+  func pageReorderPreviews(maxPixelSize: CGSize) throws -> [PdfPageReorderPreview] {
+    try ensureMainThread()
+    let document = try requireDocument()
+    return pageOperationsManager.reorderPreviews(in: document, maxPixelSize: maxPixelSize)
+  }
+
   func save() throws -> PdfDocumentInfo {
     try ensureMainThread()
     guard let session else {
@@ -535,6 +671,23 @@ final class PdfWorkspaceView: UIView {
     let baseName = workingURL.deletingPathExtension().lastPathComponent
     return workingURL.deletingLastPathComponent()
       .appendingPathComponent("\(baseName)_flattened.pdf")
+  }
+
+  private func pageOperationsOutputURL(for workingURL: URL) -> URL {
+    let baseName = workingURL.deletingPathExtension().lastPathComponent
+    return workingURL.deletingLastPathComponent()
+      .appendingPathComponent("\(baseName)_page_ops.pdf")
+  }
+
+  private func finishPageOperation(_ operation: String) {
+    searchManager.clear()
+    delegate?.workspaceView(self, didChangeSearchState: searchManager.state())
+    hideSelectionToolbar()
+    pdfView.setNeedsLayout()
+    pdfView.setNeedsDisplay()
+    markDirty()
+    notifyPageChanged()
+    logPdfEvent("page_operation_finished", "operation=\(operation)")
   }
 
   private func openDocument(at url: URL) throws -> PDFDocument {
