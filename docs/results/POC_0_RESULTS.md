@@ -50,6 +50,9 @@ or deferred backlog feature is implemented.
   reusable controls, asset metadata, and diagnostic logging helpers.
 - `lib/pdf_viewer/screens/pdf_bloc_app.dart` is only a compatibility barrel that
   exports the active picker/viewer screens.
+- Viewer controls are grouped behind a bottom icon toolbar. Each icon toggles a
+  focused panel for page navigation, search, ink, free text, selection actions,
+  or status instead of showing every control at once.
 
 ## Event Logging
 

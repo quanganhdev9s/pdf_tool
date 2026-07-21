@@ -48,6 +48,8 @@ the more complex PDF viewer.
   saving, and clipboard access.
 - Do not call generated Pigeon APIs directly from widgets for new POC 0 viewer
   controls; dispatch a `PdfViewerEvent` instead.
+- The PDF viewer uses a bottom icon toolbar. Each icon toggles one feature panel
+  such as page controls, search, ink, free text, selection actions, or status.
 
 Current Flutter structure:
 

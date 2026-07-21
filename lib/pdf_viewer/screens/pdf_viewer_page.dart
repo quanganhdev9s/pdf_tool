@@ -5,6 +5,7 @@ import '../bloc/pdf_viewer_bloc.dart';
 import '../data/pdf_assets.dart';
 import '../widgets/free_text_area_composer.dart';
 import '../widgets/native_pdf_workspace.dart';
+import '../widgets/pdf_bottom_tool_bar.dart';
 import '../widgets/pdf_control_panel.dart';
 
 class PdfViewerPage extends StatefulWidget {
@@ -30,6 +31,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
   final TextEditingController _selectedAreaTextController =
       TextEditingController();
   final FocusNode _selectedAreaTextFocusNode = FocusNode();
+  PdfControlPanelMode? _activePanelMode;
 
   @override
   void initState() {
@@ -65,7 +67,10 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           final pageChanged =
               previous.documentInfo?.currentPageIndex !=
               current.documentInfo?.currentPageIndex;
+          final selectionAvailabilityChanged =
+              previous.hasSelection != current.hasSelection;
           return pendingVisibilityChanged ||
+              selectionAvailabilityChanged ||
               (current.pendingFreeTextArea == null && pageChanged);
         },
         listener: _handleStateSideEffects,
@@ -99,13 +104,18 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       _selectedAreaTextController.clear();
       _selectedAreaTextFocusNode.unfocus();
     }
+
+    if (_activePanelMode == PdfControlPanelMode.selection &&
+        !state.hasSelection &&
+        mounted) {
+      setState(() {
+        _activePanelMode = null;
+      });
+    }
   }
 
   Widget _buildScaffold(BuildContext context, PdfViewerState state) {
     final info = state.documentInfo;
-    final pageText = info == null
-        ? 'No document'
-        : 'Page ${info.currentPageIndex} / ${info.pageCount}';
     final dirtyText = info?.isDirty ?? false ? 'Dirty' : 'Saved';
     final searchText = state.searchState == null
         ? 'No search'
@@ -133,9 +143,16 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           ),
         ],
       ),
+      bottomNavigationBar: PdfBottomToolBar(
+        activeMode: _activePanelMode,
+        hasSelection: state.hasSelection,
+        busy: state.busy,
+        onModePressed: _togglePanelMode,
+      ),
       body: Stack(
         children: <Widget>[
           SafeArea(
+            bottom: false,
             child: Column(
               children: <Widget>[
                 Expanded(
@@ -146,29 +163,30 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
                     child: const NativePdfWorkspace(),
                   ),
                 ),
-                PdfControlPanel(
-                  state: state,
-                  pageText: pageText,
-                  dirtyText: dirtyText,
-                  searchText: searchText,
-                  pageController: _pageController,
-                  searchController: _searchController,
-                  freeTextController: _freeTextController,
-                  onJumpToPage: () => _bloc.add(
-                    PdfViewerJumpToPageRequested(_pageController.text),
-                  ),
-                  onSearch: () => _bloc.add(
-                    PdfViewerSearchRequested(_searchController.text),
-                  ),
-                  onAddFreeText: () => _bloc.add(
-                    PdfViewerAddFixedFreeTextRequested(
-                      pageText: _pageController.text,
-                      text: _freeTextController.text,
+                if (_activePanelMode != null)
+                  PdfControlPanel(
+                    mode: _activePanelMode!,
+                    state: state,
+                    totalPages: info?.pageCount,
+                    searchText: searchText,
+                    pageController: _pageController,
+                    searchController: _searchController,
+                    freeTextController: _freeTextController,
+                    onJumpToPage: () => _bloc.add(
+                      PdfViewerJumpToPageRequested(_pageController.text),
                     ),
+                    onSearch: () => _bloc.add(
+                      PdfViewerSearchRequested(_searchController.text),
+                    ),
+                    onAddFreeText: () => _bloc.add(
+                      PdfViewerAddFixedFreeTextRequested(
+                        pageText: _pageController.text,
+                        text: _freeTextController.text,
+                      ),
+                    ),
+                    onBeginFreeTextAreaSelection:
+                        _beginFreeTextAreaSelectionFromUi,
                   ),
-                  onBeginFreeTextAreaSelection:
-                      _beginFreeTextAreaSelectionFromUi,
-                ),
               ],
             ),
           ),
@@ -195,5 +213,11 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
   Future<void> _beginFreeTextAreaSelectionFromUi() async {
     _selectedAreaTextFocusNode.unfocus();
     _bloc.add(const PdfViewerBeginFreeTextAreaSelectionRequested());
+  }
+
+  void _togglePanelMode(PdfControlPanelMode mode) {
+    setState(() {
+      _activePanelMode = _activePanelMode == mode ? null : mode;
+    });
   }
 }

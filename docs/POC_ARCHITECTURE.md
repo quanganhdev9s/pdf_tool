@@ -43,6 +43,8 @@ Flutter POC state is split by screen complexity:
   async Pigeon host calls, native callback events, operation busy/status state,
   and selected free-text-area flow.
 - `PdfViewerBloc` owns `PdfViewerState` and consumes `PdfViewerEvent` objects.
+- `PdfViewerPage` owns local-only feature-panel visibility for the bottom icon
+  toolbar. Opening or closing a panel is UI chrome, not PDF document state.
 - Widgets must not call generated Pigeon APIs directly for viewer actions.
   Dispatch a `PdfViewerEvent` so logging, typed errors, and state transitions
   remain centralized.
