@@ -50,6 +50,9 @@ Flutter POC state is split by screen complexity:
   remain centralized.
 - Widget-owned objects such as `TextEditingController` and `FocusNode` stay in
   the widget layer because they are UI lifecycle objects, not PDF state.
+- Text-selection actions are not exposed as a Flutter bottom-bar panel. Native
+  iOS shows the custom Copy/Highlight/Underline/Strikeout toolbar automatically
+  near the selected PDF text and hides the system menu.
 
 Flutter source layout:
 
@@ -124,8 +127,11 @@ Suggested structure:
 ```text
 PdfWorkspaceView
 ├── PDFView
-├── PKCanvasView
-├── Selection/placement overlay
+├── PdfSearchManager
+├── PdfFreeTextManager
+├── PdfInkManager
+├── PdfSignatureManager
+├── Selection/placement overlays
 └── Loading/progress overlay when native UI is necessary
 ```
 
@@ -187,6 +193,37 @@ ios/Runner/PdfPoc/
 ```
 
 Names may be adjusted to match the repository conventions.
+
+Current native POC files are intentionally flatter than the suggested
+production-oriented folder layout:
+
+- `PdfWorkspaceView.swift` owns the main `PDFView` coordination, document
+  lifecycle, Pigeon-facing operations, shared observers, save/export entry
+  points, native text-selection toolbar visibility, and dirty-state
+  notifications.
+- `PdfWorkspaceSupport.swift` owns small UIKit/PDFKit support types such as the
+  custom `PDFView`, selection toolbar, document session holder, and color helper.
+- `PdfSearchManager.swift` owns native search query state, result selections,
+  active-result navigation, and searchable-text detection.
+- `PdfFreeTextManager.swift` owns the free-text area capture overlay, drag
+  gesture, PDFView-to-PDFPage coordinate conversion, and selected-area callback.
+- `PdfInkManager.swift` owns the PencilKit drawing canvas, ink mode state,
+  conversion of strokes into page-owned PDF ink annotations, and selected ink
+  annotation deletion.
+- `PdfSignatureManager.swift` owns electronic-signature capture state,
+  placement state, conversion of captured PencilKit strokes into PDF ink paths,
+  electronic-signature annotation selection, and deletion.
+- `PdfSignatureViews.swift` owns the PencilKit electronic-signature capture view
+  and native placement preview gestures.
+- `PdfFlattenedExporter.swift` owns flattened PDF export rendering.
+- `PdfPocRuntime.swift`, `PdfPocHostApiImpl.swift`, and `Bridge/PdfPocApi.g.swift`
+  own runtime registration and typed Pigeon bridging.
+
+Large native features should continue to move behind focused managers or
+services when they gain their own state, gestures, coordinate conversion,
+long-running work, or persistence rules. `PdfWorkspaceView` should remain the
+orchestrator that validates document availability, invokes the feature manager,
+marks the session dirty when needed, and reports typed results back to Flutter.
 
 ## Document lifecycle
 

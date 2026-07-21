@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../pdf_poc_api.g.dart';
 import '../bloc/pdf_viewer_bloc.dart';
 import 'pdf_bottom_tool_bar.dart';
-import 'selection_action_toolbar.dart';
 
 class PdfControlPanel extends StatelessWidget {
   const PdfControlPanel({
@@ -88,8 +86,6 @@ class PdfControlPanel extends StatelessWidget {
         );
       case PdfControlPanelMode.signature:
         return _SignatureControls(state: state);
-      case PdfControlPanelMode.selection:
-        return _SelectionControls(state: state);
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -419,49 +415,6 @@ class _SignatureControls extends StatelessWidget {
               : () => bloc.add(const PdfViewerExportFlattenedCopyRequested()),
           icon: const Icon(Icons.file_download_outlined, size: 18),
           label: const Text('Export flattened'),
-        ),
-      ],
-    );
-  }
-}
-
-class _SelectionControls extends StatelessWidget {
-  const _SelectionControls({required this.state});
-
-  final PdfViewerState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final bloc = context.read<PdfViewerBloc>();
-    if (!state.hasSelection) {
-      return Text(
-        'No selected text',
-        style: Theme.of(context).textTheme.bodyMedium,
-      );
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        SelectionActionToolbar(
-          busy: state.busy,
-          selectedText: state.selectedText!,
-          onCopy: () => bloc.add(const PdfViewerCopySelectionRequested()),
-          onHighlight: () => bloc.add(
-            const PdfViewerMarkupSelectionRequested(PdfMarkupType.highlight),
-          ),
-          onUnderline: () => bloc.add(
-            const PdfViewerMarkupSelectionRequested(PdfMarkupType.underline),
-          ),
-          onStrikeout: () => bloc.add(
-            const PdfViewerMarkupSelectionRequested(PdfMarkupType.strikeout),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Selection: ${state.hasSelection ? state.selectedText : 'none'}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
       ],
     );

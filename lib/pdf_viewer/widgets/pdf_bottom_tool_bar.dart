@@ -1,26 +1,16 @@
 import 'package:flutter/material.dart';
 
-enum PdfControlPanelMode {
-  pages,
-  search,
-  ink,
-  freeText,
-  signature,
-  selection,
-  status,
-}
+enum PdfControlPanelMode { pages, search, ink, freeText, signature, status }
 
 class PdfBottomToolBar extends StatelessWidget {
   const PdfBottomToolBar({
     super.key,
     required this.activeMode,
-    required this.hasSelection,
     required this.busy,
     required this.onModePressed,
   });
 
   final PdfControlPanelMode? activeMode;
-  final bool hasSelection;
   final bool busy;
   final ValueChanged<PdfControlPanelMode> onModePressed;
 
@@ -75,14 +65,6 @@ class PdfBottomToolBar extends StatelessWidget {
                     onPressed: onModePressed,
                   ),
                   _ToolbarIcon(
-                    mode: PdfControlPanelMode.selection,
-                    activeMode: activeMode,
-                    tooltip: 'Selection actions',
-                    icon: Icons.format_color_text,
-                    enabled: hasSelection,
-                    onPressed: onModePressed,
-                  ),
-                  _ToolbarIcon(
                     mode: PdfControlPanelMode.status,
                     activeMode: activeMode,
                     tooltip: 'Status',
@@ -106,14 +88,12 @@ class _ToolbarIcon extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onPressed,
-    this.enabled = true,
   });
 
   final PdfControlPanelMode mode;
   final PdfControlPanelMode? activeMode;
   final String tooltip;
   final IconData icon;
-  final bool enabled;
   final ValueChanged<PdfControlPanelMode> onPressed;
 
   @override
@@ -123,13 +103,13 @@ class _ToolbarIcon extends StatelessWidget {
     if (selected) {
       return IconButton.filledTonal(
         tooltip: tooltip,
-        onPressed: enabled ? () => onPressed(mode) : null,
+        onPressed: () => onPressed(mode),
         icon: child,
       );
     }
     return IconButton(
       tooltip: tooltip,
-      onPressed: enabled ? () => onPressed(mode) : null,
+      onPressed: () => onPressed(mode),
       icon: child,
     );
   }

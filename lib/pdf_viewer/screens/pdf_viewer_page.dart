@@ -67,10 +67,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           final pageChanged =
               previous.documentInfo?.currentPageIndex !=
               current.documentInfo?.currentPageIndex;
-          final selectionAvailabilityChanged =
-              previous.hasSelection != current.hasSelection;
           return pendingVisibilityChanged ||
-              selectionAvailabilityChanged ||
               (current.pendingFreeTextArea == null && pageChanged);
         },
         listener: _handleStateSideEffects,
@@ -104,14 +101,6 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       _selectedAreaTextController.clear();
       _selectedAreaTextFocusNode.unfocus();
     }
-
-    if (_activePanelMode == PdfControlPanelMode.selection &&
-        !state.hasSelection &&
-        mounted) {
-      setState(() {
-        _activePanelMode = null;
-      });
-    }
   }
 
   Widget _buildScaffold(BuildContext context, PdfViewerState state) {
@@ -144,7 +133,6 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       ),
       bottomNavigationBar: PdfBottomToolBar(
         activeMode: _activePanelMode,
-        hasSelection: state.hasSelection,
         busy: state.busy,
         onModePressed: _togglePanelMode,
       ),

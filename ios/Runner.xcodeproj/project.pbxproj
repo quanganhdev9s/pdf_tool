@@ -12,6 +12,13 @@
 		A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* PdfWorkspaceView.swift */; };
 		A00000000000000000000004 /* PdfPlatformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* PdfPlatformView.swift */; };
 		A00000000000000000000005 /* PdfPocHostApiImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* PdfPocHostApiImpl.swift */; };
+		A00000000000000000000006 /* PdfWorkspaceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* PdfWorkspaceSupport.swift */; };
+		A00000000000000000000007 /* PdfSignatureViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* PdfSignatureViews.swift */; };
+		A00000000000000000000008 /* PdfFlattenedExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000018 /* PdfFlattenedExporter.swift */; };
+		A00000000000000000000009 /* PdfSearchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000019 /* PdfSearchManager.swift */; };
+		A0000000000000000000000A /* PdfInkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* PdfInkManager.swift */; };
+		A0000000000000000000000B /* PdfFreeTextManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001B /* PdfFreeTextManager.swift */; };
+		A0000000000000000000000C /* PdfSignatureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* PdfSignatureManager.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -52,6 +59,13 @@
 		A00000000000000000000013 /* PdfWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfWorkspaceView.swift; sourceTree = "<group>"; };
 		A00000000000000000000014 /* PdfPlatformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPlatformView.swift; sourceTree = "<group>"; };
 		A00000000000000000000015 /* PdfPocHostApiImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocHostApiImpl.swift; sourceTree = "<group>"; };
+		A00000000000000000000016 /* PdfWorkspaceSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfWorkspaceSupport.swift; sourceTree = "<group>"; };
+		A00000000000000000000017 /* PdfSignatureViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfSignatureViews.swift; sourceTree = "<group>"; };
+		A00000000000000000000018 /* PdfFlattenedExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfFlattenedExporter.swift; sourceTree = "<group>"; };
+		A00000000000000000000019 /* PdfSearchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfSearchManager.swift; sourceTree = "<group>"; };
+		A0000000000000000000001A /* PdfInkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfInkManager.swift; sourceTree = "<group>"; };
+		A0000000000000000000001B /* PdfFreeTextManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfFreeTextManager.swift; sourceTree = "<group>"; };
+		A0000000000000000000001C /* PdfSignatureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfSignatureManager.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -89,6 +103,13 @@
 				A00000000000000000000021 /* Bridge */,
 				A00000000000000000000012 /* PdfPocRuntime.swift */,
 				A00000000000000000000013 /* PdfWorkspaceView.swift */,
+				A00000000000000000000016 /* PdfWorkspaceSupport.swift */,
+				A00000000000000000000017 /* PdfSignatureViews.swift */,
+				A00000000000000000000018 /* PdfFlattenedExporter.swift */,
+				A00000000000000000000019 /* PdfSearchManager.swift */,
+				A0000000000000000000001A /* PdfInkManager.swift */,
+				A0000000000000000000001B /* PdfFreeTextManager.swift */,
+				A0000000000000000000001C /* PdfSignatureManager.swift */,
 				A00000000000000000000014 /* PdfPlatformView.swift */,
 				A00000000000000000000015 /* PdfPocHostApiImpl.swift */,
 			);
@@ -318,6 +339,13 @@
 				A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */,
 				A00000000000000000000004 /* PdfPlatformView.swift in Sources */,
 				A00000000000000000000005 /* PdfPocHostApiImpl.swift in Sources */,
+				A00000000000000000000006 /* PdfWorkspaceSupport.swift in Sources */,
+				A00000000000000000000007 /* PdfSignatureViews.swift in Sources */,
+				A00000000000000000000008 /* PdfFlattenedExporter.swift in Sources */,
+				A00000000000000000000009 /* PdfSearchManager.swift in Sources */,
+				A0000000000000000000000A /* PdfInkManager.swift in Sources */,
+				A0000000000000000000000B /* PdfFreeTextManager.swift in Sources */,
+				A0000000000000000000000C /* PdfSignatureManager.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 			);
