@@ -1,0 +1,78 @@
+[
+  {
+    "path": ".agent/PLANS.md",
+    "size_bytes": 1618
+  },
+  {
+    "path": ".agent/plans/.gitkeep",
+    "size_bytes": 1
+  },
+  {
+    "path": "AGENTS.md",
+    "size_bytes": 5332
+  },
+  {
+    "path": "README.md",
+    "size_bytes": 1033
+  },
+  {
+    "path": "assets/poc/README.md",
+    "size_bytes": 415
+  },
+  {
+    "path": "docs/BACKLOG.md",
+    "size_bytes": 1375
+  },
+  {
+    "path": "docs/PIGEON_API.md",
+    "size_bytes": 5288
+  },
+  {
+    "path": "docs/POC_ARCHITECTURE.md",
+    "size_bytes": 6953
+  },
+  {
+    "path": "docs/POC_ROADMAP.md",
+    "size_bytes": 6543
+  },
+  {
+    "path": "docs/POC_SCOPE.md",
+    "size_bytes": 4469
+  },
+  {
+    "path": "docs/POC_TEST_MATRIX.md",
+    "size_bytes": 4984
+  },
+  {
+    "path": "docs/results/.gitkeep",
+    "size_bytes": 1
+  },
+  {
+    "path": "prompts/00_audit.md",
+    "size_bytes": 1487
+  },
+  {
+    "path": "prompts/01_poc0_viewer_text.md",
+    "size_bytes": 4002
+  },
+  {
+    "path": "prompts/02_poc1_ink.md",
+    "size_bytes": 800
+  },
+  {
+    "path": "prompts/03_poc2_signature.md",
+    "size_bytes": 672
+  },
+  {
+    "path": "prompts/04_poc3_page_operations.md",
+    "size_bytes": 590
+  },
+  {
+    "path": "prompts/05_poc4_ocr.md",
+    "size_bytes": 956
+  },
+  {
+    "path": "prompts/06_poc5_compression.md",
+    "size_bytes": 811
+  }
+]
