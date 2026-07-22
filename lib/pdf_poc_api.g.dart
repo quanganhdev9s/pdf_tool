@@ -835,6 +835,292 @@ class PdfCompressionResult {
   }
 }
 
+class PdfPageRange {
+  PdfPageRange({required this.startPageIndex, required this.endPageIndex});
+
+  int startPageIndex;
+
+  int endPageIndex;
+
+  List<Object?> _toList() {
+    return <Object?>[startPageIndex, endPageIndex];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfPageRange decode(Object result) {
+    result as List<Object?>;
+    return PdfPageRange(
+      startPageIndex: result[0]! as int,
+      endPageIndex: result[1]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfPageRange || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(startPageIndex, other.startPageIndex) &&
+        _deepEquals(endPageIndex, other.endPageIndex);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfPageRange(startPageIndex: $startPageIndex, endPageIndex: $endPageIndex)';
+  }
+}
+
+class PdfSplitRequest {
+  PdfSplitRequest({required this.ranges});
+
+  List<PdfPageRange> ranges;
+
+  List<Object?> _toList() {
+    return <Object?>[ranges];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfSplitRequest decode(Object result) {
+    result as List<Object?>;
+    return PdfSplitRequest(
+      ranges: (result[0]! as List<Object?>).cast<PdfPageRange>(),
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfSplitRequest || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(ranges, other.ranges);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfSplitRequest(ranges: $ranges)';
+  }
+}
+
+class PdfSplitOutput {
+  PdfSplitOutput({required this.outputPath, required this.pageCount});
+
+  String outputPath;
+
+  int pageCount;
+
+  List<Object?> _toList() {
+    return <Object?>[outputPath, pageCount];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfSplitOutput decode(Object result) {
+    result as List<Object?>;
+    return PdfSplitOutput(
+      outputPath: result[0]! as String,
+      pageCount: result[1]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfSplitOutput || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(pageCount, other.pageCount);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfSplitOutput(outputPath: $outputPath, pageCount: $pageCount)';
+  }
+}
+
+class PdfSplitResult {
+  PdfSplitResult({required this.outputs, required this.durationMilliseconds});
+
+  List<PdfSplitOutput> outputs;
+
+  int durationMilliseconds;
+
+  List<Object?> _toList() {
+    return <Object?>[outputs, durationMilliseconds];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfSplitResult decode(Object result) {
+    result as List<Object?>;
+    return PdfSplitResult(
+      outputs: (result[0]! as List<Object?>).cast<PdfSplitOutput>(),
+      durationMilliseconds: result[1]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfSplitResult || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(outputs, other.outputs) &&
+        _deepEquals(durationMilliseconds, other.durationMilliseconds);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfSplitResult(outputs: $outputs, durationMilliseconds: $durationMilliseconds)';
+  }
+}
+
+class PdfMergeRequest {
+  PdfMergeRequest({required this.inputPaths});
+
+  List<String> inputPaths;
+
+  List<Object?> _toList() {
+    return <Object?>[inputPaths];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfMergeRequest decode(Object result) {
+    result as List<Object?>;
+    return PdfMergeRequest(
+      inputPaths: (result[0]! as List<Object?>).cast<String>(),
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfMergeRequest || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(inputPaths, other.inputPaths);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfMergeRequest(inputPaths: $inputPaths)';
+  }
+}
+
+class PdfMergeResult {
+  PdfMergeResult({
+    required this.outputPath,
+    required this.inputDocumentCount,
+    required this.pageCount,
+    required this.durationMilliseconds,
+  });
+
+  String outputPath;
+
+  int inputDocumentCount;
+
+  int pageCount;
+
+  int durationMilliseconds;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      outputPath,
+      inputDocumentCount,
+      pageCount,
+      durationMilliseconds,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfMergeResult decode(Object result) {
+    result as List<Object?>;
+    return PdfMergeResult(
+      outputPath: result[0]! as String,
+      inputDocumentCount: result[1]! as int,
+      pageCount: result[2]! as int,
+      durationMilliseconds: result[3]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfMergeResult || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(inputDocumentCount, other.inputDocumentCount) &&
+        _deepEquals(pageCount, other.pageCount) &&
+        _deepEquals(durationMilliseconds, other.durationMilliseconds);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfMergeResult(outputPath: $outputPath, inputDocumentCount: $inputDocumentCount, pageCount: $pageCount, durationMilliseconds: $durationMilliseconds)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -884,6 +1170,24 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PdfCompressionResult) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
+    } else if (value is PdfPageRange) {
+      buffer.putUint8(143);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfSplitRequest) {
+      buffer.putUint8(144);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfSplitOutput) {
+      buffer.putUint8(145);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfSplitResult) {
+      buffer.putUint8(146);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfMergeRequest) {
+      buffer.putUint8(147);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfMergeResult) {
+      buffer.putUint8(148);
+      writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
     }
@@ -922,6 +1226,18 @@ class _PigeonCodec extends StandardMessageCodec {
         return PdfCompressionRequest.decode(readValue(buffer)!);
       case 142:
         return PdfCompressionResult.decode(readValue(buffer)!);
+      case 143:
+        return PdfPageRange.decode(readValue(buffer)!);
+      case 144:
+        return PdfSplitRequest.decode(readValue(buffer)!);
+      case 145:
+        return PdfSplitOutput.decode(readValue(buffer)!);
+      case 146:
+        return PdfSplitResult.decode(readValue(buffer)!);
+      case 147:
+        return PdfMergeRequest.decode(readValue(buffer)!);
+      case 148:
+        return PdfMergeResult.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -1749,6 +2065,82 @@ class PdfPocHostApi {
     );
   }
 
+  Future<void> splitPdf(PdfSplitRequest request) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.splitPdf$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[request],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> cancelSplit() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSplit$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> mergePdfs(PdfMergeRequest request) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.mergePdfs$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[request],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> cancelMerge() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelMerge$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
   Future<PdfDocumentInfo> save() async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save$pigeonVar_messageChannelSuffix';
@@ -1801,6 +2193,22 @@ abstract class PdfPocFlutterApi {
   void onCompressionCompleted(
     String operationId,
     PdfCompressionResult? result,
+    bool cancelled,
+  );
+
+  void onSplitProgress(String operationId, int completedPages, int totalPages);
+
+  void onSplitCompleted(
+    String operationId,
+    PdfSplitResult? result,
+    bool cancelled,
+  );
+
+  void onMergeProgress(String operationId, int completedPages, int totalPages);
+
+  void onMergeCompleted(
+    String operationId,
+    PdfMergeResult? result,
     bool cancelled,
   );
 
@@ -2129,6 +2537,122 @@ abstract class PdfPocFlutterApi {
               arg_result,
               arg_cancelled,
             );
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_operationId = args[0]! as String;
+          final int arg_completedPages = args[1]! as int;
+          final int arg_totalPages = args[2]! as int;
+          try {
+            api.onSplitProgress(
+              arg_operationId,
+              arg_completedPages,
+              arg_totalPages,
+            );
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_operationId = args[0]! as String;
+          final PdfSplitResult? arg_result = args[1] as PdfSplitResult?;
+          final bool arg_cancelled = args[2]! as bool;
+          try {
+            api.onSplitCompleted(arg_operationId, arg_result, arg_cancelled);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_operationId = args[0]! as String;
+          final int arg_completedPages = args[1]! as int;
+          final int arg_totalPages = args[2]! as int;
+          try {
+            api.onMergeProgress(
+              arg_operationId,
+              arg_completedPages,
+              arg_totalPages,
+            );
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_operationId = args[0]! as String;
+          final PdfMergeResult? arg_result = args[1] as PdfMergeResult?;
+          final bool arg_cancelled = args[2]! as bool;
+          try {
+            api.onMergeCompleted(arg_operationId, arg_result, arg_cancelled);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

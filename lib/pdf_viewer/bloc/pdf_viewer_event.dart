@@ -214,6 +214,26 @@ final class PdfViewerCancelCompressionRequested extends PdfViewerEvent {
   const PdfViewerCancelCompressionRequested();
 }
 
+final class PdfViewerRunSplitRequested extends PdfViewerEvent {
+  const PdfViewerRunSplitRequested(this.rangesText);
+
+  final String rangesText;
+}
+
+final class PdfViewerCancelSplitRequested extends PdfViewerEvent {
+  const PdfViewerCancelSplitRequested();
+}
+
+final class PdfViewerRunMergeRequested extends PdfViewerEvent {
+  const PdfViewerRunMergeRequested(this.pathsText);
+
+  final String pathsText;
+}
+
+final class PdfViewerCancelMergeRequested extends PdfViewerEvent {
+  const PdfViewerCancelMergeRequested();
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,
@@ -325,5 +345,53 @@ final class PdfViewerNativeCompressionCompleted extends PdfViewerEvent {
 
   final String operationId;
   final PdfCompressionResult? result;
+  final bool cancelled;
+}
+
+final class PdfViewerNativeSplitProgress extends PdfViewerEvent {
+  const PdfViewerNativeSplitProgress({
+    required this.operationId,
+    required this.completedPages,
+    required this.totalPages,
+  });
+
+  final String operationId;
+  final int completedPages;
+  final int totalPages;
+}
+
+final class PdfViewerNativeSplitCompleted extends PdfViewerEvent {
+  const PdfViewerNativeSplitCompleted({
+    required this.operationId,
+    required this.result,
+    required this.cancelled,
+  });
+
+  final String operationId;
+  final PdfSplitResult? result;
+  final bool cancelled;
+}
+
+final class PdfViewerNativeMergeProgress extends PdfViewerEvent {
+  const PdfViewerNativeMergeProgress({
+    required this.operationId,
+    required this.completedPages,
+    required this.totalPages,
+  });
+
+  final String operationId;
+  final int completedPages;
+  final int totalPages;
+}
+
+final class PdfViewerNativeMergeCompleted extends PdfViewerEvent {
+  const PdfViewerNativeMergeCompleted({
+    required this.operationId,
+    required this.result,
+    required this.cancelled,
+  });
+
+  final String operationId;
+  final PdfMergeResult? result;
   final bool cancelled;
 }

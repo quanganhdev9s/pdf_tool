@@ -318,9 +318,165 @@ Implementation note:
 
 ---
 
+
+## POC 6 — Split and Merge
+
+### Goal
+
+Validate reliable document splitting and merging with PDFKit while preserving
+page-level structure and never overwriting source assets.
+
+### Split deliverables
+
+- Split the active writable PDF by one or more inclusive page ranges
+- Produce one separate PDF for each requested range
+- Validate ranges before creating final outputs
+- Preserve the requested page order inside each output
+- Preserve page rotation, crop boxes, and editable annotations where PDFKit
+  supports round-trip preservation
+- Return output paths and page counts
+
+### Merge deliverables
+
+- Merge two or more local PDF paths
+- Preserve the supplied document order
+- Preserve the page order inside each input document
+- Produce one separate merged output
+- Return the merged path, input-document count, page count, and duration
+- Return typed errors for missing, invalid, or password-protected input files
+
+### Operation safety
+
+- Copy test assets to writable paths before processing
+- Write to a temporary output and move it into place only after successful close
+  and reopen verification
+- Do not modify the active working PDF unless the user explicitly opens an output
+- Report progress for large operations
+- Support cooperative cancellation between documents or pages
+- Remove incomplete temporary files after failure or cancellation
+
+### Implementation note
+
+- POC 6 uses a Split/Merge panel in the existing viewer toolbar.
+- Split ranges are zero-based and inclusive.
+- Merge input paths are read in the exact supplied text order and are not sorted
+  by filename.
+- Output paths are generated natively beside the active writable PDF after
+  temporary output validation succeeds.
+
+### Required test cases
+
+- Split a text PDF into two valid ranges
+- Split one selected page into a one-page PDF
+- Reject an empty range list
+- Reject reversed and out-of-range ranges
+- Merge two PDFs with different page sizes and rotations
+- Merge a PDF containing editable annotations
+- Merge three inputs in a non-alphabetical order and verify that supplied order
+- Cancel a large split or merge operation
+- Reopen every output in PDFKit and Apple Preview
+
+### Out of scope
+
+- File-manager UI
+- Cloud inputs
+- Password-entry workflow
+- PDF optimization during split or merge
+- Automatic bookmark reconstruction across merged documents
+
+### Definition of Done
+
+- Split outputs contain exactly the requested pages in the requested order
+- Merged output contains all input pages in the supplied document order
+- Page counts, rotation, crop boxes, and annotation preservation are documented
+- Every successful output reopens with PDFKit
+- Source assets and source working copies remain unchanged
+- Cancellation does not leave a corrupted final output
+- Large operations do not cause an avoidable main-thread freeze
+- Known PDFKit preservation limitations are recorded
+
+---
+
+## POC 7 — Document Scanner to PDF
+
+### Goal
+
+Validate a real multi-page document-scanning flow using Apple's VisionKit
+scanner and generation of a valid image-based PDF without a paid SDK.
+
+### Required deliverables
+
+- Check `VNDocumentCameraViewController.isSupported`
+- Present `VNDocumentCameraViewController` from native iOS UI
+- Support one-page and multi-page scans
+- Handle scanner cancellation
+- Read pages from `VNDocumentCameraScan` in their returned order
+- Generate a separate PDF using `UIGraphicsPDFRenderer`
+- Support two presets:
+  - Standard
+  - High Quality
+- Return output path, page count, file size, and duration
+- Open the generated PDF with PDFKit
+- Allow Flutter to navigate to the generated document
+
+### Image and memory rules
+
+- Treat scanner results as images; do not claim embedded PDF text
+- Process pages sequentially where practical
+- Use `autoreleasepool` or equivalent scoped release behavior for large scans
+- Scale and JPEG-compress according to the selected quality preset
+- Preserve the scanner-returned page orientation
+- Do not transfer full-resolution page images through Pigeon
+- Do not hold duplicate decoded copies of every page longer than necessary
+
+### OCR integration boundary
+
+POC 7 does not automatically create a searchable PDF. After the scan PDF is
+created and opened, Flutter may invoke the existing POC 4 Vision OCR flow as a
+separate operation. OCR text and bounding boxes remain subject to the POC 4
+contract.
+
+### Required device tests
+
+- Unsupported environment or simulator returns a typed scanner-unavailable error
+- User cancels before taking a page
+- Scan one clear A4 page
+- Scan five pages
+- Scan mixed portrait and landscape pages
+- Scan a page at an angle and verify scanner correction visually
+- Generate Standard and High Quality PDFs and compare size and legibility
+- Open the output in PDFKit and Apple Preview
+- Run POC 4 OCR on the generated scan PDF
+- Repeat scan/open/close without leaking or crashing
+
+### Out of scope
+
+- Custom camera UI
+- Custom document-edge detection
+- Generic Photos-to-PDF conversion
+- Advanced filters comparable to commercial scanner applications
+- Automatic searchable-PDF text-layer generation
+- File-manager or cloud-storage integration
+
+### Definition of Done
+
+- The Apple scanner opens on a supported physical device
+- One-page and multi-page scan completion both produce valid PDFs
+- Cancellation creates no final PDF
+- Output page count and order match the scanner result
+- Output orientation is visually correct
+- Standard and High Quality presets produce measurable quality/size differences
+- Generated output reopens with PDFKit and Apple Preview
+- Flutter receives a typed success result or typed cancellation/error
+- No custom scanner or paid SDK is used
+- The documentation clearly states that the output is image-based until OCR is
+  performed separately
+
+---
+
 ## Completion review
 
-After POC 5, produce a decision report:
+After POC 7, produce a decision report:
 
 - What is production-viable
 - What needs more native engineering

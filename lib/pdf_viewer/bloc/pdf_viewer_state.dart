@@ -20,6 +20,14 @@ class PdfViewerState {
     this.compressionCompletedPages = 0,
     this.compressionTotalPages = 0,
     this.compressionResult,
+    this.splitRunning = false,
+    this.splitCompletedPages = 0,
+    this.splitTotalPages = 0,
+    this.splitResult,
+    this.mergeRunning = false,
+    this.mergeCompletedPages = 0,
+    this.mergeTotalPages = 0,
+    this.mergeResult,
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -38,6 +46,14 @@ class PdfViewerState {
   final int compressionCompletedPages;
   final int compressionTotalPages;
   final PdfCompressionResult? compressionResult;
+  final bool splitRunning;
+  final int splitCompletedPages;
+  final int splitTotalPages;
+  final PdfSplitResult? splitResult;
+  final bool mergeRunning;
+  final int mergeCompletedPages;
+  final int mergeTotalPages;
+  final PdfMergeResult? mergeResult;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -58,6 +74,14 @@ class PdfViewerState {
     int? compressionCompletedPages,
     int? compressionTotalPages,
     Object? compressionResult = _unset,
+    bool? splitRunning,
+    int? splitCompletedPages,
+    int? splitTotalPages,
+    Object? splitResult = _unset,
+    bool? mergeRunning,
+    int? mergeCompletedPages,
+    int? mergeTotalPages,
+    Object? mergeResult = _unset,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -88,6 +112,18 @@ class PdfViewerState {
       compressionResult: compressionResult == _unset
           ? this.compressionResult
           : compressionResult as PdfCompressionResult?,
+      splitRunning: splitRunning ?? this.splitRunning,
+      splitCompletedPages: splitCompletedPages ?? this.splitCompletedPages,
+      splitTotalPages: splitTotalPages ?? this.splitTotalPages,
+      splitResult: splitResult == _unset
+          ? this.splitResult
+          : splitResult as PdfSplitResult?,
+      mergeRunning: mergeRunning ?? this.mergeRunning,
+      mergeCompletedPages: mergeCompletedPages ?? this.mergeCompletedPages,
+      mergeTotalPages: mergeTotalPages ?? this.mergeTotalPages,
+      mergeResult: mergeResult == _unset
+          ? this.mergeResult
+          : mergeResult as PdfMergeResult?,
     );
   }
 }

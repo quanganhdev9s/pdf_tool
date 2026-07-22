@@ -37,6 +37,30 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
     result: PdfCompressionResult?,
     cancelled: Bool
   )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didUpdateSplitProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompleteSplit operationId: String,
+    result: PdfSplitResult?,
+    cancelled: Bool
+  )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didUpdateMergeProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompleteMerge operationId: String,
+    result: PdfMergeResult?,
+    cancelled: Bool
+  )
   func workspaceView(_ view: PdfWorkspaceView, didFailOperation operationId: String, error: PdfPocError)
 }
 
@@ -51,6 +75,7 @@ final class PdfWorkspaceView: UIView {
   private lazy var signatureManager = PdfSignatureManager(pdfView: pdfView)
   private lazy var ocrManager = PdfOcrManager()
   private lazy var compressionManager = PdfCompressionManager()
+  private lazy var splitMergeManager = PdfSplitMergeManager()
   private let pageOperationsManager = PdfPageOperationsManager()
   private let ocrResultOverlayView = UIView()
   private var session: PdfDocumentSession?
@@ -138,6 +163,8 @@ final class PdfWorkspaceView: UIView {
     freeTextManager.cancelSelection()
     ocrManager.cancel()
     compressionManager.cancel()
+    splitMergeManager.cancelSplit()
+    splitMergeManager.cancelMerge()
     hideOcrResultOverlay()
     inkManager.close()
     annotationTapGesture.isEnabled = true
@@ -666,6 +693,46 @@ final class PdfWorkspaceView: UIView {
     compressionManager.cancel()
   }
 
+  func splitPdf(_ request: PdfSplitRequest) throws {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    logPdfEvent("split_pdf_request", "ranges=\(request.ranges)")
+    splitMergeManager.split(
+      request: request,
+      sourceURL: session.workingURL,
+      outputDirectory: session.workingURL.deletingLastPathComponent(),
+      baseFileName: session.workingURL.deletingPathExtension().lastPathComponent
+    )
+  }
+
+  func cancelSplit() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("cancel_split_request")
+    splitMergeManager.cancelSplit()
+  }
+
+  func mergePdfs(_ request: PdfMergeRequest) throws {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    logPdfEvent("merge_pdfs_request", "inputs=\(request.inputPaths)")
+    splitMergeManager.merge(
+      request: request,
+      outputURL: mergeOutputURL(for: session.workingURL)
+    )
+  }
+
+  func cancelMerge() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("cancel_merge_request")
+    splitMergeManager.cancelMerge()
+  }
+
   func pageReorderPreviews(maxPixelSize: CGSize) throws -> [PdfPageReorderPreview] {
     try ensureMainThread()
     let document = try requireDocument()
@@ -713,6 +780,7 @@ final class PdfWorkspaceView: UIView {
     configureFreeTextAreaSelection()
     configureOcr()
     configureCompression()
+    configureSplitMerge()
     pdfView.addGestureRecognizer(annotationTapGesture)
     addSubview(inkManager.canvasView)
     addSubview(signatureManager.captureView)
@@ -796,6 +864,49 @@ final class PdfWorkspaceView: UIView {
     }
   }
 
+  private func configureSplitMerge() {
+    splitMergeManager.onSplitProgress = { [weak self] operationId, completedPages, totalPages in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didUpdateSplitProgress: operationId,
+        completedPages: completedPages,
+        totalPages: totalPages
+      )
+    }
+    splitMergeManager.onSplitCompleted = { [weak self] operationId, result, cancelled in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didCompleteSplit: operationId,
+        result: result,
+        cancelled: cancelled
+      )
+    }
+    splitMergeManager.onMergeProgress = { [weak self] operationId, completedPages, totalPages in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didUpdateMergeProgress: operationId,
+        completedPages: completedPages,
+        totalPages: totalPages
+      )
+    }
+    splitMergeManager.onMergeCompleted = { [weak self] operationId, result, cancelled in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didCompleteMerge: operationId,
+        result: result,
+        cancelled: cancelled
+      )
+    }
+    splitMergeManager.onError = { [weak self] operationId, error in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
+    }
+  }
+
   @objc private func handleAnnotationTap(_ recognizer: UITapGestureRecognizer) {
     guard !inkManager.isEnabled, recognizer.state == .ended else { return }
     let point = recognizer.location(in: pdfView)
@@ -850,6 +961,13 @@ final class PdfWorkspaceView: UIView {
     }
     return workingURL.deletingLastPathComponent()
       .appendingPathComponent("\(baseName)_\(suffix).pdf")
+  }
+
+  private func mergeOutputURL(for workingURL: URL) -> URL {
+    let baseName = workingURL.deletingPathExtension().lastPathComponent
+    let stamp = Int(Date().timeIntervalSince1970)
+    return workingURL.deletingLastPathComponent()
+      .appendingPathComponent("\(baseName)_merged_\(stamp).pdf")
   }
 
   private func compressionProfile(for document: PDFDocument) -> PdfCompressionProfile {

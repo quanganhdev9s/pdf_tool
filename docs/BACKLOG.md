@@ -24,10 +24,7 @@ They are recorded because they are expected to be straightforward, product-orien
 
 ## Basic PDF tools
 
-- Split PDF by page range
-- Split every N pages
 - Extract selected pages
-- Merge PDFs
 - Insert blank pages
 - Insert image as page
 - Reverse pages
@@ -42,15 +39,6 @@ They are recorded because they are expected to be straightforward, product-orien
 - Share
 - Print
 - Password-protected export where supported
-
-## Scanner
-
-- VisionKit document scanner UI
-- Multi-page scan
-- Reorder scan pages
-- Create PDF from scans
-
-The scanner is deferred because the difficult OCR work is tested directly using asset PDFs.
 
 ## Product work
 

@@ -189,6 +189,52 @@ rasterized mode rebuilds the PDF from JPEG-backed page images at configurable
 DPI and JPEG quality. Rasterized output must be treated as destructive for text
 selection, links, forms, vector quality, and editable annotations.
 
+
+### POC 6 — Split and merge
+
+Validate:
+
+- Split the active writable PDF into separate output files by inclusive page ranges
+- Validate empty, overlapping, reversed, and out-of-range page ranges
+- Merge two or more local PDFs in an explicitly supplied order
+- Preserve page order, page rotation, crop boxes, and editable annotations when PDFKit supports them
+- Write outputs separately from every source asset and working copy
+- Report progress for large operations
+- Support cooperative cancellation
+- Reopen every output with PDFKit before reporting success
+- Avoid leaving a corrupted final file when an operation fails or is cancelled
+
+Split and merge are document-structure operations. They do not require a file
+manager in this POC. Test inputs come from writable copies of assets or outputs
+created by earlier POCs.
+
+Current POC 6 implementation exposes a Split/Merge toolbar panel. Split accepts
+zero-based inclusive ranges such as `0-1, 2-3` for the active writable PDF.
+Merge accepts two or more local PDF paths in the exact entered line order.
+Swift creates separate outputs beside the active working copy and never mutates
+the active viewer document during split or merge.
+
+### POC 7 — Document Scanner to PDF
+
+Validate:
+
+- Check `VNDocumentCameraViewController.isSupported`
+- Present the Apple document scanner on a physical iPhone or iPad
+- Scan one page and multiple pages
+- Handle user cancellation without creating an output file
+- Receive corrected scan-page images from `VNDocumentCameraScan`
+- Generate a separate image-based PDF with `UIGraphicsPDFRenderer`
+- Support at least Standard and High Quality output presets
+- Preserve page order and orientation
+- Open the generated PDF with PDFKit and verify its page count
+- Keep image processing and PDF generation responsive and memory-aware
+- Return the output path to Flutter
+
+POC 7 uses Apple's document-scanner UI. It must not implement a custom camera,
+custom edge detector, or claim that the generated image-based PDF already has an
+embedded searchable text layer. The existing POC 4 OCR flow may be run on the
+created PDF as a separate follow-up operation.
+
 ## Required exports
 
 The POC must support:
@@ -197,6 +243,9 @@ The POC must support:
 - Flattened PDF copy
 - OCR text result
 - Compression output
+- Split PDF outputs
+- Merged PDF output
+- Scanned image-based PDF output
 
 Keep each output separate from the original input asset.
 
@@ -209,14 +258,11 @@ Do not implement during this POC:
 - Recent files
 - Favorites
 - File sorting and search
-- Split PDF
-- Merge PDF
 - Image-to-PDF
 - Text-to-PDF
 - PDF-to-image export
 - Watermark
 - Page numbering
-- Scanner UI
 - iCloud
 - Cloud storage
 - Paywall
@@ -250,5 +296,7 @@ The POC succeeds when it demonstrates:
 6. Safe crop and page operations.
 7. OCR text and bounding boxes from scanned pages.
 8. Measured compression tradeoffs.
-9. Editable and flattened output variants.
-10. No use of a commercial PDF SDK.
+9. Correct split and merge outputs with preserved page order.
+10. A multi-page document scan that opens as a valid PDF.
+11. Editable and flattened output variants.
+12. No use of a commercial PDF SDK.

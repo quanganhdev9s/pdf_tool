@@ -9,7 +9,7 @@ Codex may refine names and nullability, but must preserve the architecture bound
 - Expose use cases, not PDFKit objects.
 - Use typed requests and typed results.
 - Use stable typed error codes.
-- Use asynchronous operations for search, OCR, save, and compression when necessary.
+- Use asynchronous operations for search, OCR, save, compression, split, merge, and scan-PDF generation when necessary.
 - Use callback events for page changes, progress, and dirty-state changes.
 - Use zero-based page indexes everywhere across Dart and Swift.
 - Use normalized or explicitly documented coordinates.
@@ -115,6 +115,54 @@ class PdfCompressionResult {
   bool formsFunctional;
   String visualQualityNotes;
   String warning;
+}
+
+
+class PdfPageRange {
+  int startPageIndex;
+  int endPageIndex;
+}
+
+class PdfSplitRequest {
+  List<PdfPageRange> ranges;
+}
+
+class PdfSplitOutput {
+  String outputPath;
+  int pageCount;
+}
+
+class PdfSplitResult {
+  List<PdfSplitOutput> outputs;
+  int durationMilliseconds;
+}
+
+class PdfMergeRequest {
+  List<String> inputPaths;
+}
+
+class PdfMergeResult {
+  String outputPath;
+  int inputDocumentCount;
+  int pageCount;
+  int durationMilliseconds;
+}
+
+enum PdfScanQuality {
+  standard,
+  high,
+}
+
+class PdfDocumentScanRequest {
+  String outputPath;
+  PdfScanQuality quality;
+}
+
+class PdfDocumentScanResult {
+  String outputPath;
+  int pageCount;
+  int fileSizeBytes;
+  int durationMilliseconds;
 }
 ```
 
@@ -278,6 +326,16 @@ abstract class PdfPocHostApi {
   void compress(PdfCompressionRequest request);
 
   void cancelCompression();
+
+  void splitPdf(PdfSplitRequest request);
+
+  void cancelSplit();
+
+  void mergePdfs(PdfMergeRequest request);
+
+  void cancelMerge();
+
+  void startDocumentScan(PdfDocumentScanRequest request);
 }
 ```
 
@@ -354,6 +412,37 @@ abstract class PdfPocFlutterApi {
     bool cancelled,
   );
 
+  void onSplitProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onSplitCompleted(
+    String operationId,
+    PdfSplitResult? result,
+    bool cancelled,
+  );
+
+  void onMergeProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onMergeCompleted(
+    String operationId,
+    PdfMergeResult? result,
+    bool cancelled,
+  );
+
+  void onDocumentScanCompleted(
+    String operationId,
+    PdfDocumentScanResult result,
+  );
+
+  void onDocumentScanCancelled(String operationId);
+
   void onOperationCompleted(String operationId);
 
   void onOperationFailed(
@@ -409,6 +498,13 @@ save_failed
 ocr_failed
 operation_cancelled
 compression_failed
+invalid_page_range
+split_failed
+merge_failed
+scanner_unavailable
+scan_failed
+scan_cancelled
+pdf_generation_failed
 unsupported_operation
 internal_error
 ```

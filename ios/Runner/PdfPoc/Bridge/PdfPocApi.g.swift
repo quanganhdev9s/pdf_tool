@@ -799,6 +799,246 @@ struct PdfCompressionResult: Hashable, CustomStringConvertible {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfPageRange: Hashable, CustomStringConvertible {
+  var startPageIndex: Int64
+  var endPageIndex: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfPageRange? {
+    let startPageIndex = pigeonVar_list[0] as! Int64
+    let endPageIndex = pigeonVar_list[1] as! Int64
+
+    return PdfPageRange(
+      startPageIndex: startPageIndex,
+      endPageIndex: endPageIndex
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      startPageIndex,
+      endPageIndex,
+    ]
+  }
+  static func == (lhs: PdfPageRange, rhs: PdfPageRange) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.startPageIndex, rhs.startPageIndex) && PdfPocApiPigeonInternal.deepEquals(lhs.endPageIndex, rhs.endPageIndex)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfPageRange")
+    PdfPocApiPigeonInternal.deepHash(value: startPageIndex, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: endPageIndex, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfPageRange(startPageIndex: \(String(describing: startPageIndex)), endPageIndex: \(String(describing: endPageIndex)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfSplitRequest: Hashable, CustomStringConvertible {
+  var ranges: [PdfPageRange]
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfSplitRequest? {
+    let ranges = pigeonVar_list[0] as! [PdfPageRange]
+
+    return PdfSplitRequest(
+      ranges: ranges
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      ranges
+    ]
+  }
+  static func == (lhs: PdfSplitRequest, rhs: PdfSplitRequest) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.ranges, rhs.ranges)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfSplitRequest")
+    PdfPocApiPigeonInternal.deepHash(value: ranges, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfSplitRequest(ranges: \(String(describing: ranges)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfSplitOutput: Hashable, CustomStringConvertible {
+  var outputPath: String
+  var pageCount: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfSplitOutput? {
+    let outputPath = pigeonVar_list[0] as! String
+    let pageCount = pigeonVar_list[1] as! Int64
+
+    return PdfSplitOutput(
+      outputPath: outputPath,
+      pageCount: pageCount
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      outputPath,
+      pageCount,
+    ]
+  }
+  static func == (lhs: PdfSplitOutput, rhs: PdfSplitOutput) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.outputPath, rhs.outputPath) && PdfPocApiPigeonInternal.deepEquals(lhs.pageCount, rhs.pageCount)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfSplitOutput")
+    PdfPocApiPigeonInternal.deepHash(value: outputPath, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: pageCount, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfSplitOutput(outputPath: \(String(describing: outputPath)), pageCount: \(String(describing: pageCount)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfSplitResult: Hashable, CustomStringConvertible {
+  var outputs: [PdfSplitOutput]
+  var durationMilliseconds: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfSplitResult? {
+    let outputs = pigeonVar_list[0] as! [PdfSplitOutput]
+    let durationMilliseconds = pigeonVar_list[1] as! Int64
+
+    return PdfSplitResult(
+      outputs: outputs,
+      durationMilliseconds: durationMilliseconds
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      outputs,
+      durationMilliseconds,
+    ]
+  }
+  static func == (lhs: PdfSplitResult, rhs: PdfSplitResult) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.outputs, rhs.outputs) && PdfPocApiPigeonInternal.deepEquals(lhs.durationMilliseconds, rhs.durationMilliseconds)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfSplitResult")
+    PdfPocApiPigeonInternal.deepHash(value: outputs, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: durationMilliseconds, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfSplitResult(outputs: \(String(describing: outputs)), durationMilliseconds: \(String(describing: durationMilliseconds)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfMergeRequest: Hashable, CustomStringConvertible {
+  var inputPaths: [String]
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfMergeRequest? {
+    let inputPaths = pigeonVar_list[0] as! [String]
+
+    return PdfMergeRequest(
+      inputPaths: inputPaths
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      inputPaths
+    ]
+  }
+  static func == (lhs: PdfMergeRequest, rhs: PdfMergeRequest) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.inputPaths, rhs.inputPaths)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfMergeRequest")
+    PdfPocApiPigeonInternal.deepHash(value: inputPaths, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfMergeRequest(inputPaths: \(String(describing: inputPaths)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfMergeResult: Hashable, CustomStringConvertible {
+  var outputPath: String
+  var inputDocumentCount: Int64
+  var pageCount: Int64
+  var durationMilliseconds: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfMergeResult? {
+    let outputPath = pigeonVar_list[0] as! String
+    let inputDocumentCount = pigeonVar_list[1] as! Int64
+    let pageCount = pigeonVar_list[2] as! Int64
+    let durationMilliseconds = pigeonVar_list[3] as! Int64
+
+    return PdfMergeResult(
+      outputPath: outputPath,
+      inputDocumentCount: inputDocumentCount,
+      pageCount: pageCount,
+      durationMilliseconds: durationMilliseconds
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      outputPath,
+      inputDocumentCount,
+      pageCount,
+      durationMilliseconds,
+    ]
+  }
+  static func == (lhs: PdfMergeResult, rhs: PdfMergeResult) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.outputPath, rhs.outputPath) && PdfPocApiPigeonInternal.deepEquals(lhs.inputDocumentCount, rhs.inputDocumentCount) && PdfPocApiPigeonInternal.deepEquals(lhs.pageCount, rhs.pageCount) && PdfPocApiPigeonInternal.deepEquals(lhs.durationMilliseconds, rhs.durationMilliseconds)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfMergeResult")
+    PdfPocApiPigeonInternal.deepHash(value: outputPath, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: inputDocumentCount, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: pageCount, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: durationMilliseconds, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfMergeResult(outputPath: \(String(describing: outputPath)), inputDocumentCount: \(String(describing: inputDocumentCount)), pageCount: \(String(describing: pageCount)), durationMilliseconds: \(String(describing: durationMilliseconds)))"
+  }
+}
+
 private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -838,6 +1078,18 @@ private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
       return PdfCompressionRequest.fromList(self.readValue() as! [Any?])
     case 142:
       return PdfCompressionResult.fromList(self.readValue() as! [Any?])
+    case 143:
+      return PdfPageRange.fromList(self.readValue() as! [Any?])
+    case 144:
+      return PdfSplitRequest.fromList(self.readValue() as! [Any?])
+    case 145:
+      return PdfSplitOutput.fromList(self.readValue() as! [Any?])
+    case 146:
+      return PdfSplitResult.fromList(self.readValue() as! [Any?])
+    case 147:
+      return PdfMergeRequest.fromList(self.readValue() as! [Any?])
+    case 148:
+      return PdfMergeResult.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -887,6 +1139,24 @@ private class PdfPocApiPigeonCodecWriter: FlutterStandardWriter {
       super.writeValue(value.toList())
     } else if let value = value as? PdfCompressionResult {
       super.writeByte(142)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfPageRange {
+      super.writeByte(143)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfSplitRequest {
+      super.writeByte(144)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfSplitOutput {
+      super.writeByte(145)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfSplitResult {
+      super.writeByte(146)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfMergeRequest {
+      super.writeByte(147)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfMergeResult {
+      super.writeByte(148)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -952,6 +1222,10 @@ protocol PdfPocHostApi {
   func showOcrResult(block: PdfOcrBlock) throws
   func compress(request: PdfCompressionRequest) throws
   func cancelCompression() throws
+  func splitPdf(request: PdfSplitRequest) throws
+  func cancelSplit() throws
+  func mergePdfs(request: PdfMergeRequest) throws
+  func cancelMerge() throws
   func save() throws -> PdfDocumentInfo
 }
 
@@ -1548,6 +1822,62 @@ class PdfPocHostApiSetup {
     } else {
       cancelCompressionChannel.setMessageHandler(nil)
     }
+    let splitPdfChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.splitPdf\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      splitPdfChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! PdfSplitRequest
+        do {
+          try api.splitPdf(request: requestArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      splitPdfChannel.setMessageHandler(nil)
+    }
+    let cancelSplitChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSplit\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cancelSplitChannel.setMessageHandler { _, reply in
+        do {
+          try api.cancelSplit()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cancelSplitChannel.setMessageHandler(nil)
+    }
+    let mergePdfsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.mergePdfs\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      mergePdfsChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! PdfMergeRequest
+        do {
+          try api.mergePdfs(request: requestArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      mergePdfsChannel.setMessageHandler(nil)
+    }
+    let cancelMergeChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelMerge\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cancelMergeChannel.setMessageHandler { _, reply in
+        do {
+          try api.cancelMerge()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cancelMergeChannel.setMessageHandler(nil)
+    }
     let saveChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       saveChannel.setMessageHandler { _, reply in
@@ -1578,6 +1908,10 @@ protocol PdfPocFlutterApiProtocol {
   func onOcrCompleted(operationId operationIdArg: String, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onCompressionProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onCompressionCompleted(operationId operationIdArg: String, result resultArg: PdfCompressionResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onSplitProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onSplitCompleted(operationId operationIdArg: String, result resultArg: PdfSplitResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onMergeProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onMergeCompleted(operationId operationIdArg: String, result resultArg: PdfMergeResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOperationFailed(operationId operationIdArg: String, code codeArg: String, message messageArg: String, details detailsArg: String?, completion: @escaping (Result<Void, PigeonError>) -> Void)
 }
 class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
@@ -1790,6 +2124,78 @@ class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
   }
   func onCompressionCompleted(operationId operationIdArg: String, result resultArg: PdfCompressionResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void) {
     let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onCompressionCompleted\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, resultArg, cancelledArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onSplitProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitProgress\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, completedPagesArg, totalPagesArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onSplitCompleted(operationId operationIdArg: String, result resultArg: PdfSplitResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitCompleted\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, resultArg, cancelledArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onMergeProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeProgress\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, completedPagesArg, totalPagesArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onMergeCompleted(operationId operationIdArg: String, result resultArg: PdfMergeResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeCompleted\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([operationIdArg, resultArg, cancelledArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {

@@ -9,7 +9,7 @@ Flutter
 ├── Search input
 ├── Text-box input
 ├── Page indicator
-├── OCR and compression progress
+├── OCR, compression, split/merge, and scan progress
 └── UiKitView
     └── FlutterPlatformView
         └── PdfWorkspaceView: UIView
@@ -34,6 +34,8 @@ Flutter owns:
 - Displaying operation progress
 - Displaying OCR results
 - Displaying compression metrics
+- Displaying split and merge outputs
+- Starting document scan and displaying the generated PDF result
 
 Flutter POC state is split by screen complexity:
 
@@ -115,6 +117,9 @@ Swift owns:
 - Page operations
 - OCR
 - Compression
+- Split and merge generation
+- VisionKit document-scanner presentation
+- Scan-image PDF generation
 - Save, reopen, and export
 - Clipboard copy
 
@@ -156,7 +161,7 @@ Xcode configuration:
 - Register the `FlutterPlatformViewFactory` from the iOS app delegate or
   equivalent Flutter plugin registration path.
 - Keep the native PDF workspace UIKit-only and programmatic.
-- Add PDFKit for POC 0; add PencilKit, Vision, Core Graphics, and
+- Add PDFKit for POC 0; add PencilKit, Vision, VisionKit, Core Graphics, and
   UIGraphicsPDFRenderer only when the corresponding POC requires them.
 
 ## Suggested native files
@@ -187,6 +192,11 @@ ios/Runner/PdfPoc/
 │   └── PdfOcrService.swift
 ├── Compression/
 │   └── PdfCompressionService.swift
+├── SplitMerge/
+│   └── PdfSplitMergeService.swift
+├── Scanner/
+│   ├── PdfDocumentScannerController.swift
+│   └── PdfScannedDocumentWriter.swift
 └── Bridge/
     ├── PdfPocHostApiImpl.swift
     └── PdfPocEventApi.swift
@@ -225,6 +235,15 @@ production-oriented folder layout:
 - `PdfCompressionManager.swift` owns POC 5 compression: preservation-oriented
   PDFKit writes, rasterized JPEG-backed PDF generation, compression metrics,
   destructive-tradeoff warnings, and cooperative cancellation.
+- `PdfSplitMergeManager.swift` owns POC 6 isolated input-document loading,
+  page-range validation, page copying, output ordering, temporary-file cleanup,
+  progress, and cooperative cancellation.
+- `PdfDocumentScannerManager.swift` owns POC 7 VisionKit scanner presentation,
+  scanner delegate callbacks, cancellation, quality-preset mapping, and handoff
+  to scanned-PDF generation.
+- `PdfScannedDocumentWriter.swift` owns sequential image processing and
+  `UIGraphicsPDFRenderer` output creation without transferring scan images to
+  Flutter.
 - `PdfSignatureViews.swift` owns the PencilKit electronic-signature capture view
   and native placement preview gestures.
 - `PdfFlattenedExporter.swift` owns flattened PDF export rendering.
@@ -267,6 +286,43 @@ marks the session dirty when needed, and reports typed results back to Flutter.
   output path, behavior flags, warning text, and visual-quality notes.
 - Cancellation is cooperative between pages or after a current PDFKit
   write/render step returns.
+
+
+
+## POC 6 Split and Merge Flow
+
+- Flutter supplies serializable page ranges, local input paths, and explicit
+  merge order through Pigeon. Swift derives final output paths beside the active
+  writable PDF.
+- Swift validates every input before publishing a final output path.
+- Split creates one isolated `PDFDocument` per requested range and copies pages
+  in range order.
+- Merge opens isolated input documents and appends pages in the exact request
+  order.
+- The active viewer document is not mutated by split or merge.
+- Work is serialized on a dedicated native operation queue. Do not share an
+  active `PDFDocument` instance across queues.
+- Each operation writes to temporary files first, reopens outputs with PDFKit,
+  then moves valid files to their final paths.
+- Progress and cancellation are cooperative between copied pages or input
+  documents.
+
+## POC 7 Document Scanner Flow
+
+- Flutter starts the scan through a Pigeon command; no camera frames or full
+  scan-page images cross the Dart-Swift boundary.
+- Swift checks `VNDocumentCameraViewController.isSupported` and presents the
+  system scanner on the main thread.
+- `VNDocumentCameraScan` page images remain native. A dedicated writer processes
+  them sequentially and creates an image-based PDF with
+  `UIGraphicsPDFRenderer`.
+- Standard and High Quality presets control target image dimensions and JPEG
+  quality; exact values must be recorded in the POC result report.
+- The generated PDF is reopened with PDFKit before the output path is returned.
+- User cancellation sends a typed cancellation callback and creates no final
+  output file.
+- The scanner output contains page images only. POC 4 OCR may be invoked later,
+  but OCR is not automatically embedded as a searchable PDF text layer.
 
 POC 3 page operations mutate only the writable PDF session or a derived output
 copy. The source asset under `assets/poc/` remains read-only. Crop operations
@@ -498,6 +554,8 @@ Background work where safe:
 - Vision OCR
 - Page rasterization for OCR
 - Rasterized compression
+- Split and merge file generation using isolated document instances
+- Scanned-page image processing and PDF generation after scanner dismissal
 - File-size calculation
 - Non-UI result processing
 
@@ -537,6 +595,13 @@ Suggested stable codes:
 - `ocr_failed`
 - `operation_cancelled`
 - `compression_failed`
+- `invalid_page_range`
+- `split_failed`
+- `merge_failed`
+- `scanner_unavailable`
+- `scan_failed`
+- `scan_cancelled`
+- `pdf_generation_failed`
 - `unsupported_operation`
 - `internal_error`
 
@@ -545,7 +610,8 @@ Suggested stable codes:
 On disposal:
 
 - Remove NotificationCenter observers
-- Cancel pending search/OCR/compression work
+- Cancel pending search/OCR/compression/split/merge work
+- Dismiss or detach the document scanner when presentation is still active
 - Detach delegates
 - Remove PencilKit tool picker observers
 - Clear temporary overlays

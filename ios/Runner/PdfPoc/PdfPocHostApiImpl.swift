@@ -207,6 +207,22 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.cancelCompression() }
   }
 
+  func splitPdf(request: PdfSplitRequest) throws {
+    try call { try $0.splitPdf(request) }
+  }
+
+  func cancelSplit() throws {
+    try call { try $0.cancelSplit() }
+  }
+
+  func mergePdfs(request: PdfMergeRequest) throws {
+    try call { try $0.mergePdfs(request) }
+  }
+
+  func cancelMerge() throws {
+    try call { try $0.cancelMerge() }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try callWithResult { try $0.save() }
   }

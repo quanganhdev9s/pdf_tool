@@ -98,6 +98,8 @@ class PdfControlPanel extends StatelessWidget {
         return _OcrControls(state: state);
       case PdfControlPanelMode.compression:
         return _CompressionControls(state: state);
+      case PdfControlPanelMode.splitMerge:
+        return _SplitMergeControls(state: state);
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -783,4 +785,168 @@ class _CompressionResultView extends StatelessWidget {
   }
 
   String _yesNo(bool value) => value ? 'yes' : 'no';
+}
+
+class _SplitMergeControls extends StatefulWidget {
+  const _SplitMergeControls({required this.state});
+
+  final PdfViewerState state;
+
+  @override
+  State<_SplitMergeControls> createState() => _SplitMergeControlsState();
+}
+
+class _SplitMergeControlsState extends State<_SplitMergeControls> {
+  final TextEditingController _rangesController = TextEditingController(
+    text: '0-0',
+  );
+  final TextEditingController _mergePathsController = TextEditingController();
+
+  @override
+  void dispose() {
+    _rangesController.dispose();
+    _mergePathsController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final bloc = context.read<PdfViewerBloc>();
+    final splitProgress = state.splitTotalPages == 0
+        ? null
+        : state.splitCompletedPages /
+              state.splitTotalPages.clamp(1, state.splitTotalPages);
+    final mergeProgress = state.mergeTotalPages == 0
+        ? null
+        : state.mergeCompletedPages /
+              state.mergeTotalPages.clamp(1, state.mergeTotalPages);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            SizedBox(
+              width: 180,
+              child: TextField(
+                controller: _rangesController,
+                decoration: const InputDecoration(labelText: 'Ranges'),
+                textInputAction: TextInputAction.done,
+              ),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: state.busy || state.splitRunning
+                  ? null
+                  : () => bloc.add(
+                      PdfViewerRunSplitRequested(_rangesController.text),
+                    ),
+              icon: const Icon(Icons.call_split, size: 18),
+              label: const Text('Split'),
+            ),
+            OutlinedButton.icon(
+              onPressed: state.splitRunning
+                  ? () => bloc.add(const PdfViewerCancelSplitRequested())
+                  : null,
+              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              label: const Text('Cancel split'),
+            ),
+            Text(
+              state.splitRunning || state.splitTotalPages > 0
+                  ? '${state.splitCompletedPages}/${state.splitTotalPages} split pages'
+                  : 'No split',
+            ),
+          ],
+        ),
+        if (state.splitRunning || state.splitTotalPages > 0) ...<Widget>[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: splitProgress),
+        ],
+        if (state.splitResult != null) ...<Widget>[
+          const SizedBox(height: 8),
+          _SplitResultView(result: state.splitResult!),
+        ],
+        const SizedBox(height: 10),
+        TextField(
+          controller: _mergePathsController,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(labelText: 'Merge PDF paths'),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            FilledButton.icon(
+              onPressed: state.busy || state.mergeRunning
+                  ? null
+                  : () => bloc.add(
+                      PdfViewerRunMergeRequested(_mergePathsController.text),
+                    ),
+              icon: const Icon(Icons.merge_type_outlined, size: 18),
+              label: const Text('Merge'),
+            ),
+            OutlinedButton.icon(
+              onPressed: state.mergeRunning
+                  ? () => bloc.add(const PdfViewerCancelMergeRequested())
+                  : null,
+              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              label: const Text('Cancel merge'),
+            ),
+            Text(
+              state.mergeRunning || state.mergeTotalPages > 0
+                  ? '${state.mergeCompletedPages}/${state.mergeTotalPages} merge pages'
+                  : 'No merge',
+            ),
+          ],
+        ),
+        if (state.mergeRunning || state.mergeTotalPages > 0) ...<Widget>[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: mergeProgress),
+        ],
+        if (state.mergeResult != null) ...<Widget>[
+          const SizedBox(height: 8),
+          _MergeResultView(result: state.mergeResult!),
+        ],
+      ],
+    );
+  }
+}
+
+class _SplitResultView extends StatelessWidget {
+  const _SplitResultView({required this.result});
+
+  final PdfSplitResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = result.outputs
+        .map((output) => '${output.pageCount}p · ${output.outputPath}')
+        .join('\n');
+    return Text(
+      '$lines\n${result.durationMilliseconds} ms',
+      maxLines: 6,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _MergeResultView extends StatelessWidget {
+  const _MergeResultView({required this.result});
+
+  final PdfMergeResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '${result.inputDocumentCount} inputs · ${result.pageCount} pages · ${result.durationMilliseconds} ms\n${result.outputPath}',
+      maxLines: 4,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
 }

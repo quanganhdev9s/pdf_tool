@@ -176,6 +176,53 @@ class PdfCompressionResult {
   String warning;
 }
 
+class PdfPageRange {
+  PdfPageRange({required this.startPageIndex, required this.endPageIndex});
+
+  int startPageIndex;
+  int endPageIndex;
+}
+
+class PdfSplitRequest {
+  PdfSplitRequest({required this.ranges});
+
+  List<PdfPageRange> ranges;
+}
+
+class PdfSplitOutput {
+  PdfSplitOutput({required this.outputPath, required this.pageCount});
+
+  String outputPath;
+  int pageCount;
+}
+
+class PdfSplitResult {
+  PdfSplitResult({required this.outputs, required this.durationMilliseconds});
+
+  List<PdfSplitOutput> outputs;
+  int durationMilliseconds;
+}
+
+class PdfMergeRequest {
+  PdfMergeRequest({required this.inputPaths});
+
+  List<String> inputPaths;
+}
+
+class PdfMergeResult {
+  PdfMergeResult({
+    required this.outputPath,
+    required this.inputDocumentCount,
+    required this.pageCount,
+    required this.durationMilliseconds,
+  });
+
+  String outputPath;
+  int inputDocumentCount;
+  int pageCount;
+  int durationMilliseconds;
+}
+
 @HostApi()
 abstract class PdfPocHostApi {
   PdfDocumentInfo openAssetWorkingCopy(String assetKey, Uint8List assetBytes);
@@ -262,6 +309,14 @@ abstract class PdfPocHostApi {
 
   void cancelCompression();
 
+  void splitPdf(PdfSplitRequest request);
+
+  void cancelSplit();
+
+  void mergePdfs(PdfMergeRequest request);
+
+  void cancelMerge();
+
   PdfDocumentInfo save();
 }
 
@@ -296,6 +351,22 @@ abstract class PdfPocFlutterApi {
   void onCompressionCompleted(
     String operationId,
     PdfCompressionResult? result,
+    bool cancelled,
+  );
+
+  void onSplitProgress(String operationId, int completedPages, int totalPages);
+
+  void onSplitCompleted(
+    String operationId,
+    PdfSplitResult? result,
+    bool cancelled,
+  );
+
+  void onMergeProgress(String operationId, int completedPages, int totalPages);
+
+  void onMergeCompleted(
+    String operationId,
+    PdfMergeResult? result,
     bool cancelled,
   );
 

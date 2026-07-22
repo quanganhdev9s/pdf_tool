@@ -16,6 +16,8 @@ assets/poc/
 ├── forms_and_links.pdf
 ├── image_heavy.pdf
 ├── large_document.pdf
+├── merge_source_a.pdf
+├── merge_source_b.pdf
 └── password_protected.pdf
 ```
 
@@ -132,6 +134,22 @@ Recommended size:
 
 - 100 to 300 pages
 
+
+
+### `merge_source_a.pdf` and `merge_source_b.pdf`
+
+Purpose:
+
+- Split and merge page-order validation
+- Mixed page sizes and rotations
+- Annotation preservation across copied pages
+
+Recommended setup:
+
+- Distinct visible page labels such as `A-1`, `A-2`, `B-1`, and `B-2`
+- At least one rotated or landscape page
+- At least one editable annotation in one source document
+
 ### `password_protected.pdf`
 
 Purpose:
@@ -143,6 +161,22 @@ Purpose:
 Test password:
 
 - `poc123`
+
+
+
+## Physical scanner fixtures
+
+POC 7 must be tested on a supported physical iPhone or iPad. Prepare only
+non-confidential paper documents:
+
+- One clear A4 page
+- A five-page document
+- Mixed portrait and landscape pages
+- One page photographed at an angle
+- One low-contrast page for a later POC 4 OCR comparison
+
+The simulator may be used only to validate the typed unsupported path. It is not
+sufficient evidence that document scanning works.
 
 ## Test dimensions
 
@@ -293,6 +327,43 @@ caching, and exportable OCR results.
 | Forms and links | Preservation measured |
 | Large image PDF | No main-thread freeze |
 | Cancel compression | Operation stops between pages or limitation is recorded |
+
+
+
+### Split and merge
+
+| Test | Expected result |
+|---|---|
+| Split one valid range | Output contains exactly the requested pages |
+| Split multiple ranges | One valid output is created per range |
+| Split one page | A valid one-page PDF is created |
+| Empty range list | Typed validation error, no final output |
+| Reversed or out-of-range range | `invalid_page_range`, no corrupted output |
+| Merge two sources | Output page order matches supplied document order |
+| Merge three sources in custom order | Output follows the explicit request order, not filename order |
+| Mixed rotations and page sizes | Rotation, crop boxes, and page dimensions remain correct |
+| Existing annotations | Visibility and editability are verified after reopen |
+| Password-protected input | Typed password/open error |
+| Cancel large operation | Stops cooperatively and removes incomplete final output |
+| Open outputs in Preview | All successful outputs open correctly |
+
+### Document scanner to PDF
+
+| Test | Expected result |
+|---|---|
+| Unsupported environment or simulator | Typed `scanner_unavailable` result |
+| Open scanner on physical device | Apple document scanner is presented |
+| Cancel before completion | `scan_cancelled`; no final PDF |
+| Scan one page | A valid one-page image-based PDF is generated |
+| Scan five pages | Page count and order match the scanner result |
+| Mixed orientation pages | Each generated page is visually upright as returned by the scanner |
+| Angled paper document | Scanner correction is visually evaluated |
+| Standard preset | Valid output with smaller target size |
+| High Quality preset | Higher legibility and usually larger output |
+| Open output in PDFKit | Document opens and reports the expected page count |
+| Open output in Preview | Document renders correctly outside the app |
+| Run POC 4 OCR on output | OCR works as a separate operation; no embedded-text claim is made |
+| Repeated scan/open/close | No crash and no obvious retained scanner/viewer session |
 
 ## Result recording
 

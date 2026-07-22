@@ -98,6 +98,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       _onRunRasterizedCompressionRequested,
     );
     on<PdfViewerCancelCompressionRequested>(_onCancelCompressionRequested);
+    on<PdfViewerRunSplitRequested>(_onRunSplitRequested);
+    on<PdfViewerCancelSplitRequested>(_onCancelSplitRequested);
+    on<PdfViewerRunMergeRequested>(_onRunMergeRequested);
+    on<PdfViewerCancelMergeRequested>(_onCancelMergeRequested);
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -111,6 +115,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNativeOcrCompleted>(_onNativeOcrCompleted);
     on<PdfViewerNativeCompressionProgress>(_onNativeCompressionProgress);
     on<PdfViewerNativeCompressionCompleted>(_onNativeCompressionCompleted);
+    on<PdfViewerNativeSplitProgress>(_onNativeSplitProgress);
+    on<PdfViewerNativeSplitCompleted>(_onNativeSplitCompleted);
+    on<PdfViewerNativeMergeProgress>(_onNativeMergeProgress);
+    on<PdfViewerNativeMergeCompleted>(_onNativeMergeCompleted);
   }
 
   final String assetKey;
@@ -152,6 +160,14 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           compressionCompletedPages: 0,
           compressionTotalPages: 0,
           compressionResult: null,
+          splitRunning: false,
+          splitCompletedPages: 0,
+          splitTotalPages: 0,
+          splitResult: null,
+          mergeRunning: false,
+          mergeCompletedPages: 0,
+          mergeTotalPages: 0,
+          mergeResult: null,
           status: 'Reset writable copy for ${assetName(assetKey)}.',
         ),
       );
@@ -815,6 +831,127 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
+  Future<void> _onRunSplitRequested(
+    PdfViewerRunSplitRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    if (state.documentInfo == null) {
+      emit(state.copyWith(status: 'Open a document before splitting.'));
+      return;
+    }
+    final ranges = _parsePageRanges(event.rangesText);
+    if (ranges.isEmpty) {
+      emit(state.copyWith(status: 'Enter split ranges like 0-1, 2-3.'));
+      return;
+    }
+    final totalPages = ranges.fold<int>(
+      0,
+      (total, range) => total + range.endPageIndex - range.startPageIndex + 1,
+    );
+    logPdfEvent('split_run_request', <String, Object?>{
+      'ranges': event.rangesText,
+      'rangeCount': ranges.length,
+    });
+    emit(
+      state.copyWith(
+        splitRunning: true,
+        splitCompletedPages: 0,
+        splitTotalPages: totalPages,
+        splitResult: null,
+        status: 'Starting split...',
+      ),
+    );
+    try {
+      await _api.splitPdf(PdfSplitRequest(ranges: ranges));
+    } on PlatformException catch (error) {
+      emit(state.copyWith(splitRunning: false));
+      _showError(
+        emit,
+        'split',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onCancelSplitRequested(
+    PdfViewerCancelSplitRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('split_cancel_request');
+      await _api.cancelSplit();
+      emit(state.copyWith(status: 'Cancelling split...'));
+    } on PlatformException catch (error) {
+      _showError(
+        emit,
+        'cancel split',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onRunMergeRequested(
+    PdfViewerRunMergeRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    if (state.documentInfo == null) {
+      emit(state.copyWith(status: 'Open a document before merging.'));
+      return;
+    }
+    final inputPaths = _parseMergePaths(event.pathsText);
+    if (inputPaths.length < 2) {
+      emit(state.copyWith(status: 'Enter two or more local PDF paths.'));
+      return;
+    }
+    logPdfEvent('merge_run_request', <String, Object?>{
+      'inputCount': inputPaths.length,
+    });
+    emit(
+      state.copyWith(
+        mergeRunning: true,
+        mergeCompletedPages: 0,
+        mergeTotalPages: 0,
+        mergeResult: null,
+        status: 'Starting merge...',
+      ),
+    );
+    try {
+      await _api.mergePdfs(PdfMergeRequest(inputPaths: inputPaths));
+    } on PlatformException catch (error) {
+      emit(state.copyWith(mergeRunning: false));
+      _showError(
+        emit,
+        'merge',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onCancelMergeRequested(
+    PdfViewerCancelMergeRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('merge_cancel_request');
+      await _api.cancelMerge();
+      emit(state.copyWith(status: 'Cancelling merge...'));
+    } on PlatformException catch (error) {
+      _showError(
+        emit,
+        'cancel merge',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
   void _onNativePageChanged(
     PdfViewerNativePageChanged event,
     Emitter<PdfViewerState> emit,
@@ -871,6 +1008,14 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         compressionCompletedPages: 0,
         compressionTotalPages: 0,
         compressionResult: null,
+        splitRunning: false,
+        splitCompletedPages: 0,
+        splitTotalPages: 0,
+        splitResult: null,
+        mergeRunning: false,
+        mergeCompletedPages: 0,
+        mergeTotalPages: 0,
+        mergeResult: null,
         status: 'Document closed.',
       ),
     );
@@ -888,7 +1033,14 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerNativeOperationFailed event,
     Emitter<PdfViewerState> emit,
   ) {
-    emit(state.copyWith(ocrRunning: false, compressionRunning: false));
+    emit(
+      state.copyWith(
+        ocrRunning: false,
+        compressionRunning: false,
+        splitRunning: false,
+        mergeRunning: false,
+      ),
+    );
     _showError(
       emit,
       event.operationId,
@@ -997,6 +1149,70 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
+  void _onNativeSplitProgress(
+    PdfViewerNativeSplitProgress event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        splitCompletedPages: event.completedPages,
+        splitTotalPages: event.totalPages,
+        status:
+            'Split progress: ${event.completedPages}/${event.totalPages} pages.',
+      ),
+    );
+  }
+
+  void _onNativeSplitCompleted(
+    PdfViewerNativeSplitCompleted event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    final result = event.result;
+    emit(
+      state.copyWith(
+        splitRunning: false,
+        splitResult: result,
+        status: event.cancelled
+            ? 'Split cancelled.'
+            : result == null
+            ? 'Split completed without an output result.'
+            : 'Split created ${result.outputs.length} output PDFs.',
+      ),
+    );
+  }
+
+  void _onNativeMergeProgress(
+    PdfViewerNativeMergeProgress event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        mergeCompletedPages: event.completedPages,
+        mergeTotalPages: event.totalPages,
+        status:
+            'Merge progress: ${event.completedPages}/${event.totalPages} pages.',
+      ),
+    );
+  }
+
+  void _onNativeMergeCompleted(
+    PdfViewerNativeMergeCompleted event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    final result = event.result;
+    emit(
+      state.copyWith(
+        mergeRunning: false,
+        mergeResult: result,
+        status: event.cancelled
+            ? 'Merge cancelled.'
+            : result == null
+            ? 'Merge completed without an output result.'
+            : 'Merged ${result.inputDocumentCount} PDFs into ${result.pageCount} pages.',
+      ),
+    );
+  }
+
   Future<void> _openAsset(Emitter<PdfViewerState> emit) async {
     if (state.openedOnce) {
       logPdfEvent('open_skip_already_opened');
@@ -1022,6 +1238,14 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         compressionCompletedPages: 0,
         compressionTotalPages: 0,
         compressionResult: null,
+        splitRunning: false,
+        splitCompletedPages: 0,
+        splitTotalPages: 0,
+        splitResult: null,
+        mergeRunning: false,
+        mergeCompletedPages: 0,
+        mergeTotalPages: 0,
+        mergeResult: null,
         status: 'Opened ${assetName(assetKey)} from a writable copy.',
       ),
     );
@@ -1110,6 +1334,35 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
+  List<PdfPageRange> _parsePageRanges(String text) {
+    final tokens = text
+        .split(RegExp(r'[\n,;]+'))
+        .map((token) => token.trim())
+        .where((token) => token.isNotEmpty);
+    final ranges = <PdfPageRange>[];
+    for (final token in tokens) {
+      final parts = token.split('-').map((part) => part.trim()).toList();
+      if (parts.length > 2 || parts.isEmpty) {
+        return <PdfPageRange>[];
+      }
+      final start = int.tryParse(parts.first);
+      final end = parts.length == 1 ? start : int.tryParse(parts.last);
+      if (start == null || end == null) {
+        return <PdfPageRange>[];
+      }
+      ranges.add(PdfPageRange(startPageIndex: start, endPageIndex: end));
+    }
+    return ranges;
+  }
+
+  List<String> _parseMergePaths(String text) {
+    return text
+        .split(RegExp(r'[\n;]+'))
+        .map((path) => path.trim())
+        .where((path) => path.isNotEmpty)
+        .toList();
+  }
+
   Future<void> _run(
     Emitter<PdfViewerState> emit,
     String label,
@@ -1168,6 +1421,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
             '$operationId failed: $code - $message'
             '${details == null ? '' : ' ($details)'}',
         compressionRunning: false,
+        splitRunning: false,
+        mergeRunning: false,
       ),
     );
   }
@@ -1375,6 +1630,87 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     if (!isClosed) {
       add(
         PdfViewerNativeCompressionCompleted(
+          operationId: operationId,
+          result: result,
+          cancelled: cancelled,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onSplitProgress(String operationId, int completedPages, int totalPages) {
+    logPdfEvent('callback_split_progress', <String, Object?>{
+      'operationId': operationId,
+      'completedPages': completedPages,
+      'totalPages': totalPages,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeSplitProgress(
+          operationId: operationId,
+          completedPages: completedPages,
+          totalPages: totalPages,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onSplitCompleted(
+    String operationId,
+    PdfSplitResult? result,
+    bool cancelled,
+  ) {
+    logPdfEvent('callback_split_completed', <String, Object?>{
+      'operationId': operationId,
+      'cancelled': cancelled,
+      'outputCount': result?.outputs.length,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeSplitCompleted(
+          operationId: operationId,
+          result: result,
+          cancelled: cancelled,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onMergeProgress(String operationId, int completedPages, int totalPages) {
+    logPdfEvent('callback_merge_progress', <String, Object?>{
+      'operationId': operationId,
+      'completedPages': completedPages,
+      'totalPages': totalPages,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeMergeProgress(
+          operationId: operationId,
+          completedPages: completedPages,
+          totalPages: totalPages,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onMergeCompleted(
+    String operationId,
+    PdfMergeResult? result,
+    bool cancelled,
+  ) {
+    logPdfEvent('callback_merge_completed', <String, Object?>{
+      'operationId': operationId,
+      'cancelled': cancelled,
+      'outputPath': result?.outputPath,
+      'pageCount': result?.pageCount,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeMergeCompleted(
           operationId: operationId,
           result: result,
           cancelled: cancelled,

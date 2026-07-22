@@ -183,6 +183,74 @@ extension PdfPocRuntime: PdfWorkspaceViewDelegate {
 
   func workspaceView(
     _ view: PdfWorkspaceView,
+    didUpdateSplitProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_split_progress",
+      "operationId=\(operationId) completed=\(completedPages) total=\(totalPages)"
+    )
+    flutterApi?.onSplitProgress(
+      operationId: operationId,
+      completedPages: completedPages,
+      totalPages: totalPages
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompleteSplit operationId: String,
+    result: PdfSplitResult?,
+    cancelled: Bool
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_split_completed",
+      "operationId=\(operationId) cancelled=\(cancelled) outputs=\(result?.outputs.count ?? 0)"
+    )
+    flutterApi?.onSplitCompleted(
+      operationId: operationId,
+      result: result,
+      cancelled: cancelled
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didUpdateMergeProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_merge_progress",
+      "operationId=\(operationId) completed=\(completedPages) total=\(totalPages)"
+    )
+    flutterApi?.onMergeProgress(
+      operationId: operationId,
+      completedPages: completedPages,
+      totalPages: totalPages
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompleteMerge operationId: String,
+    result: PdfMergeResult?,
+    cancelled: Bool
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_merge_completed",
+      "operationId=\(operationId) cancelled=\(cancelled) output=\(result?.outputPath ?? "")"
+    )
+    flutterApi?.onMergeCompleted(
+      operationId: operationId,
+      result: result,
+      cancelled: cancelled
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
     didFailOperation operationId: String,
     error: PdfPocError
   ) {
