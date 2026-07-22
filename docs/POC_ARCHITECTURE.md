@@ -316,8 +316,12 @@ marks the session dirty when needed, and reports typed results back to Flutter.
 - `VNDocumentCameraScan` page images remain native. A dedicated writer processes
   them sequentially and creates an image-based PDF with
   `UIGraphicsPDFRenderer`.
+- The scan panel also supports a native Photos picker input. Picked image files
+  are copied to temporary native storage, then passed to the same scanned-PDF
+  writer without sending full-resolution bitmaps through Pigeon.
 - Standard and High Quality presets control target image dimensions and JPEG
-  quality; exact values must be recorded in the POC result report.
+  quality. The current POC uses Standard long edge 1600 px / JPEG 0.70 and
+  High Quality long edge 2400 px / JPEG 0.90.
 - The generated PDF is reopened with PDFKit before the output path is returned.
 - User cancellation sends a typed cancellation callback and creates no final
   output file.

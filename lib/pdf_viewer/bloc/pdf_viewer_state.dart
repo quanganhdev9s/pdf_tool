@@ -28,6 +28,10 @@ class PdfViewerState {
     this.mergeCompletedPages = 0,
     this.mergeTotalPages = 0,
     this.mergeResult,
+    this.documentScanRunning = false,
+    this.documentScanCompletedPages = 0,
+    this.documentScanTotalPages = 0,
+    this.documentScanResult,
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -54,6 +58,10 @@ class PdfViewerState {
   final int mergeCompletedPages;
   final int mergeTotalPages;
   final PdfMergeResult? mergeResult;
+  final bool documentScanRunning;
+  final int documentScanCompletedPages;
+  final int documentScanTotalPages;
+  final PdfDocumentScanResult? documentScanResult;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -82,6 +90,10 @@ class PdfViewerState {
     int? mergeCompletedPages,
     int? mergeTotalPages,
     Object? mergeResult = _unset,
+    bool? documentScanRunning,
+    int? documentScanCompletedPages,
+    int? documentScanTotalPages,
+    Object? documentScanResult = _unset,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -124,6 +136,14 @@ class PdfViewerState {
       mergeResult: mergeResult == _unset
           ? this.mergeResult
           : mergeResult as PdfMergeResult?,
+      documentScanRunning: documentScanRunning ?? this.documentScanRunning,
+      documentScanCompletedPages:
+          documentScanCompletedPages ?? this.documentScanCompletedPages,
+      documentScanTotalPages:
+          documentScanTotalPages ?? this.documentScanTotalPages,
+      documentScanResult: documentScanResult == _unset
+          ? this.documentScanResult
+          : documentScanResult as PdfDocumentScanResult?,
     );
   }
 }

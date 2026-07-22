@@ -199,6 +199,11 @@ enum PdfCompressionMode: Int, CaseIterable {
   case rasterized = 1
 }
 
+enum PdfScanQuality: Int, CaseIterable {
+  case standard = 0
+  case high = 1
+}
+
 /// Generated class from Pigeon that represents data sent in messages.
 struct PdfRect: Hashable, CustomStringConvertible {
   var x: Double
@@ -1039,6 +1044,96 @@ struct PdfMergeResult: Hashable, CustomStringConvertible {
   }
 }
 
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfDocumentScanRequest: Hashable, CustomStringConvertible {
+  var outputPath: String
+  var quality: PdfScanQuality
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfDocumentScanRequest? {
+    let outputPath = pigeonVar_list[0] as! String
+    let quality = pigeonVar_list[1] as! PdfScanQuality
+
+    return PdfDocumentScanRequest(
+      outputPath: outputPath,
+      quality: quality
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      outputPath,
+      quality,
+    ]
+  }
+  static func == (lhs: PdfDocumentScanRequest, rhs: PdfDocumentScanRequest) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.outputPath, rhs.outputPath) && PdfPocApiPigeonInternal.deepEquals(lhs.quality, rhs.quality)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfDocumentScanRequest")
+    PdfPocApiPigeonInternal.deepHash(value: outputPath, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: quality, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfDocumentScanRequest(outputPath: \(String(describing: outputPath)), quality: \(String(describing: quality)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfDocumentScanResult: Hashable, CustomStringConvertible {
+  var outputPath: String
+  var pageCount: Int64
+  var fileSizeBytes: Int64
+  var durationMilliseconds: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfDocumentScanResult? {
+    let outputPath = pigeonVar_list[0] as! String
+    let pageCount = pigeonVar_list[1] as! Int64
+    let fileSizeBytes = pigeonVar_list[2] as! Int64
+    let durationMilliseconds = pigeonVar_list[3] as! Int64
+
+    return PdfDocumentScanResult(
+      outputPath: outputPath,
+      pageCount: pageCount,
+      fileSizeBytes: fileSizeBytes,
+      durationMilliseconds: durationMilliseconds
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      outputPath,
+      pageCount,
+      fileSizeBytes,
+      durationMilliseconds,
+    ]
+  }
+  static func == (lhs: PdfDocumentScanResult, rhs: PdfDocumentScanResult) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.outputPath, rhs.outputPath) && PdfPocApiPigeonInternal.deepEquals(lhs.pageCount, rhs.pageCount) && PdfPocApiPigeonInternal.deepEquals(lhs.fileSizeBytes, rhs.fileSizeBytes) && PdfPocApiPigeonInternal.deepEquals(lhs.durationMilliseconds, rhs.durationMilliseconds)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfDocumentScanResult")
+    PdfPocApiPigeonInternal.deepHash(value: outputPath, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: pageCount, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fileSizeBytes, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: durationMilliseconds, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfDocumentScanResult(outputPath: \(String(describing: outputPath)), pageCount: \(String(describing: pageCount)), fileSizeBytes: \(String(describing: fileSizeBytes)), durationMilliseconds: \(String(describing: durationMilliseconds)))"
+  }
+}
+
 private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -1055,41 +1150,51 @@ private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
       }
       return nil
     case 131:
-      return PdfRect.fromList(self.readValue() as! [Any?])
+      let enumResultAsInt: Int? = nilOrValue(self.readValue() as! Int?)
+      if let enumResultAsInt = enumResultAsInt {
+        return PdfScanQuality(rawValue: enumResultAsInt)
+      }
+      return nil
     case 132:
-      return PdfColor.fromList(self.readValue() as! [Any?])
+      return PdfRect.fromList(self.readValue() as! [Any?])
     case 133:
-      return PdfDocumentInfo.fromList(self.readValue() as! [Any?])
+      return PdfColor.fromList(self.readValue() as! [Any?])
     case 134:
-      return PdfSearchRequest.fromList(self.readValue() as! [Any?])
+      return PdfDocumentInfo.fromList(self.readValue() as! [Any?])
     case 135:
-      return PdfSearchState.fromList(self.readValue() as! [Any?])
+      return PdfSearchRequest.fromList(self.readValue() as! [Any?])
     case 136:
-      return PdfFreeTextRequest.fromList(self.readValue() as! [Any?])
+      return PdfSearchState.fromList(self.readValue() as! [Any?])
     case 137:
-      return PdfFreeTextAreaSelection.fromList(self.readValue() as! [Any?])
+      return PdfFreeTextRequest.fromList(self.readValue() as! [Any?])
     case 138:
-      return PdfExportResult.fromList(self.readValue() as! [Any?])
+      return PdfFreeTextAreaSelection.fromList(self.readValue() as! [Any?])
     case 139:
-      return PdfOcrRequest.fromList(self.readValue() as! [Any?])
+      return PdfExportResult.fromList(self.readValue() as! [Any?])
     case 140:
-      return PdfOcrBlock.fromList(self.readValue() as! [Any?])
+      return PdfOcrRequest.fromList(self.readValue() as! [Any?])
     case 141:
-      return PdfCompressionRequest.fromList(self.readValue() as! [Any?])
+      return PdfOcrBlock.fromList(self.readValue() as! [Any?])
     case 142:
-      return PdfCompressionResult.fromList(self.readValue() as! [Any?])
+      return PdfCompressionRequest.fromList(self.readValue() as! [Any?])
     case 143:
-      return PdfPageRange.fromList(self.readValue() as! [Any?])
+      return PdfCompressionResult.fromList(self.readValue() as! [Any?])
     case 144:
-      return PdfSplitRequest.fromList(self.readValue() as! [Any?])
+      return PdfPageRange.fromList(self.readValue() as! [Any?])
     case 145:
-      return PdfSplitOutput.fromList(self.readValue() as! [Any?])
+      return PdfSplitRequest.fromList(self.readValue() as! [Any?])
     case 146:
-      return PdfSplitResult.fromList(self.readValue() as! [Any?])
+      return PdfSplitOutput.fromList(self.readValue() as! [Any?])
     case 147:
-      return PdfMergeRequest.fromList(self.readValue() as! [Any?])
+      return PdfSplitResult.fromList(self.readValue() as! [Any?])
     case 148:
+      return PdfMergeRequest.fromList(self.readValue() as! [Any?])
+    case 149:
       return PdfMergeResult.fromList(self.readValue() as! [Any?])
+    case 150:
+      return PdfDocumentScanRequest.fromList(self.readValue() as! [Any?])
+    case 151:
+      return PdfDocumentScanResult.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -1104,59 +1209,68 @@ private class PdfPocApiPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PdfCompressionMode {
       super.writeByte(130)
       super.writeValue(value.rawValue)
-    } else if let value = value as? PdfRect {
+    } else if let value = value as? PdfScanQuality {
       super.writeByte(131)
-      super.writeValue(value.toList())
-    } else if let value = value as? PdfColor {
+      super.writeValue(value.rawValue)
+    } else if let value = value as? PdfRect {
       super.writeByte(132)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfDocumentInfo {
+    } else if let value = value as? PdfColor {
       super.writeByte(133)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSearchRequest {
+    } else if let value = value as? PdfDocumentInfo {
       super.writeByte(134)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSearchState {
+    } else if let value = value as? PdfSearchRequest {
       super.writeByte(135)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfFreeTextRequest {
+    } else if let value = value as? PdfSearchState {
       super.writeByte(136)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfFreeTextAreaSelection {
+    } else if let value = value as? PdfFreeTextRequest {
       super.writeByte(137)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfExportResult {
+    } else if let value = value as? PdfFreeTextAreaSelection {
       super.writeByte(138)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfOcrRequest {
+    } else if let value = value as? PdfExportResult {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfOcrBlock {
+    } else if let value = value as? PdfOcrRequest {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfCompressionRequest {
+    } else if let value = value as? PdfOcrBlock {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfCompressionResult {
+    } else if let value = value as? PdfCompressionRequest {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfPageRange {
+    } else if let value = value as? PdfCompressionResult {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSplitRequest {
+    } else if let value = value as? PdfPageRange {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSplitOutput {
+    } else if let value = value as? PdfSplitRequest {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSplitResult {
+    } else if let value = value as? PdfSplitOutput {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfMergeRequest {
+    } else if let value = value as? PdfSplitResult {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfMergeResult {
+    } else if let value = value as? PdfMergeRequest {
       super.writeByte(148)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfMergeResult {
+      super.writeByte(149)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfDocumentScanRequest {
+      super.writeByte(150)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfDocumentScanResult {
+      super.writeByte(151)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1226,6 +1340,9 @@ protocol PdfPocHostApi {
   func cancelSplit() throws
   func mergePdfs(request: PdfMergeRequest) throws
   func cancelMerge() throws
+  func startDocumentScan(request: PdfDocumentScanRequest) throws
+  func pickImagesForPdf(request: PdfDocumentScanRequest) throws
+  func cancelDocumentScan() throws
   func save() throws -> PdfDocumentInfo
 }
 
@@ -1878,6 +1995,49 @@ class PdfPocHostApiSetup {
     } else {
       cancelMergeChannel.setMessageHandler(nil)
     }
+    let startDocumentScanChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.startDocumentScan\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      startDocumentScanChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! PdfDocumentScanRequest
+        do {
+          try api.startDocumentScan(request: requestArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      startDocumentScanChannel.setMessageHandler(nil)
+    }
+    let pickImagesForPdfChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.pickImagesForPdf\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      pickImagesForPdfChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let requestArg = args[0] as! PdfDocumentScanRequest
+        do {
+          try api.pickImagesForPdf(request: requestArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      pickImagesForPdfChannel.setMessageHandler(nil)
+    }
+    let cancelDocumentScanChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelDocumentScan\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      cancelDocumentScanChannel.setMessageHandler { _, reply in
+        do {
+          try api.cancelDocumentScan()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      cancelDocumentScanChannel.setMessageHandler(nil)
+    }
     let saveChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       saveChannel.setMessageHandler { _, reply in
@@ -1912,6 +2072,8 @@ protocol PdfPocFlutterApiProtocol {
   func onSplitCompleted(operationId operationIdArg: String, result resultArg: PdfSplitResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onMergeProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onMergeCompleted(operationId operationIdArg: String, result resultArg: PdfMergeResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onDocumentScanProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onDocumentScanCompleted(operationId operationIdArg: String, result resultArg: PdfDocumentScanResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOperationFailed(operationId operationIdArg: String, code codeArg: String, message messageArg: String, details detailsArg: String?, completion: @escaping (Result<Void, PigeonError>) -> Void)
 }
 class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
@@ -2196,6 +2358,42 @@ class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
   }
   func onMergeCompleted(operationId operationIdArg: String, result resultArg: PdfMergeResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void) {
     let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeCompleted\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, resultArg, cancelledArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onDocumentScanProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentScanProgress\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([operationIdArg, completedPagesArg, totalPagesArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onDocumentScanCompleted(operationId operationIdArg: String, result resultArg: PdfDocumentScanResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentScanCompleted\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([operationIdArg, resultArg, cancelledArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {

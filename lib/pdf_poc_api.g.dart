@@ -115,6 +115,8 @@ enum PdfMarkupType { highlight, underline, strikeout }
 
 enum PdfCompressionMode { preserve, rasterized }
 
+enum PdfScanQuality { standard, high }
+
 class PdfRect {
   PdfRect({
     required this.x,
@@ -1121,6 +1123,116 @@ class PdfMergeResult {
   }
 }
 
+class PdfDocumentScanRequest {
+  PdfDocumentScanRequest({required this.outputPath, required this.quality});
+
+  String outputPath;
+
+  PdfScanQuality quality;
+
+  List<Object?> _toList() {
+    return <Object?>[outputPath, quality];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfDocumentScanRequest decode(Object result) {
+    result as List<Object?>;
+    return PdfDocumentScanRequest(
+      outputPath: result[0]! as String,
+      quality: result[1]! as PdfScanQuality,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfDocumentScanRequest || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(quality, other.quality);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfDocumentScanRequest(outputPath: $outputPath, quality: $quality)';
+  }
+}
+
+class PdfDocumentScanResult {
+  PdfDocumentScanResult({
+    required this.outputPath,
+    required this.pageCount,
+    required this.fileSizeBytes,
+    required this.durationMilliseconds,
+  });
+
+  String outputPath;
+
+  int pageCount;
+
+  int fileSizeBytes;
+
+  int durationMilliseconds;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      outputPath,
+      pageCount,
+      fileSizeBytes,
+      durationMilliseconds,
+    ];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfDocumentScanResult decode(Object result) {
+    result as List<Object?>;
+    return PdfDocumentScanResult(
+      outputPath: result[0]! as String,
+      pageCount: result[1]! as int,
+      fileSizeBytes: result[2]! as int,
+      durationMilliseconds: result[3]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfDocumentScanResult || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(pageCount, other.pageCount) &&
+        _deepEquals(fileSizeBytes, other.fileSizeBytes) &&
+        _deepEquals(durationMilliseconds, other.durationMilliseconds);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfDocumentScanResult(outputPath: $outputPath, pageCount: $pageCount, fileSizeBytes: $fileSizeBytes, durationMilliseconds: $durationMilliseconds)';
+  }
+}
+
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -1134,59 +1246,68 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PdfCompressionMode) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    } else if (value is PdfRect) {
+    } else if (value is PdfScanQuality) {
       buffer.putUint8(131);
-      writeValue(buffer, value.encode());
-    } else if (value is PdfColor) {
+      writeValue(buffer, value.index);
+    } else if (value is PdfRect) {
       buffer.putUint8(132);
       writeValue(buffer, value.encode());
-    } else if (value is PdfDocumentInfo) {
+    } else if (value is PdfColor) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    } else if (value is PdfSearchRequest) {
+    } else if (value is PdfDocumentInfo) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    } else if (value is PdfSearchState) {
+    } else if (value is PdfSearchRequest) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    } else if (value is PdfFreeTextRequest) {
+    } else if (value is PdfSearchState) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    } else if (value is PdfFreeTextAreaSelection) {
+    } else if (value is PdfFreeTextRequest) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    } else if (value is PdfExportResult) {
+    } else if (value is PdfFreeTextAreaSelection) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    } else if (value is PdfOcrRequest) {
+    } else if (value is PdfExportResult) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    } else if (value is PdfOcrBlock) {
+    } else if (value is PdfOcrRequest) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    } else if (value is PdfCompressionRequest) {
+    } else if (value is PdfOcrBlock) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    } else if (value is PdfCompressionResult) {
+    } else if (value is PdfCompressionRequest) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    } else if (value is PdfPageRange) {
+    } else if (value is PdfCompressionResult) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    } else if (value is PdfSplitRequest) {
+    } else if (value is PdfPageRange) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    } else if (value is PdfSplitOutput) {
+    } else if (value is PdfSplitRequest) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    } else if (value is PdfSplitResult) {
+    } else if (value is PdfSplitOutput) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    } else if (value is PdfMergeRequest) {
+    } else if (value is PdfSplitResult) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    } else if (value is PdfMergeResult) {
+    } else if (value is PdfMergeRequest) {
       buffer.putUint8(148);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfMergeResult) {
+      buffer.putUint8(149);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfDocumentScanRequest) {
+      buffer.putUint8(150);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfDocumentScanResult) {
+      buffer.putUint8(151);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1203,41 +1324,48 @@ class _PigeonCodec extends StandardMessageCodec {
         final value = readValue(buffer) as int?;
         return value == null ? null : PdfCompressionMode.values[value];
       case 131:
-        return PdfRect.decode(readValue(buffer)!);
+        final value = readValue(buffer) as int?;
+        return value == null ? null : PdfScanQuality.values[value];
       case 132:
-        return PdfColor.decode(readValue(buffer)!);
+        return PdfRect.decode(readValue(buffer)!);
       case 133:
-        return PdfDocumentInfo.decode(readValue(buffer)!);
+        return PdfColor.decode(readValue(buffer)!);
       case 134:
-        return PdfSearchRequest.decode(readValue(buffer)!);
+        return PdfDocumentInfo.decode(readValue(buffer)!);
       case 135:
-        return PdfSearchState.decode(readValue(buffer)!);
+        return PdfSearchRequest.decode(readValue(buffer)!);
       case 136:
-        return PdfFreeTextRequest.decode(readValue(buffer)!);
+        return PdfSearchState.decode(readValue(buffer)!);
       case 137:
-        return PdfFreeTextAreaSelection.decode(readValue(buffer)!);
+        return PdfFreeTextRequest.decode(readValue(buffer)!);
       case 138:
-        return PdfExportResult.decode(readValue(buffer)!);
+        return PdfFreeTextAreaSelection.decode(readValue(buffer)!);
       case 139:
-        return PdfOcrRequest.decode(readValue(buffer)!);
+        return PdfExportResult.decode(readValue(buffer)!);
       case 140:
-        return PdfOcrBlock.decode(readValue(buffer)!);
+        return PdfOcrRequest.decode(readValue(buffer)!);
       case 141:
-        return PdfCompressionRequest.decode(readValue(buffer)!);
+        return PdfOcrBlock.decode(readValue(buffer)!);
       case 142:
-        return PdfCompressionResult.decode(readValue(buffer)!);
+        return PdfCompressionRequest.decode(readValue(buffer)!);
       case 143:
-        return PdfPageRange.decode(readValue(buffer)!);
+        return PdfCompressionResult.decode(readValue(buffer)!);
       case 144:
-        return PdfSplitRequest.decode(readValue(buffer)!);
+        return PdfPageRange.decode(readValue(buffer)!);
       case 145:
-        return PdfSplitOutput.decode(readValue(buffer)!);
+        return PdfSplitRequest.decode(readValue(buffer)!);
       case 146:
-        return PdfSplitResult.decode(readValue(buffer)!);
+        return PdfSplitOutput.decode(readValue(buffer)!);
       case 147:
-        return PdfMergeRequest.decode(readValue(buffer)!);
+        return PdfSplitResult.decode(readValue(buffer)!);
       case 148:
+        return PdfMergeRequest.decode(readValue(buffer)!);
+      case 149:
         return PdfMergeResult.decode(readValue(buffer)!);
+      case 150:
+        return PdfDocumentScanRequest.decode(readValue(buffer)!);
+      case 151:
+        return PdfDocumentScanResult.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
     }
@@ -2141,6 +2269,64 @@ class PdfPocHostApi {
     );
   }
 
+  Future<void> startDocumentScan(PdfDocumentScanRequest request) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.startDocumentScan$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[request],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> pickImagesForPdf(PdfDocumentScanRequest request) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.pickImagesForPdf$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[request],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  Future<void> cancelDocumentScan() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelDocumentScan$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
   Future<PdfDocumentInfo> save() async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save$pigeonVar_messageChannelSuffix';
@@ -2209,6 +2395,18 @@ abstract class PdfPocFlutterApi {
   void onMergeCompleted(
     String operationId,
     PdfMergeResult? result,
+    bool cancelled,
+  );
+
+  void onDocumentScanProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onDocumentScanCompleted(
+    String operationId,
+    PdfDocumentScanResult? result,
     bool cancelled,
   );
 
@@ -2653,6 +2851,69 @@ abstract class PdfPocFlutterApi {
           final bool arg_cancelled = args[2]! as bool;
           try {
             api.onMergeCompleted(arg_operationId, arg_result, arg_cancelled);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentScanProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_operationId = args[0]! as String;
+          final int arg_completedPages = args[1]! as int;
+          final int arg_totalPages = args[2]! as int;
+          try {
+            api.onDocumentScanProgress(
+              arg_operationId,
+              arg_completedPages,
+              arg_totalPages,
+            );
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentScanCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final String arg_operationId = args[0]! as String;
+          final PdfDocumentScanResult? arg_result =
+              args[1] as PdfDocumentScanResult?;
+          final bool arg_cancelled = args[2]! as bool;
+          try {
+            api.onDocumentScanCompleted(
+              arg_operationId,
+              arg_result,
+              arg_cancelled,
+            );
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

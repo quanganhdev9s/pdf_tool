@@ -100,6 +100,8 @@ class PdfControlPanel extends StatelessWidget {
         return _CompressionControls(state: state);
       case PdfControlPanelMode.splitMerge:
         return _SplitMergeControls(state: state);
+      case PdfControlPanelMode.documentScan:
+        return _DocumentScanControls(state: state);
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -945,6 +947,111 @@ class _MergeResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       '${result.inputDocumentCount} inputs · ${result.pageCount} pages · ${result.durationMilliseconds} ms\n${result.outputPath}',
+      maxLines: 4,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _DocumentScanControls extends StatefulWidget {
+  const _DocumentScanControls({required this.state});
+
+  final PdfViewerState state;
+
+  @override
+  State<_DocumentScanControls> createState() => _DocumentScanControlsState();
+}
+
+class _DocumentScanControlsState extends State<_DocumentScanControls> {
+  PdfScanQuality _quality = PdfScanQuality.standard;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final bloc = context.read<PdfViewerBloc>();
+    final totalPages = state.documentScanTotalPages;
+    final progress = totalPages == 0
+        ? null
+        : state.documentScanCompletedPages / totalPages.clamp(1, totalPages);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            SegmentedButton<PdfScanQuality>(
+              segments: const <ButtonSegment<PdfScanQuality>>[
+                ButtonSegment<PdfScanQuality>(
+                  value: PdfScanQuality.standard,
+                  icon: Icon(Icons.speed_outlined, size: 18),
+                  label: Text('Standard'),
+                ),
+                ButtonSegment<PdfScanQuality>(
+                  value: PdfScanQuality.high,
+                  icon: Icon(Icons.high_quality_outlined, size: 18),
+                  label: Text('High'),
+                ),
+              ],
+              selected: <PdfScanQuality>{_quality},
+              onSelectionChanged: state.documentScanRunning
+                  ? null
+                  : (selection) => setState(() => _quality = selection.first),
+            ),
+            FilledButton.icon(
+              onPressed: state.busy || state.documentScanRunning
+                  ? null
+                  : () =>
+                        bloc.add(PdfViewerStartDocumentScanRequested(_quality)),
+              icon: const Icon(Icons.camera_alt_outlined, size: 18),
+              label: const Text('Scan'),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: state.busy || state.documentScanRunning
+                  ? null
+                  : () =>
+                        bloc.add(PdfViewerPickImagesForPdfRequested(_quality)),
+              icon: const Icon(Icons.photo_library_outlined, size: 18),
+              label: const Text('Pick images'),
+            ),
+            OutlinedButton.icon(
+              onPressed: state.documentScanRunning
+                  ? () => bloc.add(const PdfViewerCancelDocumentScanRequested())
+                  : null,
+              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              label: const Text('Cancel'),
+            ),
+            Text(
+              state.documentScanRunning || totalPages > 0
+                  ? '${state.documentScanCompletedPages}/$totalPages pages'
+                  : 'No output',
+            ),
+          ],
+        ),
+        if (state.documentScanRunning || totalPages > 0) ...<Widget>[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: progress),
+        ],
+        if (state.documentScanResult != null) ...<Widget>[
+          const SizedBox(height: 8),
+          _DocumentScanResultView(result: state.documentScanResult!),
+        ],
+      ],
+    );
+  }
+}
+
+class _DocumentScanResultView extends StatelessWidget {
+  const _DocumentScanResultView({required this.result});
+
+  final PdfDocumentScanResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '${result.pageCount} pages · ${result.fileSizeBytes} bytes · ${result.durationMilliseconds} ms\n${result.outputPath}',
       maxLines: 4,
       overflow: TextOverflow.ellipsis,
     );

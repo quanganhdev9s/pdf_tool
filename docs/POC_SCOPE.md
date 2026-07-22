@@ -235,6 +235,20 @@ custom edge detector, or claim that the generated image-based PDF already has an
 embedded searchable text layer. The existing POC 4 OCR flow may be run on the
 created PDF as a separate follow-up operation.
 
+Current POC 7 implementation exposes a Document Scanner toolbar panel in the
+PDF viewer. Flutter sends only the selected Standard or High Quality preset.
+Swift presents `VNDocumentCameraViewController`, keeps `VNDocumentCameraScan`
+page images native, writes a separate image-based PDF, validates it with
+PDFKit, opens the generated output in the viewer, and reports output path, page
+count, file size, duration, progress, cancellation, or typed errors through
+Pigeon.
+
+The same panel also exposes an explicit Pick images action backed by Apple's
+Photos picker. Picked image files stay native, are converted into a separate
+image-based PDF with the same Standard/High Quality presets, and reopen in the
+viewer after PDFKit validation. This is not a custom scanner, file manager,
+cloud import, or searchable-PDF generation path.
+
 ## Required exports
 
 The POC must support:

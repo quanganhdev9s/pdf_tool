@@ -223,6 +223,18 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.cancelMerge() }
   }
 
+  func startDocumentScan(request: PdfDocumentScanRequest) throws {
+    try call { try $0.startDocumentScan(request) }
+  }
+
+  func pickImagesForPdf(request: PdfDocumentScanRequest) throws {
+    try call { try $0.pickImagesForPdf(request) }
+  }
+
+  func cancelDocumentScan() throws {
+    try call { try $0.cancelDocumentScan() }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try callWithResult { try $0.save() }
   }

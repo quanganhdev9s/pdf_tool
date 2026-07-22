@@ -234,6 +234,22 @@ final class PdfViewerCancelMergeRequested extends PdfViewerEvent {
   const PdfViewerCancelMergeRequested();
 }
 
+final class PdfViewerStartDocumentScanRequested extends PdfViewerEvent {
+  const PdfViewerStartDocumentScanRequested(this.quality);
+
+  final PdfScanQuality quality;
+}
+
+final class PdfViewerPickImagesForPdfRequested extends PdfViewerEvent {
+  const PdfViewerPickImagesForPdfRequested(this.quality);
+
+  final PdfScanQuality quality;
+}
+
+final class PdfViewerCancelDocumentScanRequested extends PdfViewerEvent {
+  const PdfViewerCancelDocumentScanRequested();
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,
@@ -393,5 +409,29 @@ final class PdfViewerNativeMergeCompleted extends PdfViewerEvent {
 
   final String operationId;
   final PdfMergeResult? result;
+  final bool cancelled;
+}
+
+final class PdfViewerNativeDocumentScanProgress extends PdfViewerEvent {
+  const PdfViewerNativeDocumentScanProgress({
+    required this.operationId,
+    required this.completedPages,
+    required this.totalPages,
+  });
+
+  final String operationId;
+  final int completedPages;
+  final int totalPages;
+}
+
+final class PdfViewerNativeDocumentScanCompleted extends PdfViewerEvent {
+  const PdfViewerNativeDocumentScanCompleted({
+    required this.operationId,
+    required this.result,
+    required this.cancelled,
+  });
+
+  final String operationId;
+  final PdfDocumentScanResult? result;
   final bool cancelled;
 }

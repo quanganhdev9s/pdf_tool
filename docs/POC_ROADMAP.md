@@ -472,6 +472,19 @@ contract.
 - The documentation clearly states that the output is image-based until OCR is
   performed separately
 
+### Current POC implementation notes
+
+- Standard uses a 1600 px long-edge target with JPEG quality 0.70.
+- High Quality uses a 2400 px long-edge target with JPEG quality 0.90.
+- The native writer validates a temporary output with PDFKit, moves only a
+  valid PDF to the final path, and opens that generated PDF in the existing
+  viewer workspace.
+- The scan panel includes a native Pick images action. It uses Apple's Photos
+  picker, writes a separate image-based PDF through the same writer, and does
+  not claim document-edge correction or embedded searchable text.
+- Simulator or unsupported environments return `scanner_unavailable`; physical
+  device validation must still be recorded in `docs/results/POC_7_RESULTS.md`.
+
 ---
 
 ## Completion review

@@ -61,6 +61,18 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
     result: PdfMergeResult?,
     cancelled: Bool
   )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didUpdateDocumentScanProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompleteDocumentScan operationId: String,
+    result: PdfDocumentScanResult?,
+    cancelled: Bool
+  )
   func workspaceView(_ view: PdfWorkspaceView, didFailOperation operationId: String, error: PdfPocError)
 }
 
@@ -76,6 +88,7 @@ final class PdfWorkspaceView: UIView {
   private lazy var ocrManager = PdfOcrManager()
   private lazy var compressionManager = PdfCompressionManager()
   private lazy var splitMergeManager = PdfSplitMergeManager()
+  private lazy var documentScannerManager = PdfDocumentScannerManager()
   private let pageOperationsManager = PdfPageOperationsManager()
   private let ocrResultOverlayView = UIView()
   private var session: PdfDocumentSession?
@@ -165,6 +178,7 @@ final class PdfWorkspaceView: UIView {
     compressionManager.cancel()
     splitMergeManager.cancelSplit()
     splitMergeManager.cancelMerge()
+    documentScannerManager.cancel()
     hideOcrResultOverlay()
     inkManager.close()
     annotationTapGesture.isEnabled = true
@@ -733,6 +747,61 @@ final class PdfWorkspaceView: UIView {
     splitMergeManager.cancelMerge()
   }
 
+  func startDocumentScan(_ request: PdfDocumentScanRequest) throws {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    let outputURL = documentScanOutputURL(for: session.workingURL, request: request)
+    guard let presenter = nearestViewController() else {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not find a UIKit presenter for the document scanner.",
+        details: nil
+      )
+    }
+    logPdfEvent(
+      "start_document_scan_request",
+      "quality=\(request.quality) output=\(outputURL.path)"
+    )
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    freeTextManager.cancelSelection()
+    inkManager.setModeEnabled(false)
+    try documentScannerManager.start(request: request, outputURL: outputURL, presenter: presenter)
+  }
+
+  func pickImagesForPdf(_ request: PdfDocumentScanRequest) throws {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    let outputURL = pickedImagesOutputURL(for: session.workingURL, request: request)
+    guard let presenter = nearestViewController() else {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not find a UIKit presenter for the image picker.",
+        details: nil
+      )
+    }
+    logPdfEvent(
+      "pick_images_for_pdf_request",
+      "quality=\(request.quality) output=\(outputURL.path)"
+    )
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    freeTextManager.cancelSelection()
+    inkManager.setModeEnabled(false)
+    try documentScannerManager.pickImages(request: request, outputURL: outputURL, presenter: presenter)
+  }
+
+  func cancelDocumentScan() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("cancel_document_scan_request")
+    documentScannerManager.cancel()
+  }
+
   func pageReorderPreviews(maxPixelSize: CGSize) throws -> [PdfPageReorderPreview] {
     try ensureMainThread()
     let document = try requireDocument()
@@ -781,6 +850,7 @@ final class PdfWorkspaceView: UIView {
     configureOcr()
     configureCompression()
     configureSplitMerge()
+    configureDocumentScanner()
     pdfView.addGestureRecognizer(annotationTapGesture)
     addSubview(inkManager.canvasView)
     addSubview(signatureManager.captureView)
@@ -907,6 +977,49 @@ final class PdfWorkspaceView: UIView {
     }
   }
 
+  private func configureDocumentScanner() {
+    documentScannerManager.onProgress = { [weak self] operationId, completedPages, totalPages in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didUpdateDocumentScanProgress: operationId,
+        completedPages: completedPages,
+        totalPages: totalPages
+      )
+    }
+    documentScannerManager.onCompleted = { [weak self] operationId, result, cancelled in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didCompleteDocumentScan: operationId,
+        result: result,
+        cancelled: cancelled
+      )
+    }
+    documentScannerManager.onGeneratedDocumentReady = { [weak self] outputURL in
+      guard let self else { return }
+      do {
+        try self.openGeneratedScanDocument(at: outputURL)
+      } catch let error as PdfPocError {
+        self.delegate?.workspaceView(self, didFailOperation: "document scan", error: error)
+      } catch {
+        self.delegate?.workspaceView(
+          self,
+          didFailOperation: "document scan",
+          error: PdfPocError(
+            code: "invalid_pdf",
+            message: "The generated scan PDF could not be opened.",
+            details: error.localizedDescription
+          )
+        )
+      }
+    }
+    documentScannerManager.onError = { [weak self] operationId, error in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
+    }
+  }
+
   @objc private func handleAnnotationTap(_ recognizer: UITapGestureRecognizer) {
     guard !inkManager.isEnabled, recognizer.state == .ended else { return }
     let point = recognizer.location(in: pdfView)
@@ -968,6 +1081,79 @@ final class PdfWorkspaceView: UIView {
     let stamp = Int(Date().timeIntervalSince1970)
     return workingURL.deletingLastPathComponent()
       .appendingPathComponent("\(baseName)_merged_\(stamp).pdf")
+  }
+
+  private func documentScanOutputURL(
+    for workingURL: URL,
+    request: PdfDocumentScanRequest
+  ) -> URL {
+    let requestedPath = request.outputPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !requestedPath.isEmpty {
+      return URL(fileURLWithPath: requestedPath)
+    }
+    let baseName = workingURL.deletingPathExtension().lastPathComponent
+    let stamp = Int(Date().timeIntervalSince1970)
+    return workingURL.deletingLastPathComponent()
+      .appendingPathComponent("\(baseName)_scan_\(request.quality)_\(stamp).pdf")
+  }
+
+  private func pickedImagesOutputURL(
+    for workingURL: URL,
+    request: PdfDocumentScanRequest
+  ) -> URL {
+    let requestedPath = request.outputPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !requestedPath.isEmpty {
+      return URL(fileURLWithPath: requestedPath)
+    }
+    let baseName = workingURL.deletingPathExtension().lastPathComponent
+    let stamp = Int(Date().timeIntervalSince1970)
+    return workingURL.deletingLastPathComponent()
+      .appendingPathComponent("\(baseName)_picked_images_\(request.quality)_\(stamp).pdf")
+  }
+
+  private func openGeneratedScanDocument(at outputURL: URL) throws {
+    try ensureMainThread()
+    let document = try openDocument(at: outputURL)
+    detachObservers()
+    searchManager.clear()
+    hideSelectionToolbar()
+    hideOcrResultOverlay()
+    let assetKey = "scanned-output:\(outputURL.lastPathComponent)"
+    session = PdfDocumentSession(assetKey: assetKey, workingURL: outputURL, document: document)
+    pdfView.document = document
+    pdfView.autoScales = true
+    pdfView.goToFirstPage(nil)
+    attachObservers()
+    notifyPageChanged()
+    delegate?.workspaceView(self, didChangeDirtyState: false)
+    delegate?.workspaceView(self, didOpen: documentInfo())
+    logPdfEvent("document_scan_output_opened", "path=\(outputURL.path) pages=\(document.pageCount)")
+  }
+
+  private func nearestViewController() -> UIViewController? {
+    var responder: UIResponder? = self
+    while let current = responder {
+      if let viewController = current as? UIViewController {
+        return visibleViewController(from: viewController)
+      }
+      responder = current.next
+    }
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let root = scenes.flatMap(\.windows).first(where: \.isKeyWindow)?.rootViewController
+    return visibleViewController(from: root)
+  }
+
+  private func visibleViewController(from viewController: UIViewController?) -> UIViewController? {
+    if let navigationController = viewController as? UINavigationController {
+      return visibleViewController(from: navigationController.visibleViewController)
+    }
+    if let tabController = viewController as? UITabBarController {
+      return visibleViewController(from: tabController.selectedViewController)
+    }
+    if let presented = viewController?.presentedViewController {
+      return visibleViewController(from: presented)
+    }
+    return viewController
   }
 
   private func compressionProfile(for document: PDFDocument) -> PdfCompressionProfile {

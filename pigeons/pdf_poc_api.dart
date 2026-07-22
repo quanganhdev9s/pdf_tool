@@ -223,6 +223,29 @@ class PdfMergeResult {
   int durationMilliseconds;
 }
 
+enum PdfScanQuality { standard, high }
+
+class PdfDocumentScanRequest {
+  PdfDocumentScanRequest({required this.outputPath, required this.quality});
+
+  String outputPath;
+  PdfScanQuality quality;
+}
+
+class PdfDocumentScanResult {
+  PdfDocumentScanResult({
+    required this.outputPath,
+    required this.pageCount,
+    required this.fileSizeBytes,
+    required this.durationMilliseconds,
+  });
+
+  String outputPath;
+  int pageCount;
+  int fileSizeBytes;
+  int durationMilliseconds;
+}
+
 @HostApi()
 abstract class PdfPocHostApi {
   PdfDocumentInfo openAssetWorkingCopy(String assetKey, Uint8List assetBytes);
@@ -317,6 +340,12 @@ abstract class PdfPocHostApi {
 
   void cancelMerge();
 
+  void startDocumentScan(PdfDocumentScanRequest request);
+
+  void pickImagesForPdf(PdfDocumentScanRequest request);
+
+  void cancelDocumentScan();
+
   PdfDocumentInfo save();
 }
 
@@ -367,6 +396,18 @@ abstract class PdfPocFlutterApi {
   void onMergeCompleted(
     String operationId,
     PdfMergeResult? result,
+    bool cancelled,
+  );
+
+  void onDocumentScanProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onDocumentScanCompleted(
+    String operationId,
+    PdfDocumentScanResult? result,
     bool cancelled,
   );
 

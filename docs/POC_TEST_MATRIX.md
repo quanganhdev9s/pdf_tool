@@ -364,6 +364,14 @@ caching, and exportable OCR results.
 | Open output in Preview | Document renders correctly outside the app |
 | Run POC 4 OCR on output | OCR works as a separate operation; no embedded-text claim is made |
 | Repeated scan/open/close | No crash and no obvious retained scanner/viewer session |
+| Pick one image from Photos | A valid one-page image-based PDF is generated |
+| Pick multiple images from Photos | Page count and picker result order are recorded |
+| Cancel image picker | Typed cancellation; no final output PDF |
+
+Record each scanner result in `docs/results/POC_7_RESULTS.md` with OS/device,
+quality preset, page count, output size, page order/orientation, cancellation
+behavior, and whether the generated image-based PDF opens in PDFKit and Apple
+Preview.
 
 ## Result recording
 

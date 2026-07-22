@@ -336,6 +336,10 @@ abstract class PdfPocHostApi {
   void cancelMerge();
 
   void startDocumentScan(PdfDocumentScanRequest request);
+
+  void pickImagesForPdf(PdfDocumentScanRequest request);
+
+  void cancelDocumentScan();
 }
 ```
 
@@ -436,12 +440,17 @@ abstract class PdfPocFlutterApi {
     bool cancelled,
   );
 
-  void onDocumentScanCompleted(
+  void onDocumentScanProgress(
     String operationId,
-    PdfDocumentScanResult result,
+    int completedPages,
+    int totalPages,
   );
 
-  void onDocumentScanCancelled(String operationId);
+  void onDocumentScanCompleted(
+    String operationId,
+    PdfDocumentScanResult? result,
+    bool cancelled,
+  );
 
   void onOperationCompleted(String operationId);
 
@@ -504,6 +513,8 @@ merge_failed
 scanner_unavailable
 scan_failed
 scan_cancelled
+image_pick_failed
+image_pick_cancelled
 pdf_generation_failed
 unsupported_operation
 internal_error

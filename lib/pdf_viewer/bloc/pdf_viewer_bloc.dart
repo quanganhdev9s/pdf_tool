@@ -102,6 +102,9 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerCancelSplitRequested>(_onCancelSplitRequested);
     on<PdfViewerRunMergeRequested>(_onRunMergeRequested);
     on<PdfViewerCancelMergeRequested>(_onCancelMergeRequested);
+    on<PdfViewerStartDocumentScanRequested>(_onStartDocumentScanRequested);
+    on<PdfViewerPickImagesForPdfRequested>(_onPickImagesForPdfRequested);
+    on<PdfViewerCancelDocumentScanRequested>(_onCancelDocumentScanRequested);
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -119,6 +122,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNativeSplitCompleted>(_onNativeSplitCompleted);
     on<PdfViewerNativeMergeProgress>(_onNativeMergeProgress);
     on<PdfViewerNativeMergeCompleted>(_onNativeMergeCompleted);
+    on<PdfViewerNativeDocumentScanProgress>(_onNativeDocumentScanProgress);
+    on<PdfViewerNativeDocumentScanCompleted>(_onNativeDocumentScanCompleted);
   }
 
   final String assetKey;
@@ -168,6 +173,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           mergeCompletedPages: 0,
           mergeTotalPages: 0,
           mergeResult: null,
+          documentScanRunning: false,
+          documentScanCompletedPages: 0,
+          documentScanTotalPages: 0,
+          documentScanResult: null,
           status: 'Reset writable copy for ${assetName(assetKey)}.',
         ),
       );
@@ -952,6 +961,93 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
+  Future<void> _onStartDocumentScanRequested(
+    PdfViewerStartDocumentScanRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _startImageBasedPdfInput(
+      emit,
+      quality: event.quality,
+      label: 'document scan',
+      openingStatus: 'Opening Apple document scanner...',
+      action: () => _api.startDocumentScan(
+        PdfDocumentScanRequest(outputPath: '', quality: event.quality),
+      ),
+    );
+  }
+
+  Future<void> _onPickImagesForPdfRequested(
+    PdfViewerPickImagesForPdfRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _startImageBasedPdfInput(
+      emit,
+      quality: event.quality,
+      label: 'pick images',
+      openingStatus: 'Opening image picker...',
+      action: () => _api.pickImagesForPdf(
+        PdfDocumentScanRequest(outputPath: '', quality: event.quality),
+      ),
+    );
+  }
+
+  Future<void> _startImageBasedPdfInput(
+    Emitter<PdfViewerState> emit, {
+    required PdfScanQuality quality,
+    required String label,
+    required String openingStatus,
+    required Future<void> Function() action,
+  }) async {
+    if (state.documentInfo == null) {
+      emit(state.copyWith(status: 'Open a document before $label.'));
+      return;
+    }
+    logPdfEvent('document_scan_input_request', <String, Object?>{
+      'label': label,
+      'quality': quality.name,
+    });
+    emit(
+      state.copyWith(
+        documentScanRunning: true,
+        documentScanCompletedPages: 0,
+        documentScanTotalPages: 0,
+        documentScanResult: null,
+        status: openingStatus,
+      ),
+    );
+    try {
+      await action();
+    } on PlatformException catch (error) {
+      emit(state.copyWith(documentScanRunning: false));
+      _showError(
+        emit,
+        label,
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onCancelDocumentScanRequested(
+    PdfViewerCancelDocumentScanRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('document_scan_cancel_request');
+      await _api.cancelDocumentScan();
+      emit(state.copyWith(status: 'Cancelling document scan...'));
+    } on PlatformException catch (error) {
+      _showError(
+        emit,
+        'cancel document scan',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
   void _onNativePageChanged(
     PdfViewerNativePageChanged event,
     Emitter<PdfViewerState> emit,
@@ -1016,6 +1112,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         mergeCompletedPages: 0,
         mergeTotalPages: 0,
         mergeResult: null,
+        documentScanRunning: false,
+        documentScanCompletedPages: 0,
+        documentScanTotalPages: 0,
+        documentScanResult: null,
         status: 'Document closed.',
       ),
     );
@@ -1039,6 +1139,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         compressionRunning: false,
         splitRunning: false,
         mergeRunning: false,
+        documentScanRunning: false,
       ),
     );
     _showError(
@@ -1213,6 +1314,38 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
+  void _onNativeDocumentScanProgress(
+    PdfViewerNativeDocumentScanProgress event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        documentScanCompletedPages: event.completedPages,
+        documentScanTotalPages: event.totalPages,
+        status:
+            'Document scan progress: ${event.completedPages}/${event.totalPages} pages.',
+      ),
+    );
+  }
+
+  void _onNativeDocumentScanCompleted(
+    PdfViewerNativeDocumentScanCompleted event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    final result = event.result;
+    emit(
+      state.copyWith(
+        documentScanRunning: false,
+        documentScanResult: result,
+        status: event.cancelled
+            ? 'Document scan cancelled.'
+            : result == null
+            ? 'Document scan completed without an output result.'
+            : 'Scanned ${result.pageCount} pages into ${result.fileSizeBytes} bytes.',
+      ),
+    );
+  }
+
   Future<void> _openAsset(Emitter<PdfViewerState> emit) async {
     if (state.openedOnce) {
       logPdfEvent('open_skip_already_opened');
@@ -1246,6 +1379,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         mergeCompletedPages: 0,
         mergeTotalPages: 0,
         mergeResult: null,
+        documentScanRunning: false,
+        documentScanCompletedPages: 0,
+        documentScanTotalPages: 0,
+        documentScanResult: null,
         status: 'Opened ${assetName(assetKey)} from a writable copy.',
       ),
     );
@@ -1423,6 +1560,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         compressionRunning: false,
         splitRunning: false,
         mergeRunning: false,
+        documentScanRunning: false,
       ),
     );
   }
@@ -1711,6 +1849,52 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     if (!isClosed) {
       add(
         PdfViewerNativeMergeCompleted(
+          operationId: operationId,
+          result: result,
+          cancelled: cancelled,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onDocumentScanProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  ) {
+    logPdfEvent('callback_document_scan_progress', <String, Object?>{
+      'operationId': operationId,
+      'completedPages': completedPages,
+      'totalPages': totalPages,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeDocumentScanProgress(
+          operationId: operationId,
+          completedPages: completedPages,
+          totalPages: totalPages,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onDocumentScanCompleted(
+    String operationId,
+    PdfDocumentScanResult? result,
+    bool cancelled,
+  ) {
+    logPdfEvent('callback_document_scan_completed', <String, Object?>{
+      'operationId': operationId,
+      'cancelled': cancelled,
+      'outputPath': result?.outputPath,
+      'pageCount': result?.pageCount,
+      'fileSizeBytes': result?.fileSizeBytes,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativeDocumentScanCompleted(
           operationId: operationId,
           result: result,
           cancelled: cancelled,
