@@ -274,6 +274,10 @@ viewer, and reports progress, cancellation, or typed errors through Pigeon. PDF
 inputs are excluded because converting them is a no-op, and only http/https
 URLs are accepted.
 
+The panel also offers a view-only action: `previewDocumentFile` opens a picked
+Office, iWork, or PDF file in `QLPreviewController`, the system previewer. No
+conversion happens and no output is written.
+
 The panel also lists every PDF in the working directory, newest first, opens a
 selected one, and shares it through the system share sheet. Generated files are
 saved into the app immediately and exporting is a separate user action. This is

@@ -1421,6 +1421,67 @@ class PdfConvertUrlRequest {
   }
 }
 
+/// A document picked for viewing. It is a local copy owned by the app, never
+/// the user's original file.
+class PdfViewableDocument {
+  PdfViewableDocument({
+    required this.path,
+    required this.fileName,
+    required this.fileFormat,
+    required this.fileSizeBytes,
+  });
+
+  String path;
+
+  String fileName;
+
+  String fileFormat;
+
+  int fileSizeBytes;
+
+  List<Object?> _toList() {
+    return <Object?>[path, fileName, fileFormat, fileSizeBytes];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static PdfViewableDocument decode(Object result) {
+    result as List<Object?>;
+    return PdfViewableDocument(
+      path: result[0]! as String,
+      fileName: result[1]! as String,
+      fileFormat: result[2]! as String,
+      fileSizeBytes: result[3]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfViewableDocument || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(path, other.path) &&
+        _deepEquals(fileName, other.fileName) &&
+        _deepEquals(fileFormat, other.fileFormat) &&
+        _deepEquals(fileSizeBytes, other.fileSizeBytes);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfViewableDocument(path: $path, fileName: $fileName, fileFormat: $fileFormat, fileSizeBytes: $fileSizeBytes)';
+  }
+}
+
 /// A PDF produced by an earlier operation (convert, scan, split, merge,
 /// compress) and still present in the native working directory.
 class PdfGeneratedOutput {
@@ -1584,8 +1645,11 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is PdfConvertUrlRequest) {
       buffer.putUint8(155);
       writeValue(buffer, value.encode());
-    } else if (value is PdfGeneratedOutput) {
+    } else if (value is PdfViewableDocument) {
       buffer.putUint8(156);
+      writeValue(buffer, value.encode());
+    } else if (value is PdfGeneratedOutput) {
+      buffer.putUint8(157);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1654,6 +1718,8 @@ class _PigeonCodec extends StandardMessageCodec {
       case 155:
         return PdfConvertUrlRequest.decode(readValue(buffer)!);
       case 156:
+        return PdfViewableDocument.decode(readValue(buffer)!);
+      case 157:
         return PdfGeneratedOutput.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -2656,6 +2722,67 @@ class PdfPocHostApi {
     );
   }
 
+  /// Picks a document to view. The result arrives through
+  /// `onDocumentForViewingPicked`; nothing is converted and no output is
+  /// written. Flutter then hosts the native viewer platform view.
+  Future<void> pickDocumentForViewing() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.pickDocumentForViewing$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Loads a picked document into the embedded viewer platform view.
+  Future<void> loadDocumentIntoViewer(String path) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.loadDocumentIntoViewer$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[path],
+    );
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Releases the embedded viewer and deletes the local copy.
+  Future<void> closeDocumentViewer() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocumentViewer$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
   Future<void> cancelPdfConversion() async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPdfConversion$pigeonVar_messageChannelSuffix';
@@ -2828,6 +2955,10 @@ abstract class PdfPocFlutterApi {
     PdfConvertToPdfResult? result,
     bool cancelled,
   );
+
+  void onDocumentForViewingPicked(PdfViewableDocument document);
+
+  void onDocumentForViewingCancelled();
 
   void onOperationFailed(
     String operationId,
@@ -3396,6 +3527,55 @@ abstract class PdfPocFlutterApi {
               arg_result,
               arg_cancelled,
             );
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentForViewingPicked$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final PdfViewableDocument arg_document =
+              args[0]! as PdfViewableDocument;
+          try {
+            api.onDocumentForViewingPicked(arg_document);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentForViewingCancelled$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          try {
+            api.onDocumentForViewingCancelled();
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

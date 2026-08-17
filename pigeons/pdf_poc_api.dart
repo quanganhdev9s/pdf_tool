@@ -293,6 +293,22 @@ class PdfConvertUrlRequest {
   PdfConvertPageSize pageSize;
 }
 
+/// A document picked for viewing. It is a local copy owned by the app, never
+/// the user's original file.
+class PdfViewableDocument {
+  PdfViewableDocument({
+    required this.path,
+    required this.fileName,
+    required this.fileFormat,
+    required this.fileSizeBytes,
+  });
+
+  String path;
+  String fileName;
+  String fileFormat;
+  int fileSizeBytes;
+}
+
 /// A PDF produced by an earlier operation (convert, scan, split, merge,
 /// compress) and still present in the native working directory.
 class PdfGeneratedOutput {
@@ -415,6 +431,17 @@ abstract class PdfPocHostApi {
 
   void convertUrlToPdf(PdfConvertUrlRequest request);
 
+  /// Picks a document to view. The result arrives through
+  /// `onDocumentForViewingPicked`; nothing is converted and no output is
+  /// written. Flutter then hosts the native viewer platform view.
+  void pickDocumentForViewing();
+
+  /// Loads a picked document into the embedded viewer platform view.
+  void loadDocumentIntoViewer(String path);
+
+  /// Releases the embedded viewer and deletes the local copy.
+  void closeDocumentViewer();
+
   void cancelPdfConversion();
 
   List<PdfGeneratedOutput> listGeneratedOutputs();
@@ -499,6 +526,10 @@ abstract class PdfPocFlutterApi {
     PdfConvertToPdfResult? result,
     bool cancelled,
   );
+
+  void onDocumentForViewingPicked(PdfViewableDocument document);
+
+  void onDocumentForViewingCancelled();
 
   void onOperationFailed(
     String operationId,

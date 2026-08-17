@@ -243,6 +243,26 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.convertUrlToPdf(request) }
   }
 
+  func pickDocumentForViewing() throws {
+    try call { try $0.pickDocumentForViewing() }
+  }
+
+  func loadDocumentIntoViewer(path: String) throws {
+    do {
+      try runtime.requireDocumentViewer().load(path: path)
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func closeDocumentViewer() throws {
+    do {
+      try runtime.requireDocumentViewer().close()
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
   func cancelPdfConversion() throws {
     try call { try $0.cancelPdfConversion() }
   }

@@ -38,6 +38,8 @@ class PdfViewerState {
     this.conversionResult,
     this.generatedOutputs = const <PdfGeneratedOutput>[],
     this.generatedOutputsLoading = false,
+    this.viewableDocument,
+    this.viewablePickPending = false,
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -74,6 +76,8 @@ class PdfViewerState {
   final PdfConvertToPdfResult? conversionResult;
   final List<PdfGeneratedOutput> generatedOutputs;
   final bool generatedOutputsLoading;
+  final PdfViewableDocument? viewableDocument;
+  final bool viewablePickPending;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -112,6 +116,8 @@ class PdfViewerState {
     Object? conversionResult = _unset,
     List<PdfGeneratedOutput>? generatedOutputs,
     bool? generatedOutputsLoading,
+    Object? viewableDocument = _unset,
+    bool? viewablePickPending,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -172,6 +178,10 @@ class PdfViewerState {
       generatedOutputs: generatedOutputs ?? this.generatedOutputs,
       generatedOutputsLoading:
           generatedOutputsLoading ?? this.generatedOutputsLoading,
+      viewableDocument: viewableDocument == _unset
+          ? this.viewableDocument
+          : viewableDocument as PdfViewableDocument?,
+      viewablePickPending: viewablePickPending ?? this.viewablePickPending,
     );
   }
 }

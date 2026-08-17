@@ -37,6 +37,8 @@
 		A00000000000000000000035 /* PdfScannedDocumentWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000037 /* PdfScannedDocumentWriter.swift */; };
 		A00000000000000000000038 /* PdfFileConversionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003A /* PdfFileConversionManager.swift */; };
 		A00000000000000000000039 /* PdfConvertedDocumentWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */; };
+		A0000000000000000000003C /* PdfOfficePreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003D /* PdfOfficePreviewManager.swift */; };
+		A0000000000000000000003E /* PdfDocumentViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003F /* PdfDocumentViewerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +103,8 @@
 		A00000000000000000000037 /* PdfScannedDocumentWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfScannedDocumentWriter.swift; sourceTree = "<group>"; };
 		A0000000000000000000003A /* PdfFileConversionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfFileConversionManager.swift; sourceTree = "<group>"; };
 		A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfConvertedDocumentWriter.swift; sourceTree = "<group>"; };
+		A0000000000000000000003D /* PdfOfficePreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfOfficePreviewManager.swift; sourceTree = "<group>"; };
+		A0000000000000000000003F /* PdfDocumentViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfDocumentViewerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -193,6 +197,8 @@
 				A00000000000000000000037 /* PdfScannedDocumentWriter.swift */,
 				A0000000000000000000003A /* PdfFileConversionManager.swift */,
 				A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */,
+				A0000000000000000000003D /* PdfOfficePreviewManager.swift */,
+				A0000000000000000000003F /* PdfDocumentViewerView.swift */,
 				A00000000000000000000014 /* PdfPlatformView.swift */,
 				A00000000000000000000015 /* PdfPocHostApiImpl.swift */,
 			);
@@ -382,6 +388,8 @@
 				A00000000000000000000035 /* PdfScannedDocumentWriter.swift in Sources */,
 				A00000000000000000000038 /* PdfFileConversionManager.swift in Sources */,
 				A00000000000000000000039 /* PdfConvertedDocumentWriter.swift in Sources */,
+				A0000000000000000000003C /* PdfOfficePreviewManager.swift in Sources */,
+				A0000000000000000000003E /* PdfDocumentViewerView.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 			);

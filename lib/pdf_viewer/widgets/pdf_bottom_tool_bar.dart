@@ -12,6 +12,7 @@ enum PdfControlPanelMode {
   splitMerge,
   documentScan,
   convert,
+  documentViewer,
   status,
 }
 
@@ -137,6 +138,14 @@ class PdfBottomToolBar extends StatelessWidget {
                             label: 'Convert',
                             tooltip: 'Convert to PDF',
                             icon: Icons.file_present_outlined,
+                            onPressed: onModePressed,
+                          ),
+                          _ToolbarIcon(
+                            mode: PdfControlPanelMode.documentViewer,
+                            activeMode: activeMode,
+                            label: 'Open',
+                            tooltip: 'Open a document to view',
+                            icon: Icons.folder_open_outlined,
                             onPressed: onModePressed,
                           ),
                           _ToolbarIcon(

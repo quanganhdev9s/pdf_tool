@@ -270,6 +270,24 @@ final class PdfViewerConvertUrlToPdfRequested extends PdfViewerEvent {
   final PdfConvertPageSize pageSize;
 }
 
+final class PdfViewerPickDocumentForViewingRequested extends PdfViewerEvent {
+  const PdfViewerPickDocumentForViewingRequested();
+}
+
+final class PdfViewerCloseDocumentViewerRequested extends PdfViewerEvent {
+  const PdfViewerCloseDocumentViewerRequested();
+}
+
+final class PdfViewerNativeDocumentForViewingPicked extends PdfViewerEvent {
+  const PdfViewerNativeDocumentForViewingPicked(this.document);
+
+  final PdfViewableDocument document;
+}
+
+final class PdfViewerNativeDocumentForViewingCancelled extends PdfViewerEvent {
+  const PdfViewerNativeDocumentForViewingCancelled();
+}
+
 final class PdfViewerCancelPdfConversionRequested extends PdfViewerEvent {
   const PdfViewerCancelPdfConversionRequested();
 }

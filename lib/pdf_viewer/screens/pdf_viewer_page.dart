@@ -7,6 +7,7 @@ import '../widgets/free_text_area_composer.dart';
 import '../widgets/native_pdf_workspace.dart';
 import '../widgets/pdf_bottom_tool_bar.dart';
 import '../widgets/pdf_control_panel.dart';
+import 'document_viewer_page.dart';
 import 'pdf_page_reorder_page.dart';
 
 class PdfViewerPage extends StatefulWidget {
@@ -175,6 +176,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
                     onBeginFreeTextAreaSelection:
                         _beginFreeTextAreaSelectionFromUi,
                     onOpenPageReorder: _openPageReorderScreen,
+                    onOpenDocumentViewer: _openDocumentViewerScreen,
                   ),
               ],
             ),
@@ -209,6 +211,22 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     setState(() {
       _activePanelMode = _activePanelMode == mode ? null : mode;
     });
+  }
+
+  Future<void> _openDocumentViewerScreen() async {
+    final document = _bloc.state.viewableDocument;
+    if (document == null) {
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider<PdfViewerBloc>.value(
+          value: _bloc,
+          child: DocumentViewerPage(document: document),
+        ),
+      ),
+    );
   }
 
   Future<void> _openPageReorderScreen() async {

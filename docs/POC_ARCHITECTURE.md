@@ -254,6 +254,8 @@ production-oriented folder layout:
   timeouts, cancellation, and result publication.
 - `PdfConvertedDocumentWriter.swift` owns `UIPrintPageRenderer` pagination of a
   loaded print formatter and `UIGraphicsPDFRenderer` output creation.
+- `PdfOfficePreviewManager.swift` owns view-only Quick Look presentation of a
+  picked Office, iWork, or PDF file.
 - `PdfSignatureViews.swift` owns the PencilKit electronic-signature capture view
   and native placement preview gestures.
 - `PdfFlattenedExporter.swift` owns flattened PDF export rendering.

@@ -1291,6 +1291,59 @@ struct PdfConvertUrlRequest: Hashable, CustomStringConvertible {
   }
 }
 
+/// A document picked for viewing. It is a local copy owned by the app, never
+/// the user's original file.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfViewableDocument: Hashable, CustomStringConvertible {
+  var path: String
+  var fileName: String
+  var fileFormat: String
+  var fileSizeBytes: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfViewableDocument? {
+    let path = pigeonVar_list[0] as! String
+    let fileName = pigeonVar_list[1] as! String
+    let fileFormat = pigeonVar_list[2] as! String
+    let fileSizeBytes = pigeonVar_list[3] as! Int64
+
+    return PdfViewableDocument(
+      path: path,
+      fileName: fileName,
+      fileFormat: fileFormat,
+      fileSizeBytes: fileSizeBytes
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      path,
+      fileName,
+      fileFormat,
+      fileSizeBytes,
+    ]
+  }
+  static func == (lhs: PdfViewableDocument, rhs: PdfViewableDocument) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.path, rhs.path) && PdfPocApiPigeonInternal.deepEquals(lhs.fileName, rhs.fileName) && PdfPocApiPigeonInternal.deepEquals(lhs.fileFormat, rhs.fileFormat) && PdfPocApiPigeonInternal.deepEquals(lhs.fileSizeBytes, rhs.fileSizeBytes)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfViewableDocument")
+    PdfPocApiPigeonInternal.deepHash(value: path, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fileName, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fileFormat, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fileSizeBytes, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfViewableDocument(path: \(String(describing: path)), fileName: \(String(describing: fileName)), fileFormat: \(String(describing: fileFormat)), fileSizeBytes: \(String(describing: fileSizeBytes)))"
+  }
+}
+
 /// A PDF produced by an earlier operation (convert, scan, split, merge,
 /// compress) and still present in the native working directory.
 ///
@@ -1423,6 +1476,8 @@ private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
     case 155:
       return PdfConvertUrlRequest.fromList(self.readValue() as! [Any?])
     case 156:
+      return PdfViewableDocument.fromList(self.readValue() as! [Any?])
+    case 157:
       return PdfGeneratedOutput.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1513,8 +1568,11 @@ private class PdfPocApiPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PdfConvertUrlRequest {
       super.writeByte(155)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfGeneratedOutput {
+    } else if let value = value as? PdfViewableDocument {
       super.writeByte(156)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfGeneratedOutput {
+      super.writeByte(157)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1589,6 +1647,14 @@ protocol PdfPocHostApi {
   func cancelDocumentScan() throws
   func pickFileForPdfConversion(request: PdfConvertToPdfRequest) throws
   func convertUrlToPdf(request: PdfConvertUrlRequest) throws
+  /// Picks a document to view. The result arrives through
+  /// `onDocumentForViewingPicked`; nothing is converted and no output is
+  /// written. Flutter then hosts the native viewer platform view.
+  func pickDocumentForViewing() throws
+  /// Loads a picked document into the embedded viewer platform view.
+  func loadDocumentIntoViewer(path: String) throws
+  /// Releases the embedded viewer and deletes the local copy.
+  func closeDocumentViewer() throws
   func cancelPdfConversion() throws
   func listGeneratedOutputs() throws -> [PdfGeneratedOutput]
   func openGeneratedOutput(path: String) throws -> PdfDocumentInfo
@@ -2318,6 +2384,52 @@ class PdfPocHostApiSetup {
     } else {
       convertUrlToPdfChannel.setMessageHandler(nil)
     }
+    /// Picks a document to view. The result arrives through
+    /// `onDocumentForViewingPicked`; nothing is converted and no output is
+    /// written. Flutter then hosts the native viewer platform view.
+    let pickDocumentForViewingChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.pickDocumentForViewing\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      pickDocumentForViewingChannel.setMessageHandler { _, reply in
+        do {
+          try api.pickDocumentForViewing()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      pickDocumentForViewingChannel.setMessageHandler(nil)
+    }
+    /// Loads a picked document into the embedded viewer platform view.
+    let loadDocumentIntoViewerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.loadDocumentIntoViewer\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      loadDocumentIntoViewerChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pathArg = args[0] as! String
+        do {
+          try api.loadDocumentIntoViewer(path: pathArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      loadDocumentIntoViewerChannel.setMessageHandler(nil)
+    }
+    /// Releases the embedded viewer and deletes the local copy.
+    let closeDocumentViewerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocumentViewer\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      closeDocumentViewerChannel.setMessageHandler { _, reply in
+        do {
+          try api.closeDocumentViewer()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      closeDocumentViewerChannel.setMessageHandler(nil)
+    }
     let cancelPdfConversionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPdfConversion\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       cancelPdfConversionChannel.setMessageHandler { _, reply in
@@ -2412,6 +2524,8 @@ protocol PdfPocFlutterApiProtocol {
   func onDocumentScanCompleted(operationId operationIdArg: String, result resultArg: PdfDocumentScanResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onPdfConversionProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onPdfConversionCompleted(operationId operationIdArg: String, result resultArg: PdfConvertToPdfResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onDocumentForViewingPicked(document documentArg: PdfViewableDocument, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  func onDocumentForViewingCancelled(completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOperationFailed(operationId operationIdArg: String, code codeArg: String, message messageArg: String, details detailsArg: String?, completion: @escaping (Result<Void, PigeonError>) -> Void)
 }
 class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
@@ -2770,6 +2884,42 @@ class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
     let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onPdfConversionCompleted\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([operationIdArg, resultArg, cancelledArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onDocumentForViewingPicked(document documentArg: PdfViewableDocument, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentForViewingPicked\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([documentArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  func onDocumentForViewingCancelled(completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentForViewingCancelled\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage(nil) { response in
       guard let listResponse = response as? [Any?] else {
         completion(.failure(createConnectionError(withChannelName: channelName)))
         return

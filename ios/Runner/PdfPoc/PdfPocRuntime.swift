@@ -7,6 +7,7 @@ final class PdfPocRuntime {
   static let shared = PdfPocRuntime()
 
   private var workspaceView: PdfWorkspaceView?
+  private var documentViewerView: PdfDocumentViewerView?
   private var flutterApi: PdfPocFlutterApi?
   private var pendingPageReorder: [Int64]?
 
@@ -33,6 +34,30 @@ final class PdfPocRuntime {
       workspaceView.close()
       self.workspaceView = nil
     }
+  }
+
+  func attach(documentViewerView: PdfDocumentViewerView) {
+    logPdfEvent("runtime_attach_document_viewer")
+    self.documentViewerView = documentViewerView
+  }
+
+  func detach(documentViewerView: PdfDocumentViewerView) {
+    if self.documentViewerView === documentViewerView {
+      logPdfEvent("runtime_detach_document_viewer")
+      documentViewerView.close()
+      self.documentViewerView = nil
+    }
+  }
+
+  func requireDocumentViewer() throws -> PdfDocumentViewerView {
+    guard let documentViewerView else {
+      throw PdfPocError(
+        code: "document_not_open",
+        message: "The native document viewer is not on screen.",
+        details: nil
+      )
+    }
+    return documentViewerView
   }
 
   func requireWorkspace() throws -> PdfWorkspaceView {
@@ -315,6 +340,19 @@ extension PdfPocRuntime: PdfWorkspaceViewDelegate {
       result: result,
       cancelled: cancelled
     ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didPickDocumentForViewing document: PdfViewableDocument
+  ) {
+    logPdfEvent("callback_to_flutter_document_for_viewing_picked", "file=\(document.fileName)")
+    flutterApi?.onDocumentForViewingPicked(document: document) { _ in }
+  }
+
+  func workspaceViewDidCancelDocumentForViewing(_ view: PdfWorkspaceView) {
+    logPdfEvent("callback_to_flutter_document_for_viewing_cancelled")
+    flutterApi?.onDocumentForViewingCancelled { _ in }
   }
 
   func workspaceView(

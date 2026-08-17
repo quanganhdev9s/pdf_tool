@@ -200,6 +200,9 @@ class PdfGeneratedOutput {
 }
 ```
 
+`previewDocumentFile` picks a document and shows it in `QLPreviewController`.
+It is view-only: nothing is converted and no output file is produced.
+
 `imageQuality` applies only to image sources. Document sources are paginated
 by the native print renderer and ignore it.
 
@@ -381,6 +384,8 @@ abstract class PdfPocHostApi {
   void pickFileForPdfConversion(PdfConvertToPdfRequest request);
 
   void convertUrlToPdf(PdfConvertUrlRequest request);
+
+  void previewDocumentFile();
 
   void cancelPdfConversion();
 

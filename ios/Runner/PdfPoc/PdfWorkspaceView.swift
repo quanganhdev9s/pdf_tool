@@ -85,6 +85,11 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
     result: PdfConvertToPdfResult?,
     cancelled: Bool
   )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didPickDocumentForViewing document: PdfViewableDocument
+  )
+  func workspaceViewDidCancelDocumentForViewing(_ view: PdfWorkspaceView)
   func workspaceView(_ view: PdfWorkspaceView, didFailOperation operationId: String, error: PdfPocError)
 }
 
@@ -102,6 +107,7 @@ final class PdfWorkspaceView: UIView {
   private lazy var splitMergeManager = PdfSplitMergeManager()
   private lazy var documentScannerManager = PdfDocumentScannerManager()
   private lazy var fileConversionManager = PdfFileConversionManager()
+  private lazy var officePreviewManager = PdfOfficePreviewManager()
   private let pageOperationsManager = PdfPageOperationsManager()
   private let ocrResultOverlayView = UIView()
   private var session: PdfDocumentSession?
@@ -870,6 +876,25 @@ final class PdfWorkspaceView: UIView {
     )
   }
 
+  /// Picks a document to view. It does not touch the open PDF session; the
+  /// result is handed to Flutter, which hosts the viewer platform view.
+  func pickDocumentForViewing() throws {
+    try ensureMainThread()
+    guard let presenter = nearestViewController() else {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not find a UIKit presenter for the document picker.",
+        details: nil
+      )
+    }
+    logPdfEvent("pick_document_for_viewing_request")
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    freeTextManager.cancelSelection()
+    inkManager.setModeEnabled(false)
+    try officePreviewManager.pickDocument(presenter: presenter)
+  }
+
   func cancelPdfConversion() throws {
     try ensureMainThread()
     _ = try requireDocument()
@@ -1033,6 +1058,18 @@ final class PdfWorkspaceView: UIView {
     configureSplitMerge()
     configureDocumentScanner()
     configureFileConversion()
+    officePreviewManager.onPicked = { [weak self] document in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didPickDocumentForViewing: document)
+    }
+    officePreviewManager.onCancelled = { [weak self] in
+      guard let self else { return }
+      self.delegate?.workspaceViewDidCancelDocumentForViewing(self)
+    }
+    officePreviewManager.onError = { [weak self] error in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didFailOperation: "document preview", error: error)
+    }
     pdfView.addGestureRecognizer(annotationTapGesture)
     addSubview(inkManager.canvasView)
     addSubview(signatureManager.captureView)

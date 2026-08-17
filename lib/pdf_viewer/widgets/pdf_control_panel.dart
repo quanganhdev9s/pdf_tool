@@ -21,6 +21,7 @@ class PdfControlPanel extends StatelessWidget {
     required this.onAddFreeText,
     required this.onBeginFreeTextAreaSelection,
     required this.onOpenPageReorder,
+    required this.onOpenDocumentViewer,
   });
 
   final PdfControlPanelMode mode;
@@ -35,6 +36,7 @@ class PdfControlPanel extends StatelessWidget {
   final VoidCallback onAddFreeText;
   final VoidCallback onBeginFreeTextAreaSelection;
   final VoidCallback onOpenPageReorder;
+  final VoidCallback onOpenDocumentViewer;
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +125,11 @@ class PdfControlPanel extends StatelessWidget {
         return _DocumentScanControls(state: state);
       case PdfControlPanelMode.convert:
         return _ConvertControls(state: state);
+      case PdfControlPanelMode.documentViewer:
+        return _DocumentViewerControls(
+          state: state,
+          onOpenDocumentViewer: onOpenDocumentViewer,
+        );
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -1426,6 +1433,64 @@ class _ConvertResultView extends StatelessWidget {
       '${result.durationMilliseconds} ms\n${result.outputPath}',
       maxLines: 4,
       overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+/// Standalone document viewing: pick any supported file and open it in a
+/// Flutter route that hosts the native renderer. Nothing is converted.
+class _DocumentViewerControls extends StatelessWidget {
+  const _DocumentViewerControls({
+    required this.state,
+    required this.onOpenDocumentViewer,
+  });
+
+  final PdfViewerState state;
+  final VoidCallback onOpenDocumentViewer;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<PdfViewerBloc>();
+    final document = state.viewableDocument;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            FilledButton.icon(
+              onPressed: state.busy || state.viewablePickPending
+                  ? null
+                  : () {
+                      FocusScope.of(context).unfocus();
+                      bloc.add(
+                        const PdfViewerPickDocumentForViewingRequested(),
+                      );
+                    },
+              icon: const Icon(Icons.folder_open_outlined, size: 18),
+              label: const Text('Choose file'),
+            ),
+            if (document != null)
+              FilledButton.tonalIcon(
+                onPressed: onOpenDocumentViewer,
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Open viewer'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          document == null
+              ? 'Word, Excel, PowerPoint, Pages, Numbers, Keynote, RTF, HTML, '
+                    'text, CSV, images and PDF.'
+              : '${document.fileName} · ${document.fileFormat.toUpperCase()} · '
+                    '${(document.fileSizeBytes / 1024).toStringAsFixed(0)} KB',
+        ),
+      ],
     );
   }
 }

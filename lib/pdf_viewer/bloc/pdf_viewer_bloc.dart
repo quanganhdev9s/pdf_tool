@@ -109,6 +109,16 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       _onPickFileForPdfConversionRequested,
     );
     on<PdfViewerConvertUrlToPdfRequested>(_onConvertUrlToPdfRequested);
+    on<PdfViewerPickDocumentForViewingRequested>(
+      _onPickDocumentForViewingRequested,
+    );
+    on<PdfViewerCloseDocumentViewerRequested>(_onCloseDocumentViewerRequested);
+    on<PdfViewerNativeDocumentForViewingPicked>(
+      _onNativeDocumentForViewingPicked,
+    );
+    on<PdfViewerNativeDocumentForViewingCancelled>(
+      _onNativeDocumentForViewingCancelled,
+    );
     on<PdfViewerCancelPdfConversionRequested>(_onCancelPdfConversionRequested);
     on<PdfViewerLoadGeneratedOutputsRequested>(
       _onLoadGeneratedOutputsRequested,
@@ -1153,6 +1163,79 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
+  Future<void> _onPickDocumentForViewingRequested(
+    PdfViewerPickDocumentForViewingRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('pick_document_for_viewing_request');
+      emit(
+        state.copyWith(
+          viewablePickPending: true,
+          viewableDocument: null,
+          status: 'Opening file picker...',
+        ),
+      );
+      await _api.pickDocumentForViewing();
+    } on PlatformException catch (error) {
+      emit(state.copyWith(viewablePickPending: false));
+      _showError(
+        emit,
+        'pick document',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  /// Called by the viewer route once its platform view is on screen.
+  Future<void> loadPickedDocumentIntoViewer(String path) async {
+    logPdfEvent('load_document_into_viewer', <String, Object?>{'path': path});
+    await _api.loadDocumentIntoViewer(path);
+  }
+
+  Future<void> _onCloseDocumentViewerRequested(
+    PdfViewerCloseDocumentViewerRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    emit(state.copyWith(viewableDocument: null));
+    try {
+      await _api.closeDocumentViewer();
+    } on PlatformException catch (error) {
+      logPdfEvent('close_document_viewer_ignored_error', <String, Object?>{
+        'code': error.code,
+        'message': error.message,
+      });
+    }
+  }
+
+  void _onNativeDocumentForViewingPicked(
+    PdfViewerNativeDocumentForViewingPicked event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        viewablePickPending: false,
+        viewableDocument: event.document,
+        status: 'Opening ${event.document.fileName}...',
+      ),
+    );
+  }
+
+  void _onNativeDocumentForViewingCancelled(
+    PdfViewerNativeDocumentForViewingCancelled event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        viewablePickPending: false,
+        viewableDocument: null,
+        status: 'File selection cancelled.',
+      ),
+    );
+  }
+
   Future<void> _onCancelPdfConversionRequested(
     PdfViewerCancelPdfConversionRequested event,
     Emitter<PdfViewerState> emit,
@@ -2187,6 +2270,26 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           cancelled: cancelled,
         ),
       );
+    }
+  }
+
+  @override
+  void onDocumentForViewingPicked(PdfViewableDocument document) {
+    logPdfEvent('callback_document_for_viewing_picked', <String, Object?>{
+      'fileName': document.fileName,
+      'fileFormat': document.fileFormat,
+      'fileSizeBytes': document.fileSizeBytes,
+    });
+    if (!isClosed) {
+      add(PdfViewerNativeDocumentForViewingPicked(document));
+    }
+  }
+
+  @override
+  void onDocumentForViewingCancelled() {
+    logPdfEvent('callback_document_for_viewing_cancelled');
+    if (!isClosed) {
+      add(const PdfViewerNativeDocumentForViewingCancelled());
     }
   }
 
