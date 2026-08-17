@@ -6,8 +6,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../pdf_poc_api.g.dart';
 import '../bloc/pdf_viewer_bloc.dart';
 
+enum _ViewerMenuAction { search, details, share }
+
 /// Hosts the native document viewer inside a normal Flutter route, so the whole
-/// screen around the document is ours to style: app bar, actions, bottom bar.
+/// screen around the document is ours to style: app bar, menu, search bar.
 ///
 /// The native side only renders; every control here is Flutter.
 class DocumentViewerPage extends StatefulWidget {
@@ -20,10 +22,14 @@ class DocumentViewerPage extends StatefulWidget {
 }
 
 class _DocumentViewerPageState extends State<DocumentViewerPage> {
-  bool _showDetails = false;
   // Captured while the element tree is still stable: `dispose` runs after this
   // widget is deactivated, when ancestor lookups are no longer allowed.
   PdfViewerBloc? _bloc;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  bool _showDetails = false;
+  bool _searching = false;
+  bool? _lastSearchFound;
 
   @override
   void didChangeDependencies() {
@@ -33,31 +39,131 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
 
   @override
   void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     _bloc?.add(const PdfViewerCloseDocumentViewerRequested());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final document = widget.document;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(document.fileName, overflow: TextOverflow.ellipsis),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'File details',
-            onPressed: () => setState(() => _showDetails = !_showDetails),
-            icon: Icon(_showDetails ? Icons.info : Icons.info_outline),
-          ),
-        ],
-      ),
+      appBar: _searching ? _buildSearchAppBar() : _buildDefaultAppBar(),
       body: Column(
         children: <Widget>[
-          if (_showDetails) _DetailsBar(document: document),
-          Expanded(child: _NativeDocumentViewer(path: document.path)),
+          if (_showDetails) _DetailsBar(document: widget.document),
+          Expanded(child: _NativeDocumentViewer(path: widget.document.path)),
         ],
       ),
     );
+  }
+
+  PreferredSizeWidget _buildDefaultAppBar() {
+    return AppBar(
+      title: Text(widget.document.fileName, overflow: TextOverflow.ellipsis),
+      actions: <Widget>[
+        PopupMenuButton<_ViewerMenuAction>(
+          tooltip: 'Options',
+          icon: const Icon(Icons.more_vert),
+          onSelected: _handleMenuAction,
+          itemBuilder: (context) => <PopupMenuEntry<_ViewerMenuAction>>[
+            const PopupMenuItem<_ViewerMenuAction>(
+              value: _ViewerMenuAction.search,
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.search),
+                title: Text('Search'),
+              ),
+            ),
+            PopupMenuItem<_ViewerMenuAction>(
+              value: _ViewerMenuAction.details,
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(_showDetails ? Icons.info : Icons.info_outline),
+                title: Text(_showDetails ? 'Hide details' : 'File details'),
+              ),
+            ),
+            const PopupMenuItem<_ViewerMenuAction>(
+              value: _ViewerMenuAction.share,
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.ios_share),
+                title: Text('Share'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  PreferredSizeWidget _buildSearchAppBar() {
+    return AppBar(
+      leading: IconButton(
+        tooltip: 'Close search',
+        icon: const Icon(Icons.arrow_back),
+        onPressed: _stopSearching,
+      ),
+      titleSpacing: 0,
+      title: TextField(
+        controller: _searchController,
+        focusNode: _searchFocusNode,
+        autofocus: true,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search in document',
+          border: InputBorder.none,
+          errorText: _lastSearchFound == false ? 'No match' : null,
+        ),
+        onSubmitted: (_) => _find(forward: true),
+      ),
+      actions: <Widget>[
+        IconButton(
+          tooltip: 'Previous match',
+          icon: const Icon(Icons.keyboard_arrow_up),
+          onPressed: () => _find(forward: false),
+        ),
+        IconButton(
+          tooltip: 'Next match',
+          icon: const Icon(Icons.keyboard_arrow_down),
+          onPressed: () => _find(forward: true),
+        ),
+      ],
+    );
+  }
+
+  void _handleMenuAction(_ViewerMenuAction action) {
+    switch (action) {
+      case _ViewerMenuAction.search:
+        setState(() => _searching = true);
+      case _ViewerMenuAction.details:
+        setState(() => _showDetails = !_showDetails);
+      case _ViewerMenuAction.share:
+        _bloc?.shareViewerDocument();
+    }
+  }
+
+  Future<void> _find({required bool forward}) async {
+    final found = await _bloc?.findInViewer(
+      _searchController.text,
+      forward: forward,
+    );
+    if (mounted) {
+      setState(() => _lastSearchFound = found);
+    }
+  }
+
+  void _stopSearching() {
+    _bloc?.clearViewerSearch();
+    _searchFocusNode.unfocus();
+    setState(() {
+      _searching = false;
+      _lastSearchFound = null;
+      _searchController.clear();
+    });
   }
 }
 

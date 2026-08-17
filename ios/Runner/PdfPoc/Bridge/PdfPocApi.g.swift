@@ -1594,6 +1594,7 @@ class PdfPocApiPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
   static let shared = PdfPocApiPigeonCodec(readerWriter: PdfPocApiPigeonCodecReaderWriter())
 }
 
+
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol PdfPocHostApi {
   func openAssetWorkingCopy(assetKey: String, assetBytes: FlutterStandardTypedData) throws -> PdfDocumentInfo
@@ -1655,6 +1656,12 @@ protocol PdfPocHostApi {
   func loadDocumentIntoViewer(path: String) throws
   /// Releases the embedded viewer and deletes the local copy.
   func closeDocumentViewer() throws
+  /// Finds the next or previous match in the embedded viewer. Returns whether
+  /// a match was found and selected.
+  func findInViewer(query: String, forward: Bool, completion: @escaping (Result<Bool, Error>) -> Void)
+  func clearViewerSearch() throws
+  /// Shares the document currently open in the embedded viewer.
+  func shareViewerDocument() throws
   func cancelPdfConversion() throws
   func listGeneratedOutputs() throws -> [PdfGeneratedOutput]
   func openGeneratedOutput(path: String) throws -> PdfDocumentInfo
@@ -2429,6 +2436,53 @@ class PdfPocHostApiSetup {
       }
     } else {
       closeDocumentViewerChannel.setMessageHandler(nil)
+    }
+    /// Finds the next or previous match in the embedded viewer. Returns whether
+    /// a match was found and selected.
+    let findInViewerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.findInViewer\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      findInViewerChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let queryArg = args[0] as! String
+        let forwardArg = args[1] as! Bool
+        api.findInViewer(query: queryArg, forward: forwardArg) { result in
+          switch result {
+          case .success(let res):
+            reply(wrapResult(res))
+          case .failure(let error):
+            reply(wrapError(error))
+          }
+        }
+      }
+    } else {
+      findInViewerChannel.setMessageHandler(nil)
+    }
+    let clearViewerSearchChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearViewerSearch\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      clearViewerSearchChannel.setMessageHandler { _, reply in
+        do {
+          try api.clearViewerSearch()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      clearViewerSearchChannel.setMessageHandler(nil)
+    }
+    /// Shares the document currently open in the embedded viewer.
+    let shareViewerDocumentChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.shareViewerDocument\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      shareViewerDocumentChannel.setMessageHandler { _, reply in
+        do {
+          try api.shareViewerDocument()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      shareViewerDocumentChannel.setMessageHandler(nil)
     }
     let cancelPdfConversionChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPdfConversion\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

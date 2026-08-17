@@ -44,6 +44,7 @@ final class PdfDocumentViewerView: UIView {
 
   override init(frame: CGRect) {
     let configuration = WKWebViewConfiguration()
+    configuration.userContentController.addUserScript(Self.searchHighlightScript())
     webView = WKWebView(frame: frame, configuration: configuration)
     super.init(frame: frame)
     configureSubviews()
@@ -77,6 +78,103 @@ final class PdfDocumentViewerView: UIView {
       sourceURL,
       allowingReadAccessTo: sourceURL.deletingLastPathComponent()
     )
+  }
+
+  /// `window.find` selects the match but WebKit paints that selection faintly,
+  /// and dims it further once the web view is not first responder. Restyling
+  /// `::selection` makes the current match read as a highlight without touching
+  /// the document DOM, so repeated searches never corrupt the content.
+  ///
+  /// Injected into every frame because WebKit renders Office previews inside
+  /// nested frames.
+  private static func searchHighlightScript() -> WKUserScript {
+    let source = """
+    (function() {
+      var style = document.createElement('style');
+      style.textContent =
+        '::selection { background-color: #FFC64D !important; color: #000 !important; }';
+      (document.head || document.documentElement).appendChild(style);
+    })();
+    """
+    return WKUserScript(
+      source: source,
+      injectionTime: .atDocumentEnd,
+      forMainFrameOnly: false
+    )
+  }
+
+  /// Finds text in the rendered document. WebKit renders Office and iWork
+  /// previews as a DOM, so `window.find` searches and selects matches the same
+  /// way it does on a web page. It wraps around at the end of the document.
+  func find(query: String, forward: Bool, completion: @escaping (Bool) -> Void) {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      clearSearch()
+      completion(false)
+      return
+    }
+    // window.find(text, caseSensitive, backwards, wrap, wholeWord, searchInFrames, showDialog)
+    let escaped = trimmed
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "'", with: "\\'")
+    let script = "window.find('\(escaped)', false, \(forward ? "false" : "true"), true, false, true, false)"
+    webView.evaluateJavaScript(script) { result, error in
+      let found = (result as? Bool) ?? false
+      if let error {
+        logPdfEvent("document_viewer_find_failed", "error=\(error.localizedDescription)")
+      } else {
+        logPdfEvent("document_viewer_find", "query=\(trimmed) forward=\(forward) found=\(found)")
+      }
+      completion(found)
+    }
+  }
+
+  func clearSearch() {
+    webView.evaluateJavaScript("window.getSelection().removeAllRanges()", completionHandler: nil)
+  }
+
+  /// Hands the viewed file to the system share sheet. The file stays where it
+  /// is; only a copy is exported by whatever destination the user picks.
+  func share() throws {
+    guard let loadedURL else {
+      throw PdfPocError(
+        code: "document_not_open",
+        message: "No document is open in the viewer.",
+        details: nil
+      )
+    }
+    guard let presenter = nearestViewController() else {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not find a UIKit presenter for the share sheet.",
+        details: nil
+      )
+    }
+    let controller = UIActivityViewController(
+      activityItems: [loadedURL],
+      applicationActivities: nil
+    )
+    // Required on iPad, where the share sheet is a popover.
+    controller.popoverPresentationController?.sourceView = self
+    controller.popoverPresentationController?.sourceRect = CGRect(
+      x: bounds.midX,
+      y: bounds.minY,
+      width: 0,
+      height: 0
+    )
+    logPdfEvent("document_viewer_share", "file=\(loadedURL.lastPathComponent)")
+    presenter.present(controller, animated: true)
+  }
+
+  private func nearestViewController() -> UIViewController? {
+    var responder: UIResponder? = next
+    while let current = responder {
+      if let viewController = current as? UIViewController {
+        return viewController
+      }
+      responder = current.next
+    }
+    return nil
   }
 
   /// Removes the local copy taken by the picker. The viewer owns that copy, so

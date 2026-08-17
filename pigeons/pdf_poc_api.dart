@@ -442,6 +442,16 @@ abstract class PdfPocHostApi {
   /// Releases the embedded viewer and deletes the local copy.
   void closeDocumentViewer();
 
+  /// Finds the next or previous match in the embedded viewer. Returns whether
+  /// a match was found and selected.
+  @async
+  bool findInViewer(String query, bool forward);
+
+  void clearViewerSearch();
+
+  /// Shares the document currently open in the embedded viewer.
+  void shareViewerDocument();
+
   void cancelPdfConversion();
 
   List<PdfGeneratedOutput> listGeneratedOutputs();

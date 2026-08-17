@@ -255,6 +255,38 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     }
   }
 
+  func findInViewer(
+    query: String,
+    forward: Bool,
+    completion: @escaping (Result<Bool, Error>) -> Void
+  ) {
+    do {
+      try runtime.requireDocumentViewer().find(query: query, forward: forward) { found in
+        completion(.success(found))
+      }
+    } catch let error as PdfPocError {
+      completion(.failure(error.asPigeonError()))
+    } catch {
+      completion(.failure(error))
+    }
+  }
+
+  func clearViewerSearch() throws {
+    do {
+      try runtime.requireDocumentViewer().clearSearch()
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func shareViewerDocument() throws {
+    do {
+      try runtime.requireDocumentViewer().share()
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
   func closeDocumentViewer() throws {
     do {
       try runtime.requireDocumentViewer().close()

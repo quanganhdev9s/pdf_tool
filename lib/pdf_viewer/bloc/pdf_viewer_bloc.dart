@@ -1189,6 +1189,39 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
+  /// Transient viewer actions are called directly rather than through events:
+  /// they carry no state worth keeping and search runs on every keystroke.
+  Future<bool> findInViewer(String query, {bool forward = true}) async {
+    try {
+      return await _api.findInViewer(query, forward);
+    } on PlatformException catch (error) {
+      logPdfEvent('find_in_viewer_failed', <String, Object?>{
+        'code': error.code,
+        'message': error.message,
+      });
+      return false;
+    }
+  }
+
+  Future<void> clearViewerSearch() async {
+    try {
+      await _api.clearViewerSearch();
+    } on PlatformException catch (_) {
+      // The viewer is already gone; nothing to clear.
+    }
+  }
+
+  Future<void> shareViewerDocument() async {
+    try {
+      await _api.shareViewerDocument();
+    } on PlatformException catch (error) {
+      logPdfEvent('share_viewer_document_failed', <String, Object?>{
+        'code': error.code,
+        'message': error.message,
+      });
+    }
+  }
+
   /// Called by the viewer route once its platform view is on screen.
   Future<void> loadPickedDocumentIntoViewer(String path) async {
     logPdfEvent('load_document_into_viewer', <String, Object?>{'path': path});
