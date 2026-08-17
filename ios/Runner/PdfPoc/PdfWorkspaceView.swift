@@ -73,6 +73,18 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
     result: PdfDocumentScanResult?,
     cancelled: Bool
   )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didUpdatePdfConversionProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  )
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompletePdfConversion operationId: String,
+    result: PdfConvertToPdfResult?,
+    cancelled: Bool
+  )
   func workspaceView(_ view: PdfWorkspaceView, didFailOperation operationId: String, error: PdfPocError)
 }
 
@@ -89,6 +101,7 @@ final class PdfWorkspaceView: UIView {
   private lazy var compressionManager = PdfCompressionManager()
   private lazy var splitMergeManager = PdfSplitMergeManager()
   private lazy var documentScannerManager = PdfDocumentScannerManager()
+  private lazy var fileConversionManager = PdfFileConversionManager()
   private let pageOperationsManager = PdfPageOperationsManager()
   private let ocrResultOverlayView = UIView()
   private var session: PdfDocumentSession?
@@ -179,6 +192,7 @@ final class PdfWorkspaceView: UIView {
     splitMergeManager.cancelSplit()
     splitMergeManager.cancelMerge()
     documentScannerManager.cancel()
+    fileConversionManager.cancel()
     hideOcrResultOverlay()
     inkManager.close()
     annotationTapGesture.isEnabled = true
@@ -802,6 +816,173 @@ final class PdfWorkspaceView: UIView {
     documentScannerManager.cancel()
   }
 
+  func pickFileForPdfConversion(_ request: PdfConvertToPdfRequest) throws {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    guard let presenter = nearestViewController() else {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not find a UIKit presenter for the file picker.",
+        details: nil
+      )
+    }
+    logPdfEvent(
+      "pick_file_for_pdf_conversion_request",
+      "pageSize=\(request.pageSize) imageQuality=\(request.imageQuality)"
+    )
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    freeTextManager.cancelSelection()
+    inkManager.setModeEnabled(false)
+    try fileConversionManager.pickFile(
+      request: request,
+      outputDirectory: session.workingURL.deletingLastPathComponent(),
+      presenter: presenter
+    )
+  }
+
+  func convertUrlToPdf(_ request: PdfConvertUrlRequest) throws {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    guard let presenter = nearestViewController() else {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not find a UIKit presenter for the conversion renderer.",
+        details: nil
+      )
+    }
+    logPdfEvent(
+      "convert_url_to_pdf_request",
+      "url=\(request.url) pageSize=\(request.pageSize)"
+    )
+    hideSelectionToolbar()
+    hideSystemSelectionMenu()
+    freeTextManager.cancelSelection()
+    inkManager.setModeEnabled(false)
+    try fileConversionManager.convertUrl(
+      request: request,
+      outputDirectory: session.workingURL.deletingLastPathComponent(),
+      presenter: presenter
+    )
+  }
+
+  func cancelPdfConversion() throws {
+    try ensureMainThread()
+    _ = try requireDocument()
+    logPdfEvent("cancel_pdf_conversion_request")
+    fileConversionManager.cancel()
+  }
+
+  /// Lists every PDF still sitting in the native working directory so Flutter
+  /// can show generated outputs without a file manager. Temporary files written
+  /// during generation are hidden and excluded here.
+  func listGeneratedOutputs() throws -> [PdfGeneratedOutput] {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    let directory = session.workingURL.deletingLastPathComponent()
+    let urls: [URL]
+    do {
+      urls = try FileManager.default.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey],
+        options: [.skipsHiddenFiles]
+      )
+    } catch {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not read the native working directory.",
+        details: error.localizedDescription
+      )
+    }
+
+    let outputs = urls
+      .filter { $0.pathExtension.lowercased() == "pdf" }
+      .compactMap { url -> PdfGeneratedOutput? in
+        let values = try? url.resourceValues(
+          forKeys: [.fileSizeKey, .contentModificationDateKey]
+        )
+        guard let document = PDFDocument(url: url) else {
+          return nil
+        }
+        let modified = values?.contentModificationDate ?? Date(timeIntervalSince1970: 0)
+        return PdfGeneratedOutput(
+          path: url.path,
+          fileName: url.lastPathComponent,
+          fileSizeBytes: Int64(values?.fileSize ?? 0),
+          modifiedEpochMilliseconds: Int64(modified.timeIntervalSince1970 * 1000),
+          pageCount: Int64(document.pageCount)
+        )
+      }
+      .sorted { $0.modifiedEpochMilliseconds > $1.modifiedEpochMilliseconds }
+
+    logPdfEvent("list_generated_outputs", "directory=\(directory.path) count=\(outputs.count)")
+    return outputs
+  }
+
+  func openGeneratedOutput(_ path: String) throws -> PdfDocumentInfo {
+    let outputURL = try requireGeneratedOutputURL(path)
+    logPdfEvent("open_generated_output_request", "path=\(outputURL.path)")
+    return try openGeneratedDocument(at: outputURL, assetKeyPrefix: "generated-output")
+  }
+
+  /// Hands a generated PDF to the system share sheet so the user can save it to
+  /// Files, AirDrop it, or send it to another app. The file itself stays in the
+  /// app's working directory.
+  func shareGeneratedOutput(_ path: String) throws {
+    let outputURL = try requireGeneratedOutputURL(path)
+    guard let presenter = nearestViewController() else {
+      throw PdfPocError(
+        code: "internal_error",
+        message: "Could not find a UIKit presenter for the share sheet.",
+        details: nil
+      )
+    }
+    let controller = UIActivityViewController(
+      activityItems: [outputURL],
+      applicationActivities: nil
+    )
+    // Required on iPad, where the share sheet is a popover.
+    controller.popoverPresentationController?.sourceView = self
+    controller.popoverPresentationController?.sourceRect = CGRect(
+      x: bounds.midX,
+      y: bounds.maxY,
+      width: 0,
+      height: 0
+    )
+    logPdfEvent("share_generated_output_request", "path=\(outputURL.path)")
+    presenter.present(controller, animated: true)
+  }
+
+  private func requireGeneratedOutputURL(_ path: String) throws -> URL {
+    try ensureMainThread()
+    guard let session else {
+      throw PdfPocError.documentNotOpen()
+    }
+    let directory = session.workingURL.deletingLastPathComponent().standardizedFileURL
+    let outputURL = URL(fileURLWithPath: path).standardizedFileURL
+    guard outputURL.deletingLastPathComponent() == directory else {
+      throw PdfPocError(
+        code: "asset_not_found",
+        message: "Only PDFs inside the native working directory can be used.",
+        details: path
+      )
+    }
+    guard FileManager.default.fileExists(atPath: outputURL.path) else {
+      throw PdfPocError(
+        code: "asset_not_found",
+        message: "The selected output no longer exists.",
+        details: path
+      )
+    }
+    return outputURL
+  }
+
   func pageReorderPreviews(maxPixelSize: CGSize) throws -> [PdfPageReorderPreview] {
     try ensureMainThread()
     let document = try requireDocument()
@@ -851,6 +1032,7 @@ final class PdfWorkspaceView: UIView {
     configureCompression()
     configureSplitMerge()
     configureDocumentScanner()
+    configureFileConversion()
     pdfView.addGestureRecognizer(annotationTapGesture)
     addSubview(inkManager.canvasView)
     addSubview(signatureManager.captureView)
@@ -999,7 +1181,7 @@ final class PdfWorkspaceView: UIView {
     documentScannerManager.onGeneratedDocumentReady = { [weak self] outputURL in
       guard let self else { return }
       do {
-        try self.openGeneratedScanDocument(at: outputURL)
+        try self.openGeneratedDocument(at: outputURL, assetKeyPrefix: "scanned-output")
       } catch let error as PdfPocError {
         self.delegate?.workspaceView(self, didFailOperation: "document scan", error: error)
       } catch {
@@ -1015,6 +1197,49 @@ final class PdfWorkspaceView: UIView {
       }
     }
     documentScannerManager.onError = { [weak self] operationId, error in
+      guard let self else { return }
+      self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
+    }
+  }
+
+  private func configureFileConversion() {
+    fileConversionManager.onProgress = { [weak self] operationId, completedPages, totalPages in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didUpdatePdfConversionProgress: operationId,
+        completedPages: completedPages,
+        totalPages: totalPages
+      )
+    }
+    fileConversionManager.onCompleted = { [weak self] operationId, result, cancelled in
+      guard let self else { return }
+      self.delegate?.workspaceView(
+        self,
+        didCompletePdfConversion: operationId,
+        result: result,
+        cancelled: cancelled
+      )
+    }
+    fileConversionManager.onGeneratedDocumentReady = { [weak self] outputURL in
+      guard let self else { return }
+      do {
+        try self.openGeneratedDocument(at: outputURL, assetKeyPrefix: "converted-output")
+      } catch let error as PdfPocError {
+        self.delegate?.workspaceView(self, didFailOperation: "pdf conversion", error: error)
+      } catch {
+        self.delegate?.workspaceView(
+          self,
+          didFailOperation: "pdf conversion",
+          error: PdfPocError(
+            code: "invalid_pdf",
+            message: "The converted PDF could not be opened.",
+            details: error.localizedDescription
+          )
+        )
+      }
+    }
+    fileConversionManager.onError = { [weak self] operationId, error in
       guard let self else { return }
       self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
     }
@@ -1111,14 +1336,18 @@ final class PdfWorkspaceView: UIView {
       .appendingPathComponent("\(baseName)_picked_images_\(request.quality)_\(stamp).pdf")
   }
 
-  private func openGeneratedScanDocument(at outputURL: URL) throws {
+  @discardableResult
+  private func openGeneratedDocument(
+    at outputURL: URL,
+    assetKeyPrefix: String
+  ) throws -> PdfDocumentInfo {
     try ensureMainThread()
     let document = try openDocument(at: outputURL)
     detachObservers()
     searchManager.clear()
     hideSelectionToolbar()
     hideOcrResultOverlay()
-    let assetKey = "scanned-output:\(outputURL.lastPathComponent)"
+    let assetKey = "\(assetKeyPrefix):\(outputURL.lastPathComponent)"
     session = PdfDocumentSession(assetKey: assetKey, workingURL: outputURL, document: document)
     pdfView.document = document
     pdfView.autoScales = true
@@ -1126,8 +1355,13 @@ final class PdfWorkspaceView: UIView {
     attachObservers()
     notifyPageChanged()
     delegate?.workspaceView(self, didChangeDirtyState: false)
-    delegate?.workspaceView(self, didOpen: documentInfo())
-    logPdfEvent("document_scan_output_opened", "path=\(outputURL.path) pages=\(document.pageCount)")
+    let info = documentInfo()
+    delegate?.workspaceView(self, didOpen: info)
+    logPdfEvent(
+      "generated_document_opened",
+      "prefix=\(assetKeyPrefix) path=\(outputURL.path) pages=\(document.pageCount)"
+    )
+    return info
   }
 
   private func nearestViewController() -> UIViewController? {

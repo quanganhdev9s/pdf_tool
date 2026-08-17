@@ -250,6 +250,46 @@ final class PdfViewerCancelDocumentScanRequested extends PdfViewerEvent {
   const PdfViewerCancelDocumentScanRequested();
 }
 
+final class PdfViewerPickFileForPdfConversionRequested extends PdfViewerEvent {
+  const PdfViewerPickFileForPdfConversionRequested({
+    required this.pageSize,
+    required this.imageQuality,
+  });
+
+  final PdfConvertPageSize pageSize;
+  final PdfScanQuality imageQuality;
+}
+
+final class PdfViewerConvertUrlToPdfRequested extends PdfViewerEvent {
+  const PdfViewerConvertUrlToPdfRequested({
+    required this.url,
+    required this.pageSize,
+  });
+
+  final String url;
+  final PdfConvertPageSize pageSize;
+}
+
+final class PdfViewerCancelPdfConversionRequested extends PdfViewerEvent {
+  const PdfViewerCancelPdfConversionRequested();
+}
+
+final class PdfViewerLoadGeneratedOutputsRequested extends PdfViewerEvent {
+  const PdfViewerLoadGeneratedOutputsRequested();
+}
+
+final class PdfViewerOpenGeneratedOutputRequested extends PdfViewerEvent {
+  const PdfViewerOpenGeneratedOutputRequested(this.path);
+
+  final String path;
+}
+
+final class PdfViewerShareGeneratedOutputRequested extends PdfViewerEvent {
+  const PdfViewerShareGeneratedOutputRequested(this.path);
+
+  final String path;
+}
+
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
   const PdfViewerNativePageChanged({
     required this.pageIndex,
@@ -433,5 +473,29 @@ final class PdfViewerNativeDocumentScanCompleted extends PdfViewerEvent {
 
   final String operationId;
   final PdfDocumentScanResult? result;
+  final bool cancelled;
+}
+
+final class PdfViewerNativePdfConversionProgress extends PdfViewerEvent {
+  const PdfViewerNativePdfConversionProgress({
+    required this.operationId,
+    required this.completedPages,
+    required this.totalPages,
+  });
+
+  final String operationId;
+  final int completedPages;
+  final int totalPages;
+}
+
+final class PdfViewerNativePdfConversionCompleted extends PdfViewerEvent {
+  const PdfViewerNativePdfConversionCompleted({
+    required this.operationId,
+    required this.result,
+    required this.cancelled,
+  });
+
+  final String operationId;
+  final PdfConvertToPdfResult? result;
   final bool cancelled;
 }

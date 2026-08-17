@@ -235,6 +235,30 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.cancelDocumentScan() }
   }
 
+  func pickFileForPdfConversion(request: PdfConvertToPdfRequest) throws {
+    try call { try $0.pickFileForPdfConversion(request) }
+  }
+
+  func convertUrlToPdf(request: PdfConvertUrlRequest) throws {
+    try call { try $0.convertUrlToPdf(request) }
+  }
+
+  func cancelPdfConversion() throws {
+    try call { try $0.cancelPdfConversion() }
+  }
+
+  func listGeneratedOutputs() throws -> [PdfGeneratedOutput] {
+    try callWithResult { try $0.listGeneratedOutputs() }
+  }
+
+  func openGeneratedOutput(path: String) throws -> PdfDocumentInfo {
+    try callWithResult { try $0.openGeneratedOutput(path) }
+  }
+
+  func shareGeneratedOutput(path: String) throws {
+    try call { try $0.shareGeneratedOutput(path) }
+  }
+
   func save() throws -> PdfDocumentInfo {
     try callWithResult { try $0.save() }
   }

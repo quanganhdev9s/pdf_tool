@@ -246,6 +246,71 @@ class PdfDocumentScanResult {
   int durationMilliseconds;
 }
 
+enum PdfConvertPageSize { a4, letter }
+
+class PdfConvertToPdfRequest {
+  PdfConvertToPdfRequest({
+    required this.outputPath,
+    required this.pageSize,
+    required this.imageQuality,
+  });
+
+  String outputPath;
+  PdfConvertPageSize pageSize;
+
+  /// Only used when the picked source file is an image. Document sources are
+  /// paginated by the native print renderer instead of re-encoded as JPEG.
+  PdfScanQuality imageQuality;
+}
+
+class PdfConvertToPdfResult {
+  PdfConvertToPdfResult({
+    required this.outputPath,
+    required this.sourceFileName,
+    required this.sourceFormat,
+    required this.pageCount,
+    required this.fileSizeBytes,
+    required this.durationMilliseconds,
+  });
+
+  String outputPath;
+  String sourceFileName;
+  String sourceFormat;
+  int pageCount;
+  int fileSizeBytes;
+  int durationMilliseconds;
+}
+
+class PdfConvertUrlRequest {
+  PdfConvertUrlRequest({
+    required this.url,
+    required this.outputPath,
+    required this.pageSize,
+  });
+
+  String url;
+  String outputPath;
+  PdfConvertPageSize pageSize;
+}
+
+/// A PDF produced by an earlier operation (convert, scan, split, merge,
+/// compress) and still present in the native working directory.
+class PdfGeneratedOutput {
+  PdfGeneratedOutput({
+    required this.path,
+    required this.fileName,
+    required this.fileSizeBytes,
+    required this.modifiedEpochMilliseconds,
+    required this.pageCount,
+  });
+
+  String path;
+  String fileName;
+  int fileSizeBytes;
+  int modifiedEpochMilliseconds;
+  int pageCount;
+}
+
 @HostApi()
 abstract class PdfPocHostApi {
   PdfDocumentInfo openAssetWorkingCopy(String assetKey, Uint8List assetBytes);
@@ -346,6 +411,18 @@ abstract class PdfPocHostApi {
 
   void cancelDocumentScan();
 
+  void pickFileForPdfConversion(PdfConvertToPdfRequest request);
+
+  void convertUrlToPdf(PdfConvertUrlRequest request);
+
+  void cancelPdfConversion();
+
+  List<PdfGeneratedOutput> listGeneratedOutputs();
+
+  PdfDocumentInfo openGeneratedOutput(String path);
+
+  void shareGeneratedOutput(String path);
+
   PdfDocumentInfo save();
 }
 
@@ -408,6 +485,18 @@ abstract class PdfPocFlutterApi {
   void onDocumentScanCompleted(
     String operationId,
     PdfDocumentScanResult? result,
+    bool cancelled,
+  );
+
+  void onPdfConversionProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onPdfConversionCompleted(
+    String operationId,
+    PdfConvertToPdfResult? result,
     bool cancelled,
   );
 

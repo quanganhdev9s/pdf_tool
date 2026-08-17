@@ -1,6 +1,35 @@
 import PDFKit
 import UIKit
 
+/// Finds a view controller that can present a system picker. Conversion runs
+/// without an attached workspace view, so presentation falls back to the key
+/// window when no responder chain is available.
+func pocPresentingViewController(from view: UIView? = nil) -> UIViewController? {
+  var responder: UIResponder? = view
+  while let current = responder {
+    if let viewController = current as? UIViewController {
+      return pocVisibleViewController(from: viewController)
+    }
+    responder = current.next
+  }
+  let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+  let root = scenes.flatMap(\.windows).first(where: \.isKeyWindow)?.rootViewController
+  return pocVisibleViewController(from: root)
+}
+
+func pocVisibleViewController(from viewController: UIViewController?) -> UIViewController? {
+  if let navigationController = viewController as? UINavigationController {
+    return pocVisibleViewController(from: navigationController.visibleViewController)
+  }
+  if let tabController = viewController as? UITabBarController {
+    return pocVisibleViewController(from: tabController.selectedViewController)
+  }
+  if let presented = viewController?.presentedViewController {
+    return pocVisibleViewController(from: presented)
+  }
+  return viewController
+}
+
 final class PocPdfView: PDFView {
   override var canBecomeFirstResponder: Bool {
     true

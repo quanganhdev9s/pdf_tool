@@ -36,6 +36,7 @@ Flutter owns:
 - Displaying compression metrics
 - Displaying split and merge outputs
 - Starting document scan and displaying the generated PDF result
+- Starting file conversion and displaying the converted PDF result
 
 Flutter POC state is split by screen complexity:
 
@@ -120,6 +121,7 @@ Swift owns:
 - Split and merge generation
 - VisionKit document-scanner presentation
 - Scan-image PDF generation
+- Document-picker presentation and source-file conversion
 - Save, reopen, and export
 - Clipboard copy
 
@@ -197,6 +199,9 @@ ios/Runner/PdfPoc/
 ├── Scanner/
 │   ├── PdfDocumentScannerController.swift
 │   └── PdfScannedDocumentWriter.swift
+├── Convert/
+│   ├── PdfFileConversionController.swift
+│   └── PdfConvertedDocumentWriter.swift
 └── Bridge/
     ├── PdfPocHostApiImpl.swift
     └── PdfPocEventApi.swift
@@ -244,6 +249,11 @@ production-oriented folder layout:
 - `PdfScannedDocumentWriter.swift` owns sequential image processing and
   `UIGraphicsPDFRenderer` output creation without transferring scan images to
   Flutter.
+- `PdfFileConversionManager.swift` owns POC 8 document-picker presentation,
+  source-format routing, WebKit rendering of document sources, render
+  timeouts, cancellation, and result publication.
+- `PdfConvertedDocumentWriter.swift` owns `UIPrintPageRenderer` pagination of a
+  loaded print formatter and `UIGraphicsPDFRenderer` output creation.
 - `PdfSignatureViews.swift` owns the PencilKit electronic-signature capture view
   and native placement preview gestures.
 - `PdfFlattenedExporter.swift` owns flattened PDF export rendering.
@@ -327,6 +337,23 @@ marks the session dirty when needed, and reports typed results back to Flutter.
   output file.
 - The scanner output contains page images only. POC 4 OCR may be invoked later,
   but OCR is not automatically embedded as a searchable PDF text layer.
+
+## POC 8 Convert to PDF Flow
+
+- Flutter sends only the page size and image quality preset; no file bytes
+  cross the Dart-Swift boundary.
+- Swift presents `UIDocumentPickerViewController` limited to renderable types,
+  or loads a typed http/https URL. PDF inputs are excluded.
+- Images reuse the POC 7 scanned-document writer.
+- Everything else loads into a hidden `WKWebView`, the only native iOS renderer
+  for Office, iWork, RTF, HTML, text, and CSV. Its print formatter is paginated
+  by `UIPrintPageRenderer` into A4 or Letter pages with 36-point margins.
+- The print formatter is requested one runloop turn after `didFinish` because
+  WebKit reports completion before previews finish laying out. A timeout
+  returns `conversion_timeout`.
+- The output is validated with PDFKit before its path is returned, then opened
+  in the viewer. Cancellation creates no final file.
+- Fidelity is best-effort; exact DOCX-to-PDF remains a non-goal.
 
 POC 3 page operations mutate only the writable PDF session or a derived output
 copy. The source asset under `assets/poc/` remains read-only. Crop operations
@@ -560,6 +587,8 @@ Background work where safe:
 - Rasterized compression
 - Split and merge file generation using isolated document instances
 - Scanned-page image processing and PDF generation after scanner dismissal
+- Picked-image conversion after document-picker dismissal; WebKit rendering and
+  print-formatter pagination stay on the main thread because UIKit requires it
 - File-size calculation
 - Non-UI result processing
 
@@ -605,6 +634,10 @@ Suggested stable codes:
 - `scanner_unavailable`
 - `scan_failed`
 - `scan_cancelled`
+- `unsupported_source_format`
+- `conversion_failed`
+- `conversion_cancelled`
+- `conversion_timeout`
 - `pdf_generation_failed`
 - `unsupported_operation`
 - `internal_error`
@@ -614,8 +647,10 @@ Suggested stable codes:
 On disposal:
 
 - Remove NotificationCenter observers
-- Cancel pending search/OCR/compression/split/merge work
+- Cancel pending search/OCR/compression/split/merge/conversion work
 - Dismiss or detach the document scanner when presentation is still active
+- Dismiss the document picker and remove the render web view when a conversion
+  is still active
 - Detach delegates
 - Remove PencilKit tool picker observers
 - Clear temporary overlays

@@ -285,6 +285,40 @@ extension PdfPocRuntime: PdfWorkspaceViewDelegate {
 
   func workspaceView(
     _ view: PdfWorkspaceView,
+    didUpdatePdfConversionProgress operationId: String,
+    completedPages: Int64,
+    totalPages: Int64
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_pdf_conversion_progress",
+      "operationId=\(operationId) completed=\(completedPages) total=\(totalPages)"
+    )
+    flutterApi?.onPdfConversionProgress(
+      operationId: operationId,
+      completedPages: completedPages,
+      totalPages: totalPages
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
+    didCompletePdfConversion operationId: String,
+    result: PdfConvertToPdfResult?,
+    cancelled: Bool
+  ) {
+    logPdfEvent(
+      "callback_to_flutter_pdf_conversion_completed",
+      "operationId=\(operationId) cancelled=\(cancelled) output=\(result?.outputPath ?? "")"
+    )
+    flutterApi?.onPdfConversionCompleted(
+      operationId: operationId,
+      result: result,
+      cancelled: cancelled
+    ) { _ in }
+  }
+
+  func workspaceView(
+    _ view: PdfWorkspaceView,
     didFailOperation operationId: String,
     error: PdfPocError
   ) {

@@ -105,6 +105,18 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerStartDocumentScanRequested>(_onStartDocumentScanRequested);
     on<PdfViewerPickImagesForPdfRequested>(_onPickImagesForPdfRequested);
     on<PdfViewerCancelDocumentScanRequested>(_onCancelDocumentScanRequested);
+    on<PdfViewerPickFileForPdfConversionRequested>(
+      _onPickFileForPdfConversionRequested,
+    );
+    on<PdfViewerConvertUrlToPdfRequested>(_onConvertUrlToPdfRequested);
+    on<PdfViewerCancelPdfConversionRequested>(_onCancelPdfConversionRequested);
+    on<PdfViewerLoadGeneratedOutputsRequested>(
+      _onLoadGeneratedOutputsRequested,
+    );
+    on<PdfViewerOpenGeneratedOutputRequested>(_onOpenGeneratedOutputRequested);
+    on<PdfViewerShareGeneratedOutputRequested>(
+      _onShareGeneratedOutputRequested,
+    );
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -124,6 +136,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNativeMergeCompleted>(_onNativeMergeCompleted);
     on<PdfViewerNativeDocumentScanProgress>(_onNativeDocumentScanProgress);
     on<PdfViewerNativeDocumentScanCompleted>(_onNativeDocumentScanCompleted);
+    on<PdfViewerNativePdfConversionProgress>(_onNativePdfConversionProgress);
+    on<PdfViewerNativePdfConversionCompleted>(_onNativePdfConversionCompleted);
   }
 
   final String assetKey;
@@ -177,6 +191,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           documentScanCompletedPages: 0,
           documentScanTotalPages: 0,
           documentScanResult: null,
+          conversionRunning: false,
+          conversionCompletedPages: 0,
+          conversionTotalPages: 0,
+          conversionResult: null,
           status: 'Reset writable copy for ${assetName(assetKey)}.',
         ),
       );
@@ -1048,6 +1066,185 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
+  Future<void> _onPickFileForPdfConversionRequested(
+    PdfViewerPickFileForPdfConversionRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    if (state.documentInfo == null) {
+      emit(state.copyWith(status: 'Open a document before converting a file.'));
+      return;
+    }
+    logPdfEvent('pdf_conversion_request', <String, Object?>{
+      'pageSize': event.pageSize.name,
+      'imageQuality': event.imageQuality.name,
+    });
+    emit(
+      state.copyWith(
+        conversionRunning: true,
+        conversionCompletedPages: 0,
+        conversionTotalPages: 0,
+        conversionResult: null,
+        status: 'Opening file picker...',
+      ),
+    );
+    try {
+      await _api.pickFileForPdfConversion(
+        PdfConvertToPdfRequest(
+          outputPath: '',
+          pageSize: event.pageSize,
+          imageQuality: event.imageQuality,
+        ),
+      );
+    } on PlatformException catch (error) {
+      emit(state.copyWith(conversionRunning: false));
+      _showError(
+        emit,
+        'convert to PDF',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onConvertUrlToPdfRequested(
+    PdfViewerConvertUrlToPdfRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    if (state.documentInfo == null) {
+      emit(state.copyWith(status: 'Open a document before converting a URL.'));
+      return;
+    }
+    final url = event.url.trim();
+    if (url.isEmpty) {
+      emit(state.copyWith(status: 'Enter a web address first.'));
+      return;
+    }
+    logPdfEvent('pdf_url_conversion_request', <String, Object?>{
+      'url': url,
+      'pageSize': event.pageSize.name,
+    });
+    emit(
+      state.copyWith(
+        conversionRunning: true,
+        conversionCompletedPages: 0,
+        conversionTotalPages: 0,
+        conversionResult: null,
+        status: 'Loading $url...',
+      ),
+    );
+    try {
+      await _api.convertUrlToPdf(
+        PdfConvertUrlRequest(
+          url: url,
+          outputPath: '',
+          pageSize: event.pageSize,
+        ),
+      );
+    } on PlatformException catch (error) {
+      emit(state.copyWith(conversionRunning: false));
+      _showError(
+        emit,
+        'convert URL',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onCancelPdfConversionRequested(
+    PdfViewerCancelPdfConversionRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('pdf_conversion_cancel_request');
+      await _api.cancelPdfConversion();
+      emit(state.copyWith(status: 'Cancelling conversion...'));
+    } on PlatformException catch (error) {
+      _showError(
+        emit,
+        'cancel conversion',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onLoadGeneratedOutputsRequested(
+    PdfViewerLoadGeneratedOutputsRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    if (state.documentInfo == null) {
+      return;
+    }
+    emit(state.copyWith(generatedOutputsLoading: true));
+    try {
+      final outputs = await _api.listGeneratedOutputs();
+      logPdfEvent('generated_outputs_loaded', <String, Object?>{
+        'count': outputs.length,
+      });
+      emit(
+        state.copyWith(
+          generatedOutputs: outputs,
+          generatedOutputsLoading: false,
+        ),
+      );
+    } on PlatformException catch (error) {
+      emit(state.copyWith(generatedOutputsLoading: false));
+      _showError(
+        emit,
+        'list outputs',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
+  Future<void> _onOpenGeneratedOutputRequested(
+    PdfViewerOpenGeneratedOutputRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(emit, 'open output', () async {
+      logPdfEvent('open_generated_output_request', <String, Object?>{
+        'path': event.path,
+      });
+      final info = await _api.openGeneratedOutput(event.path);
+      _applyDocumentInfo(emit, info);
+      emit(
+        state.copyWith(
+          searchState: null,
+          selectedText: null,
+          pendingFreeTextArea: null,
+          status: 'Opened ${event.path.split('/').last}.',
+        ),
+      );
+    });
+  }
+
+  Future<void> _onShareGeneratedOutputRequested(
+    PdfViewerShareGeneratedOutputRequested event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    try {
+      logPdfEvent('share_generated_output_request', <String, Object?>{
+        'path': event.path,
+      });
+      await _api.shareGeneratedOutput(event.path);
+      emit(state.copyWith(status: 'Sharing ${event.path.split('/').last}...'));
+    } on PlatformException catch (error) {
+      _showError(
+        emit,
+        'share output',
+        error.code,
+        error.message ?? 'Operation failed.',
+        error.details?.toString(),
+      );
+    }
+  }
+
   void _onNativePageChanged(
     PdfViewerNativePageChanged event,
     Emitter<PdfViewerState> emit,
@@ -1116,6 +1313,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         documentScanCompletedPages: 0,
         documentScanTotalPages: 0,
         documentScanResult: null,
+        conversionRunning: false,
+        conversionCompletedPages: 0,
+        conversionTotalPages: 0,
+        conversionResult: null,
         status: 'Document closed.',
       ),
     );
@@ -1346,6 +1547,41 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
+  void _onNativePdfConversionProgress(
+    PdfViewerNativePdfConversionProgress event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        conversionCompletedPages: event.completedPages,
+        conversionTotalPages: event.totalPages,
+        status:
+            'Conversion progress: ${event.completedPages}/${event.totalPages} pages.',
+      ),
+    );
+  }
+
+  void _onNativePdfConversionCompleted(
+    PdfViewerNativePdfConversionCompleted event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    final result = event.result;
+    emit(
+      state.copyWith(
+        conversionRunning: false,
+        conversionResult: result,
+        status: event.cancelled
+            ? 'Conversion cancelled.'
+            : result == null
+            ? 'Conversion completed without an output result.'
+            : 'Converted ${result.sourceFileName} into ${result.pageCount} pages.',
+      ),
+    );
+    if (!event.cancelled && result != null) {
+      add(const PdfViewerLoadGeneratedOutputsRequested());
+    }
+  }
+
   Future<void> _openAsset(Emitter<PdfViewerState> emit) async {
     if (state.openedOnce) {
       logPdfEvent('open_skip_already_opened');
@@ -1383,6 +1619,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         documentScanCompletedPages: 0,
         documentScanTotalPages: 0,
         documentScanResult: null,
+        conversionRunning: false,
+        conversionCompletedPages: 0,
+        conversionTotalPages: 0,
+        conversionResult: null,
         status: 'Opened ${assetName(assetKey)} from a writable copy.',
       ),
     );
@@ -1561,6 +1801,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         splitRunning: false,
         mergeRunning: false,
         documentScanRunning: false,
+        conversionRunning: false,
       ),
     );
   }
@@ -1895,6 +2136,52 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     if (!isClosed) {
       add(
         PdfViewerNativeDocumentScanCompleted(
+          operationId: operationId,
+          result: result,
+          cancelled: cancelled,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onPdfConversionProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  ) {
+    logPdfEvent('callback_pdf_conversion_progress', <String, Object?>{
+      'operationId': operationId,
+      'completedPages': completedPages,
+      'totalPages': totalPages,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativePdfConversionProgress(
+          operationId: operationId,
+          completedPages: completedPages,
+          totalPages: totalPages,
+        ),
+      );
+    }
+  }
+
+  @override
+  void onPdfConversionCompleted(
+    String operationId,
+    PdfConvertToPdfResult? result,
+    bool cancelled,
+  ) {
+    logPdfEvent('callback_pdf_conversion_completed', <String, Object?>{
+      'operationId': operationId,
+      'cancelled': cancelled,
+      'outputPath': result?.outputPath,
+      'sourceFileName': result?.sourceFileName,
+      'pageCount': result?.pageCount,
+    });
+    if (!isClosed) {
+      add(
+        PdfViewerNativePdfConversionCompleted(
           operationId: operationId,
           result: result,
           cancelled: cancelled,

@@ -32,6 +32,12 @@ class PdfViewerState {
     this.documentScanCompletedPages = 0,
     this.documentScanTotalPages = 0,
     this.documentScanResult,
+    this.conversionRunning = false,
+    this.conversionCompletedPages = 0,
+    this.conversionTotalPages = 0,
+    this.conversionResult,
+    this.generatedOutputs = const <PdfGeneratedOutput>[],
+    this.generatedOutputsLoading = false,
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -62,6 +68,12 @@ class PdfViewerState {
   final int documentScanCompletedPages;
   final int documentScanTotalPages;
   final PdfDocumentScanResult? documentScanResult;
+  final bool conversionRunning;
+  final int conversionCompletedPages;
+  final int conversionTotalPages;
+  final PdfConvertToPdfResult? conversionResult;
+  final List<PdfGeneratedOutput> generatedOutputs;
+  final bool generatedOutputsLoading;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -94,6 +106,12 @@ class PdfViewerState {
     int? documentScanCompletedPages,
     int? documentScanTotalPages,
     Object? documentScanResult = _unset,
+    bool? conversionRunning,
+    int? conversionCompletedPages,
+    int? conversionTotalPages,
+    Object? conversionResult = _unset,
+    List<PdfGeneratedOutput>? generatedOutputs,
+    bool? generatedOutputsLoading,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -144,6 +162,16 @@ class PdfViewerState {
       documentScanResult: documentScanResult == _unset
           ? this.documentScanResult
           : documentScanResult as PdfDocumentScanResult?,
+      conversionRunning: conversionRunning ?? this.conversionRunning,
+      conversionCompletedPages:
+          conversionCompletedPages ?? this.conversionCompletedPages,
+      conversionTotalPages: conversionTotalPages ?? this.conversionTotalPages,
+      conversionResult: conversionResult == _unset
+          ? this.conversionResult
+          : conversionResult as PdfConvertToPdfResult?,
+      generatedOutputs: generatedOutputs ?? this.generatedOutputs,
+      generatedOutputsLoading:
+          generatedOutputsLoading ?? this.generatedOutputsLoading,
     );
   }
 }

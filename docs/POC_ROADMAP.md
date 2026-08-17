@@ -487,9 +487,70 @@ contract.
 
 ---
 
+## POC 8 — Convert files to PDF
+
+### Goal
+
+Convert common document files, images, and web pages into a valid PDF using
+only iOS-native rendering, without a paid SDK or a server-side converter.
+
+### Required deliverables
+
+- Present `UIDocumentPickerViewController` limited to renderable types
+- Accept a web address as an alternative source
+- Route images to the POC 7 scanned-document writer
+- Render every other source with `WKWebView`, paginated by `UIPrintPageRenderer`
+- Support A4 and Letter page sizes
+- Return output path, source name, source format, page count, size, duration
+- Validate the output with PDFKit and open it in the viewer
+
+### Rules
+
+- No file bytes cross Pigeon
+- The render web view stays hidden and is removed after use
+- Wait for navigation completion before requesting the print formatter
+- Apply a render timeout instead of hanging
+- Write a temporary PDF, validate it, then move it to the final path
+- Only http and https URLs are accepted
+
+### Fidelity boundary
+
+Best-effort conversion. WebKit's document preview is the only native renderer
+iOS exposes for Office and iWork. Exact DOCX-to-PDF stays an explicit non-goal
+and needs a commercial SDK or a server-side converter.
+
+### Out of scope
+
+- Exact DOCX-to-PDF or PDF-to-DOCX conversion
+- Server-side or cloud conversion
+- Batch conversion in one operation
+- PDF inputs, which the picker excludes
+
+### Definition of Done
+
+- Cancellation creates no final PDF
+- Each supported format either converts or returns a typed error
+- A4 and Letter produce different page geometry
+- Output reopens with PDFKit and Apple Preview
+- Flutter receives a typed success, cancellation, or error
+- No commercial SDK or server-side converter is used
+
+### Implementation notes
+
+- A4 is 595.2 x 841.8 pt, Letter is 612 x 792 pt, both with 36-pt margins.
+- Images use the POC 7 quality presets; document sources ignore them.
+- WebKit reports `didFinish` before previews finish laying out, so the print
+  formatter is requested one runloop turn later.
+- Timeout returns `conversion_timeout`; unrenderable sources return
+  `unsupported_source_format`.
+- The panel lists generated PDFs from the working directory, reopens a
+  selected one, and shares it through `UIActivityViewController`.
+
+---
+
 ## Completion review
 
-After POC 7, produce a decision report:
+After POC 8, produce a decision report:
 
 - What is production-viable
 - What needs more native engineering

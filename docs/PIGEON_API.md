@@ -164,7 +164,44 @@ class PdfDocumentScanResult {
   int fileSizeBytes;
   int durationMilliseconds;
 }
+
+enum PdfConvertPageSize {
+  a4,
+  letter,
+}
+
+class PdfConvertToPdfRequest {
+  String outputPath;
+  PdfConvertPageSize pageSize;
+  PdfScanQuality imageQuality;
+}
+
+class PdfConvertToPdfResult {
+  String outputPath;
+  String sourceFileName;
+  String sourceFormat;
+  int pageCount;
+  int fileSizeBytes;
+  int durationMilliseconds;
+}
+
+class PdfConvertUrlRequest {
+  String url;
+  String outputPath;
+  PdfConvertPageSize pageSize;
+}
+
+class PdfGeneratedOutput {
+  String path;
+  String fileName;
+  int fileSizeBytes;
+  int modifiedEpochMilliseconds;
+  int pageCount;
+}
 ```
+
+`imageQuality` applies only to image sources. Document sources are paginated
+by the native print renderer and ignore it.
 
 ## Host API
 
@@ -340,8 +377,25 @@ abstract class PdfPocHostApi {
   void pickImagesForPdf(PdfDocumentScanRequest request);
 
   void cancelDocumentScan();
+
+  void pickFileForPdfConversion(PdfConvertToPdfRequest request);
+
+  void convertUrlToPdf(PdfConvertUrlRequest request);
+
+  void cancelPdfConversion();
+
+  List<PdfGeneratedOutput> listGeneratedOutputs();
+
+  PdfDocumentInfo openGeneratedOutput(String path);
+
+  void shareGeneratedOutput(String path);
 }
 ```
+
+`listGeneratedOutputs` returns every PDF in the native working directory,
+newest first. `openGeneratedOutput` and `shareGeneratedOutput` refuse any path
+outside that directory; sharing presents the system share sheet and leaves the
+file where it is.
 
 ## Flutter callback API
 
@@ -452,6 +506,18 @@ abstract class PdfPocFlutterApi {
     bool cancelled,
   );
 
+  void onPdfConversionProgress(
+    String operationId,
+    int completedPages,
+    int totalPages,
+  );
+
+  void onPdfConversionCompleted(
+    String operationId,
+    PdfConvertToPdfResult? result,
+    bool cancelled,
+  );
+
   void onOperationCompleted(String operationId);
 
   void onOperationFailed(
@@ -515,6 +581,11 @@ scan_failed
 scan_cancelled
 image_pick_failed
 image_pick_cancelled
+invalid_url
+unsupported_source_format
+conversion_failed
+conversion_cancelled
+conversion_timeout
 pdf_generation_failed
 unsupported_operation
 internal_error

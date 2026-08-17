@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../pdf_poc_api.g.dart';
@@ -38,24 +39,42 @@ class PdfControlPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bloc = context.read<PdfViewerBloc>();
+    final media = MediaQuery.of(context);
+    // The scaffold keeps `resizeToAvoidBottomInset: false` so the native PDF
+    // view never resizes, so the panel lifts itself above the keyboard and
+    // scrolls whenever the remaining height is not enough.
+    final keyboardInset = media.viewInsets.bottom;
+    final maxPanelHeight = (media.size.height - keyboardInset) * 0.5;
+
     return Material(
       elevation: 3,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: EdgeInsets.fromLTRB(12, 8, 12, 12 + keyboardInset),
         child: AnimatedSize(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
           alignment: Alignment.bottomCenter,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              if (state.busy) ...<Widget>[
-                const SizedBox(height: 8),
-                const LinearProgressIndicator(),
-              ] else
-                _buildPanel(context, bloc),
-            ],
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxPanelHeight),
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    if (state.busy) ...<Widget>[
+                      const SizedBox(height: 8),
+                      const LinearProgressIndicator(),
+                    ] else
+                      _buildPanel(context, bloc),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -102,6 +121,8 @@ class PdfControlPanel extends StatelessWidget {
         return _SplitMergeControls(state: state);
       case PdfControlPanelMode.documentScan:
         return _DocumentScanControls(state: state);
+      case PdfControlPanelMode.convert:
+        return _ConvertControls(state: state);
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -1052,6 +1073,357 @@ class _DocumentScanResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       '${result.pageCount} pages · ${result.fileSizeBytes} bytes · ${result.durationMilliseconds} ms\n${result.outputPath}',
+      maxLines: 4,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _ConvertControls extends StatefulWidget {
+  const _ConvertControls({required this.state});
+
+  final PdfViewerState state;
+
+  @override
+  State<_ConvertControls> createState() => _ConvertControlsState();
+}
+
+class _ConvertControlsState extends State<_ConvertControls> {
+  PdfConvertPageSize _pageSize = PdfConvertPageSize.a4;
+  PdfScanQuality _imageQuality = PdfScanQuality.standard;
+  final TextEditingController _urlController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<PdfViewerBloc>().add(
+      const PdfViewerLoadGeneratedOutputsRequested(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final bloc = context.read<PdfViewerBloc>();
+    final totalPages = state.conversionTotalPages;
+    final progress = totalPages == 0
+        ? null
+        : state.conversionCompletedPages / totalPages.clamp(1, totalPages);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            SegmentedButton<PdfConvertPageSize>(
+              segments: const <ButtonSegment<PdfConvertPageSize>>[
+                ButtonSegment<PdfConvertPageSize>(
+                  value: PdfConvertPageSize.a4,
+                  label: Text('A4'),
+                ),
+                ButtonSegment<PdfConvertPageSize>(
+                  value: PdfConvertPageSize.letter,
+                  label: Text('Letter'),
+                ),
+              ],
+              selected: <PdfConvertPageSize>{_pageSize},
+              onSelectionChanged: state.conversionRunning
+                  ? null
+                  : (selection) => setState(() => _pageSize = selection.first),
+            ),
+            SegmentedButton<PdfScanQuality>(
+              segments: const <ButtonSegment<PdfScanQuality>>[
+                ButtonSegment<PdfScanQuality>(
+                  value: PdfScanQuality.standard,
+                  icon: Icon(Icons.speed_outlined, size: 18),
+                  label: Text('Standard'),
+                ),
+                ButtonSegment<PdfScanQuality>(
+                  value: PdfScanQuality.high,
+                  icon: Icon(Icons.high_quality_outlined, size: 18),
+                  label: Text('High'),
+                ),
+              ],
+              selected: <PdfScanQuality>{_imageQuality},
+              onSelectionChanged: state.conversionRunning
+                  ? null
+                  : (selection) =>
+                        setState(() => _imageQuality = selection.first),
+            ),
+            FilledButton.icon(
+              onPressed: state.busy || state.conversionRunning
+                  ? null
+                  : () {
+                      FocusScope.of(context).unfocus();
+                      bloc.add(
+                        PdfViewerPickFileForPdfConversionRequested(
+                          pageSize: _pageSize,
+                          imageQuality: _imageQuality,
+                        ),
+                      );
+                    },
+              icon: const Icon(Icons.upload_file_outlined, size: 18),
+              label: const Text('Pick file'),
+            ),
+            OutlinedButton.icon(
+              onPressed: state.conversionRunning
+                  ? () =>
+                        bloc.add(const PdfViewerCancelPdfConversionRequested())
+                  : null,
+              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              label: const Text('Cancel'),
+            ),
+            Text(
+              state.conversionRunning || totalPages > 0
+                  ? '${state.conversionCompletedPages}/$totalPages pages'
+                  : 'No output',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // The URL source sits in its own card so it reads as a second way to
+        // start a conversion, not as another option for the picked file.
+        Container(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          decoration: BoxDecoration(
+            border: Border.all(color: Theme.of(context).dividerColor),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'From a web page',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _urlController,
+                      enabled: !state.conversionRunning,
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      textInputAction: TextInputAction.go,
+                      decoration: InputDecoration(
+                        labelText: 'Web page URL',
+                        hintText: 'example.com',
+                        isDense: true,
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            IconButton(
+                              tooltip: 'Paste',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: state.conversionRunning
+                                  ? null
+                                  : _pasteUrl,
+                              icon: const Icon(Icons.content_paste, size: 18),
+                            ),
+                            if (_urlController.text.isNotEmpty)
+                              IconButton(
+                                tooltip: 'Clear',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: state.conversionRunning
+                                    ? null
+                                    : () => setState(_urlController.clear),
+                                icon: const Icon(Icons.close, size: 18),
+                              ),
+                          ],
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => _convertUrl(bloc),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: state.busy || state.conversionRunning
+                        ? null
+                        : () => _convertUrl(bloc),
+                    icon: const Icon(Icons.language, size: 18),
+                    label: const Text('Convert web'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Files: Word, Excel, PowerPoint, Pages, Numbers, Keynote, RTF, '
+          'HTML, text, CSV and images.',
+        ),
+        if (state.conversionRunning || totalPages > 0) ...<Widget>[
+          const SizedBox(height: 8),
+          LinearProgressIndicator(value: progress),
+        ],
+        if (state.conversionResult != null) ...<Widget>[
+          const SizedBox(height: 8),
+          _ConvertResultView(result: state.conversionResult!),
+        ],
+        const SizedBox(height: 12),
+        _GeneratedOutputsList(state: state),
+      ],
+    );
+  }
+
+  Future<void> _pasteUrl() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim();
+    if (text == null || text.isEmpty || !mounted) {
+      return;
+    }
+    setState(() {
+      _urlController.text = text;
+      _urlController.selection = TextSelection.collapsed(offset: text.length);
+    });
+  }
+
+  void _convertUrl(PdfViewerBloc bloc) {
+    FocusScope.of(context).unfocus();
+    bloc.add(
+      PdfViewerConvertUrlToPdfRequested(
+        url: _urlController.text,
+        pageSize: _pageSize,
+      ),
+    );
+  }
+}
+
+/// Shows every PDF produced by an earlier operation so the generated output is
+/// reachable in-app. Tapping a row opens it in the native viewer.
+class _GeneratedOutputsList extends StatelessWidget {
+  const _GeneratedOutputsList({required this.state});
+
+  final PdfViewerState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<PdfViewerBloc>();
+    final outputs = state.generatedOutputs;
+    final currentPath = state.documentInfo?.workingPath;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Text(
+              'Generated files (${outputs.length})',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const Spacer(),
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: state.generatedOutputsLoading
+                  ? null
+                  : () => bloc.add(
+                      const PdfViewerLoadGeneratedOutputsRequested(),
+                    ),
+              icon: const Icon(Icons.refresh, size: 20),
+            ),
+          ],
+        ),
+        if (state.generatedOutputsLoading)
+          const LinearProgressIndicator()
+        else if (outputs.isEmpty)
+          const Text('No generated file yet.')
+        else
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 220),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: outputs.length,
+              itemBuilder: (context, index) {
+                final output = outputs[index];
+                final isCurrent = output.path == currentPath;
+                final theme = Theme.of(context);
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  selected: isCurrent,
+                  leading: Icon(
+                    isCurrent
+                        ? Icons.check_circle
+                        : Icons.picture_as_pdf_outlined,
+                  ),
+                  title: Text(
+                    output.fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${output.pageCount} pages · '
+                    '${(output.fileSizeBytes / 1024).toStringAsFixed(0)} KB',
+                  ),
+                  // The current document is already on screen behind this
+                  // panel, so its row reports state instead of offering a tap
+                  // that would do nothing.
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (isCurrent)
+                        Text(
+                          'Viewing',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        )
+                      else
+                        const Icon(Icons.open_in_new, size: 18),
+                      IconButton(
+                        tooltip: 'Share',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: state.busy
+                            ? null
+                            : () => bloc.add(
+                                PdfViewerShareGeneratedOutputRequested(
+                                  output.path,
+                                ),
+                              ),
+                        icon: const Icon(Icons.ios_share, size: 18),
+                      ),
+                    ],
+                  ),
+                  onTap: state.busy || isCurrent
+                      ? null
+                      : () => bloc.add(
+                          PdfViewerOpenGeneratedOutputRequested(output.path),
+                        ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ConvertResultView extends StatelessWidget {
+  const _ConvertResultView({required this.result});
+
+  final PdfConvertToPdfResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '${result.sourceFileName} (${result.sourceFormat}) · '
+      '${result.pageCount} pages · ${result.fileSizeBytes} bytes · '
+      '${result.durationMilliseconds} ms\n${result.outputPath}',
       maxLines: 4,
       overflow: TextOverflow.ellipsis,
     );

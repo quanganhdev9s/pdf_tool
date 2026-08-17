@@ -205,6 +205,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
   }
 
   void _togglePanelMode(PdfControlPanelMode mode) {
+    FocusScope.of(context).unfocus();
     setState(() {
       _activePanelMode = _activePanelMode == mode ? null : mode;
     });

@@ -249,6 +249,37 @@ image-based PDF with the same Standard/High Quality presets, and reopen in the
 viewer after PDFKit validation. This is not a custom scanner, file manager,
 cloud import, or searchable-PDF generation path.
 
+### POC 8 — Convert files to PDF
+
+Validate:
+
+- Present Apple's document picker limited to renderable source types
+- Accept Word, Excel, PowerPoint, Pages, Numbers, Keynote, RTF, HTML, plain
+  text, CSV, and image files, plus a typed web address
+- Render document sources with WebKit, paginated by `UIPrintPageRenderer`
+- Reuse the POC 7 image writer for image sources
+- Support A4 and Letter page sizes
+- Handle cancellation without creating an output file
+- Validate the output with PDFKit and return its path and metadata
+
+POC 8 is a best-effort rendering conversion using the only document renderer
+iOS provides natively. It is not an exact DOCX-to-PDF converter and must not
+be described as one.
+
+Current POC 8 implementation exposes a Convert to PDF toolbar panel. Flutter
+sends only the page size and image quality preset. Swift presents the picker or
+loads the URL, routes images to the scanned-document writer and everything else
+through a hidden `WKWebView`, validates the output with PDFKit, opens it in the
+viewer, and reports progress, cancellation, or typed errors through Pigeon. PDF
+inputs are excluded because converting them is a no-op, and only http/https
+URLs are accepted.
+
+The panel also lists every PDF in the working directory, newest first, opens a
+selected one, and shares it through the system share sheet. Generated files are
+saved into the app immediately and exporting is a separate user action. This is
+not the deferred file manager: no rename, move, delete, or import, and nothing
+outside the working directory is reachable.
+
 ## Required exports
 
 The POC must support:
@@ -260,6 +291,7 @@ The POC must support:
 - Split PDF outputs
 - Merged PDF output
 - Scanned image-based PDF output
+- Converted PDF output from a supported source file
 
 Keep each output separate from the original input asset.
 
@@ -272,8 +304,6 @@ Do not implement during this POC:
 - Recent files
 - Favorites
 - File sorting and search
-- Image-to-PDF
-- Text-to-PDF
 - PDF-to-image export
 - Watermark
 - Page numbering
@@ -312,5 +342,6 @@ The POC succeeds when it demonstrates:
 8. Measured compression tradeoffs.
 9. Correct split and merge outputs with preserved page order.
 10. A multi-page document scan that opens as a valid PDF.
-11. Editable and flattened output variants.
-12. No use of a commercial PDF SDK.
+11. A converted source file that opens as a valid PDF.
+12. Editable and flattened output variants.
+13. No use of a commercial PDF SDK.
