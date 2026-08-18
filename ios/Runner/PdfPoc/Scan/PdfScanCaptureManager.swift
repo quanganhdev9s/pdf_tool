@@ -2,7 +2,6 @@ import Foundation
 import PhotosUI
 import UIKit
 import UniformTypeIdentifiers
-import VisionKit
 
 protocol PdfScanCaptureManagerDelegate: AnyObject {
   func captureManager(_ manager: PdfScanCaptureManager, didCreate session: PdfScanSessionRecord)
@@ -28,21 +27,15 @@ final class PdfScanCaptureManager: NSObject {
 
   // MARK: - Entry points
 
-  func startAppleDocumentScan(presenter: UIViewController) throws {
+  func startDocumentCapture(presenter: UIViewController) throws {
     try ensureIdle()
-    guard VNDocumentCameraViewController.isSupported else {
-      throw PdfPocError(
-        code: "scanner_unavailable",
-        message: "The document scanner is not available on this device.",
-        details: "VNDocumentCameraViewController.isSupported=false"
-      )
-    }
     isCapturing = true
-    let scanner = VNDocumentCameraViewController()
-    scanner.delegate = self
-    activeController = scanner
+    let camera = PdfScanCameraViewController()
+    camera.delegate = self
+    camera.modalPresentationStyle = .fullScreen
+    activeController = camera
     logPdfEvent("scan_capture_present", "source=scanner")
-    presenter.present(scanner, animated: true)
+    presenter.present(camera, animated: true)
   }
 
   func pickScanImages(presenter: UIViewController) throws {
@@ -106,47 +99,44 @@ final class PdfScanCaptureManager: NSObject {
     delegate?.captureManager(self, didFailWith: error)
   }
 
-  // MARK: - VisionKit ingest
+  // MARK: - Camera ingest
 
-  /// Writes each scanned page to disk one at a time inside an autorelease pool.
-  /// A 30-page scan at full resolution would not survive holding every
-  /// `UIImage` at once.
-  private func ingest(scan: VNDocumentCameraScan) {
+  /// The session is created by the first page rather than at presentation, so
+  /// cancelling before shooting anything leaves nothing on disk to sweep.
+  private var cameraSession: PdfScanSessionRecord?
+
+  /// Writes one captured page immediately. Pages are never accumulated in
+  /// memory: at full capture resolution a long scan would not survive it.
+  private func appendCameraPage(_ image: UIImage) {
     workQueue.async { [weak self] in
       guard let self else { return }
-      var session: PdfScanSessionRecord?
       do {
-        let created = try self.store.createSession(source: .scanner)
-        session = created
-        for pageIndex in 0..<scan.pageCount {
-          try autoreleasepool {
-            let image = scan.imageOfPage(at: pageIndex)
-            try self.appendPage(image: image, to: created)
-          }
+        let session = try self.cameraSession ?? self.store.createSession(source: .scanner)
+        self.cameraSession = session
+        try autoreleasepool {
+          try self.appendPage(image: image, to: session)
         }
-        guard !created.pages.isEmpty else {
-          throw PdfPocError(
-            code: "scan_failed",
-            message: "The scanner returned no usable pages.",
-            details: nil
-          )
-        }
-        DispatchQueue.main.async { self.finish(with: created) }
       } catch let error as PdfPocError {
-        DispatchQueue.main.async { self.fail(error, discarding: session) }
+        DispatchQueue.main.async { self.failCameraSession(error) }
       } catch {
         DispatchQueue.main.async {
-          self.fail(
+          self.failCameraSession(
             PdfPocError(
               code: "scan_failed",
-              message: "Could not store the scanned pages.",
+              message: "Could not store the captured page.",
               details: error.localizedDescription
-            ),
-            discarding: session
+            )
           )
         }
       }
     }
+  }
+
+  private func failCameraSession(_ error: PdfPocError) {
+    let session = cameraSession
+    cameraSession = nil
+    activeController?.dismiss(animated: true)
+    fail(error, discarding: session)
   }
 
   private func appendPage(image: UIImage, to session: PdfScanSessionRecord) throws {
@@ -266,37 +256,48 @@ final class PdfScanCaptureManager: NSObject {
   }
 }
 
-extension PdfScanCaptureManager: VNDocumentCameraViewControllerDelegate {
-  func documentCameraViewController(
-    _ controller: VNDocumentCameraViewController,
-    didFinishWith scan: VNDocumentCameraScan
-  ) {
-    controller.dismiss(animated: true) { [weak self] in
-      self?.ingest(scan: scan)
-    }
+extension PdfScanCaptureManager: PdfScanCameraViewControllerDelegate {
+  func cameraController(_ controller: PdfScanCameraViewController, didCapture page: UIImage) {
+    appendCameraPage(page)
   }
 
-  func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
-    controller.dismiss(animated: true) { [weak self] in
-      self?.finishCancelled()
-    }
-  }
-
-  func documentCameraViewController(
-    _ controller: VNDocumentCameraViewController,
-    didFailWithError error: Error
-  ) {
-    controller.dismiss(animated: true) { [weak self] in
+  func cameraControllerDidFinish(_ controller: PdfScanCameraViewController) {
+    controller.dismiss(animated: true)
+    // Writes are queued; hop through the same queue so the session reported
+    // here has every page the user shot.
+    workQueue.async { [weak self] in
       guard let self else { return }
-      self.fail(
-        PdfPocError(
-          code: "scan_failed",
-          message: "The document scanner reported a failure.",
-          details: error.localizedDescription
-        ),
-        discarding: nil
-      )
+      let session = self.cameraSession
+      self.cameraSession = nil
+      DispatchQueue.main.async {
+        guard let session, !session.pages.isEmpty else {
+          if let session { self.store.discardSession(withId: session.id) }
+          self.finishCancelled()
+          return
+        }
+        self.finish(with: session)
+      }
     }
+  }
+
+  func cameraControllerDidCancel(_ controller: PdfScanCameraViewController) {
+    controller.dismiss(animated: true)
+    workQueue.async { [weak self] in
+      guard let self else { return }
+      if let session = self.cameraSession {
+        self.store.discardSession(withId: session.id)
+      }
+      self.cameraSession = nil
+      DispatchQueue.main.async { self.finishCancelled() }
+    }
+  }
+
+  func cameraController(
+    _ controller: PdfScanCameraViewController,
+    didFailWith error: PdfPocError
+  ) {
+    controller.dismiss(animated: true)
+    failCameraSession(error)
   }
 }
 

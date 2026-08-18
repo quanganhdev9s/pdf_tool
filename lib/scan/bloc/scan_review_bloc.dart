@@ -50,7 +50,7 @@ class ScanReviewBloc extends Bloc<ScanReviewEvent, ScanReviewState>
     Emitter<ScanReviewState> emit,
   ) async {
     emit(_startingCapture());
-    await _guard(emit, () => _hostApi.startAppleDocumentScan());
+    await _guard(emit, () => _hostApi.startDocumentCapture());
   }
 
   Future<void> _onImagesPickRequested(

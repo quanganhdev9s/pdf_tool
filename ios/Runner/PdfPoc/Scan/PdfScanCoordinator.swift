@@ -68,8 +68,8 @@ final class PdfScanCoordinator: NSObject {
 
   // MARK: - Capture
 
-  func startAppleDocumentScan() throws {
-    try captureManager.startAppleDocumentScan(presenter: try requirePresenter())
+  func startDocumentCapture() throws {
+    try captureManager.startDocumentCapture(presenter: try requirePresenter())
   }
 
   func pickScanImages() throws {

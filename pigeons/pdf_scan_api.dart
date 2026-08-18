@@ -12,8 +12,9 @@ import 'package:pigeon/pigeon.dart';
   ),
 )
 /// Where the pages of a scan session came from. Capture is split by source
-/// because the two paths have different guarantees: VisionKit already applies
-/// perspective correction, the photo picker gives whatever the user shot.
+/// because the two paths have different guarantees: the camera screen detects
+/// the page and corrects its perspective, the photo picker gives whatever the
+/// user shot.
 enum PdfScanSource { scanner, photoPicker }
 
 /// Enhancement applied to a page. Kept as a closed set rather than a bag of
@@ -111,9 +112,10 @@ class PdfScanExportedDocument {
 
 @HostApi()
 abstract class PdfScanHostApi {
-  /// Presents `VNDocumentCameraViewController`. Pages land in a new session;
-  /// no PDF is produced here.
-  void startAppleDocumentScan();
+  /// Presents the app's own capture screen — live edge detection, auto-capture
+  /// and perspective correction, but no colour processing, which the pipeline
+  /// does instead. Pages land in a new session; no PDF is produced here.
+  void startDocumentCapture();
 
   /// Presents `PHPickerViewController`. Selected images are copied into a new
   /// session in the order they were picked.

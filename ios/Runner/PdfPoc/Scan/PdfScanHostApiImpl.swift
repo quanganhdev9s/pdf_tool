@@ -10,8 +10,8 @@ final class PdfScanHostApiImpl: PdfScanHostApi {
     self.coordinator = coordinator
   }
 
-  func startAppleDocumentScan() throws {
-    try call { try $0.startAppleDocumentScan() }
+  func startDocumentCapture() throws {
+    try call { try $0.startDocumentCapture() }
   }
 
   func pickScanImages() throws {

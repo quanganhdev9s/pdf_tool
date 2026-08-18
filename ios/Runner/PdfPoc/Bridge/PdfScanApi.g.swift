@@ -171,8 +171,9 @@ private func nilOrValue<T>(_ value: Any?) -> T? {
 
 
 /// Where the pages of a scan session came from. Capture is split by source
-/// because the two paths have different guarantees: VisionKit already applies
-/// perspective correction, the photo picker gives whatever the user shot.
+/// because the two paths have different guarantees: the camera screen detects
+/// the page and corrects its perspective, the photo picker gives whatever the
+/// user shot.
 enum PdfScanSource: Int, CaseIterable {
   case scanner = 0
   case photoPicker = 1
@@ -542,9 +543,10 @@ class PdfScanApiPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol PdfScanHostApi {
-  /// Presents `VNDocumentCameraViewController`. Pages land in a new session;
-  /// no PDF is produced here.
-  func startAppleDocumentScan() throws
+  /// Presents the app's own capture screen — live edge detection, auto-capture
+  /// and perspective correction, but no colour processing, which the pipeline
+  /// does instead. Pages land in a new session; no PDF is produced here.
+  func startDocumentCapture() throws
   /// Presents `PHPickerViewController`. Selected images are copied into a new
   /// session in the order they were picked.
   func pickScanImages() throws
@@ -580,20 +582,21 @@ class PdfScanHostApiSetup {
   /// Sets up an instance of `PdfScanHostApi` to handle messages through the `binaryMessenger`.
   static func setUp(binaryMessenger: FlutterBinaryMessenger, api: PdfScanHostApi?, messageChannelSuffix: String = "") {
     let channelSuffix = messageChannelSuffix.count > 0 ? ".\(messageChannelSuffix)" : ""
-    /// Presents `VNDocumentCameraViewController`. Pages land in a new session;
-    /// no PDF is produced here.
-    let startAppleDocumentScanChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfScanHostApi.startAppleDocumentScan\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    /// Presents the app's own capture screen — live edge detection, auto-capture
+    /// and perspective correction, but no colour processing, which the pipeline
+    /// does instead. Pages land in a new session; no PDF is produced here.
+    let startDocumentCaptureChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfScanHostApi.startDocumentCapture\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
-      startAppleDocumentScanChannel.setMessageHandler { _, reply in
+      startDocumentCaptureChannel.setMessageHandler { _, reply in
         do {
-          try api.startAppleDocumentScan()
+          try api.startDocumentCapture()
           reply(wrapResult(nil))
         } catch {
           reply(wrapError(error))
         }
       }
     } else {
-      startAppleDocumentScanChannel.setMessageHandler(nil)
+      startDocumentCaptureChannel.setMessageHandler(nil)
     }
     /// Presents `PHPickerViewController`. Selected images are copied into a new
     /// session in the order they were picked.

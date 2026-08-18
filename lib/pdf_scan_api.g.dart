@@ -108,8 +108,9 @@ int _deepHash(Object? value) {
 
 
 /// Where the pages of a scan session came from. Capture is split by source
-/// because the two paths have different guarantees: VisionKit already applies
-/// perspective correction, the photo picker gives whatever the user shot.
+/// because the two paths have different guarantees: the camera screen detects
+/// the page and corrects its perspective, the photo picker gives whatever the
+/// user shot.
 enum PdfScanSource {
   scanner,
   photoPicker,
@@ -521,10 +522,11 @@ class PdfScanHostApi {
 
   final String pigeonVar_messageChannelSuffix;
 
-  /// Presents `VNDocumentCameraViewController`. Pages land in a new session;
-  /// no PDF is produced here.
-  Future<void> startAppleDocumentScan() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfScanHostApi.startAppleDocumentScan$pigeonVar_messageChannelSuffix';
+  /// Presents the app's own capture screen — live edge detection, auto-capture
+  /// and perspective correction, but no colour processing, which the pipeline
+  /// does instead. Pages land in a new session; no PDF is produced here.
+  Future<void> startDocumentCapture() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfScanHostApi.startDocumentCapture$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
