@@ -46,7 +46,7 @@ struct PdfScanQuad {
     bottomRight = observation.bottomRight
   }
 
-  private init(corners: [CGPoint]) {
+  init(corners: [CGPoint]) {
     topLeft = corners[0]
     topRight = corners[1]
     bottomRight = corners[2]
@@ -78,8 +78,22 @@ struct PdfScanQuad {
     return isConvex
   }
 
+  /// Moves one corner, indexed the same way `corners` orders them.
+  mutating func setCorner(at index: Int, to point: CGPoint) {
+    switch index {
+    case 0: topLeft = point
+    case 1: topRight = point
+    case 2: bottomRight = point
+    default: bottomLeft = point
+    }
+  }
+
   /// Every cross product of consecutive edges must share a sign.
-  private var isConvex: Bool {
+  ///
+  /// Also the gate on the corner editor: a crossed or collapsed outline drives
+  /// `CIPerspectiveCorrection` into producing a wedge, so it is refused before
+  /// it gets there rather than after.
+  var isConvex: Bool {
     let points = corners
     var sign: CGFloat = 0
     for index in points.indices {

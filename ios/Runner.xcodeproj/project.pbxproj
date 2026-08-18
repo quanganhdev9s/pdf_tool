@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0492946E8424AC4B3356B4D /* PdfScanCornerEditorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F2DF654E55B47D29ECFA537 /* PdfScanCornerEditorViewController.swift */; };
 		3A3C4052C1F34B9E864263C4 /* PdfScanCameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0C52D33DFC4ED78CD8242D /* PdfScanCameraViewController.swift */; };
 		7340A9A1B89C465891BE6A3F /* PdfScanDocumentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB4071C99F34CFABD2FEB23 /* PdfScanDocumentDetector.swift */; };
 		0B695EC6555B0B5A08C31294 /* PdfScanHostApiImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021478984150EACA355D3E64 /* PdfScanHostApiImpl.swift */; };
@@ -76,6 +77,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1F2DF654E55B47D29ECFA537 /* PdfScanCornerEditorViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanCornerEditorViewController.swift; sourceTree = "<group>"; };
 		7F0C52D33DFC4ED78CD8242D /* PdfScanCameraViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanCameraViewController.swift; sourceTree = "<group>"; };
 		AEB4071C99F34CFABD2FEB23 /* PdfScanDocumentDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanDocumentDetector.swift; sourceTree = "<group>"; };
 		021478984150EACA355D3E64 /* PdfScanHostApiImpl.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanHostApiImpl.swift; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 				6B4C5509BC70986F4783D81F /* PdfScanCaptureManager.swift */,
 				79EC57B8280E2778BF0FB5B1 /* PdfScanCoordinator.swift */,
 				82786AEB61B6406D7D00CD9F /* PdfScanExporter.swift */,
+				1F2DF654E55B47D29ECFA537 /* PdfScanCornerEditorViewController.swift */,
 				7F0C52D33DFC4ED78CD8242D /* PdfScanCameraViewController.swift */,
 				AEB4071C99F34CFABD2FEB23 /* PdfScanDocumentDetector.swift */,
 				021478984150EACA355D3E64 /* PdfScanHostApiImpl.swift */,
@@ -436,6 +439,7 @@
 				85981249CFB136C42749CB45 /* PdfScanCaptureManager.swift in Sources */,
 				A92CDF412A7146A739AE80A8 /* PdfScanCoordinator.swift in Sources */,
 				15EBFF69BC6F2EF47E6A0EF1 /* PdfScanExporter.swift in Sources */,
+				C0492946E8424AC4B3356B4D /* PdfScanCornerEditorViewController.swift in Sources */,
 				3A3C4052C1F34B9E864263C4 /* PdfScanCameraViewController.swift in Sources */,
 				7340A9A1B89C465891BE6A3F /* PdfScanDocumentDetector.swift in Sources */,
 				0B695EC6555B0B5A08C31294 /* PdfScanHostApiImpl.swift in Sources */,

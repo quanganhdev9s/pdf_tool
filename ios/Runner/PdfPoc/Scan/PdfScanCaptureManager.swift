@@ -142,6 +142,11 @@ final class PdfScanCaptureManager: NSObject {
   private func appendPage(image: UIImage, to session: PdfScanSessionRecord) throws {
     let pageId = UUID().uuidString
     let destination = store.originalImageURL(for: session, pageId: pageId)
+    try write(image: image, to: destination, pageId: pageId)
+    session.pages.append(PdfScanPageRecord(id: pageId, originalURL: destination))
+  }
+
+  private func write(image: UIImage, to destination: URL, pageId: String) throws {
     guard let data = image.jpegData(compressionQuality: 0.95) else {
       throw PdfPocError(
         code: "scan_failed",
@@ -150,7 +155,6 @@ final class PdfScanCaptureManager: NSObject {
       )
     }
     try data.write(to: destination, options: .atomic)
-    session.pages.append(PdfScanPageRecord(id: pageId, originalURL: destination))
   }
 
   // MARK: - Photo picker ingest
@@ -259,6 +263,42 @@ final class PdfScanCaptureManager: NSObject {
 extension PdfScanCaptureManager: PdfScanCameraViewControllerDelegate {
   func cameraController(_ controller: PdfScanCameraViewController, didCapture page: UIImage) {
     appendCameraPage(page)
+  }
+
+  /// Re-crop of the page already written: same record, same file, new pixels.
+  ///
+  /// Overwriting rather than appending is what keeps the page count and the
+  /// order the user is looking at intact — from their side they adjusted a
+  /// page, they did not add one.
+  func cameraController(
+    _ controller: PdfScanCameraViewController,
+    didAdjustLastPage page: UIImage
+  ) {
+    workQueue.async { [weak self] in
+      guard let self,
+            let session = self.cameraSession,
+            let last = session.pages.last else {
+        return
+      }
+      do {
+        try autoreleasepool {
+          try self.write(image: page, to: last.originalURL, pageId: last.id)
+        }
+        logPdfEvent("scan_capture_page_adjusted", "pageId=\(last.id)")
+      } catch let error as PdfPocError {
+        DispatchQueue.main.async { self.failCameraSession(error) }
+      } catch {
+        DispatchQueue.main.async {
+          self.failCameraSession(
+            PdfPocError(
+              code: "scan_failed",
+              message: "Could not store the adjusted page.",
+              details: error.localizedDescription
+            )
+          )
+        }
+      }
+    }
   }
 
   func cameraControllerDidFinish(_ controller: PdfScanCameraViewController) {

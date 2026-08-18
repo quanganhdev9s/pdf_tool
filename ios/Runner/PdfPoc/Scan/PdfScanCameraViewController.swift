@@ -12,6 +12,13 @@ protocol PdfScanCameraViewControllerDelegate: AnyObject {
   /// `UIImage`s does not survive.
   func cameraController(_ controller: PdfScanCameraViewController, didCapture page: UIImage)
 
+  /// The last delivered page, re-cropped after the user moved its corners.
+  /// Replaces what `didCapture` handed over — same page, new pixels.
+  func cameraController(
+    _ controller: PdfScanCameraViewController,
+    didAdjustLastPage page: UIImage
+  )
+
   func cameraControllerDidFinish(_ controller: PdfScanCameraViewController)
   func cameraControllerDidCancel(_ controller: PdfScanCameraViewController)
   func cameraController(
@@ -73,6 +80,16 @@ final class PdfScanCameraViewController: UIViewController {
   private var isCapturing = false
   private var pageCount = 0
 
+  /// The last still *before* perspective correction, plus the corners used on
+  /// it. Kept so the corner editor has something to re-crop from.
+  ///
+  /// On disk rather than in memory: an uncorrected full-resolution capture is
+  /// the largest single object this screen touches, and holding one alive for
+  /// the whole session to serve an edit that usually never happens is the wrong
+  /// trade. One file, overwritten by each capture.
+  private var lastOriginalURL: URL?
+  private var lastAppliedQuad: PdfScanQuad?
+
   private let shutterButton = UIButton(type: .custom)
   private let cancelButton = UIButton(type: .system)
   private let doneButton = UIButton(type: .system)
@@ -81,6 +98,7 @@ final class PdfScanCameraViewController: UIViewController {
   private let autoCaptureSwitch = UISwitch()
   private let autoCaptureLabel = UILabel()
   private let thumbnailView = UIImageView()
+  private let cropBadge = UIImageView()
 
   private var isAutoCaptureEnabled = true
 
@@ -325,8 +343,25 @@ final class PdfScanCameraViewController: UIViewController {
     thumbnailView.layer.borderWidth = 2
     thumbnailView.layer.borderColor = UIColor.white.cgColor
     thumbnailView.isHidden = true
+    thumbnailView.isUserInteractionEnabled = true
+    thumbnailView.accessibilityLabel = "Chỉnh khung trang vừa chụp"
+    thumbnailView.addGestureRecognizer(
+      UITapGestureRecognizer(target: self, action: #selector(handleThumbnailTap))
+    )
     thumbnailView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(thumbnailView)
+
+    // Says the thumbnail does something. Without it the tap target is invisible
+    // and nobody finds the editor.
+    cropBadge.image = UIImage(systemName: "crop")
+    cropBadge.tintColor = .white
+    cropBadge.contentMode = .center
+    cropBadge.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+    cropBadge.layer.cornerRadius = 10
+    cropBadge.clipsToBounds = true
+    cropBadge.isHidden = true
+    cropBadge.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(cropBadge)
 
     let guide = view.safeAreaLayoutGuide
     NSLayoutConstraint.activate([
@@ -357,21 +392,74 @@ final class PdfScanCameraViewController: UIViewController {
       thumbnailView.centerYAnchor.constraint(equalTo: shutterButton.centerYAnchor),
       thumbnailView.widthAnchor.constraint(equalToConstant: 48),
       thumbnailView.heightAnchor.constraint(equalToConstant: 64),
+
+      cropBadge.trailingAnchor.constraint(equalTo: thumbnailView.trailingAnchor, constant: 6),
+      cropBadge.bottomAnchor.constraint(equalTo: thumbnailView.bottomAnchor, constant: 6),
+      cropBadge.widthAnchor.constraint(equalToConstant: 20),
+      cropBadge.heightAnchor.constraint(equalToConstant: 20),
     ])
   }
 
   @objc private func handleCancel() {
     setTorch(on: false)
+    discardStoredOriginal()
     delegate?.cameraControllerDidCancel(self)
   }
 
   @objc private func handleDone() {
     setTorch(on: false)
+    discardStoredOriginal()
     delegate?.cameraControllerDidFinish(self)
   }
 
   @objc private func handleShutter() {
     capturePhoto()
+  }
+
+  /// Opens the corner editor on the page just captured.
+  @objc private func handleThumbnailTap() {
+    // Orientation baked in, exactly as it was when the quad was measured — the
+    // stored file is the raw photo representation and still carries its EXIF
+    // flag, so loading it without this would show the page sideways under a
+    // quad that fits the upright one.
+    guard let url = lastOriginalURL,
+          let data = try? Data(contentsOf: url),
+          let original = UIImage(data: data)?.normalizedUp(),
+          let quad = lastAppliedQuad else {
+      return
+    }
+
+    setTorch(on: false)
+    let editor = PdfScanCornerEditorViewController(image: original, quad: quad)
+    editor.onCancel = { [weak self] in
+      self?.dismiss(animated: true)
+    }
+    editor.onCommit = { [weak self] adjusted in
+      guard let self else { return }
+      self.dismiss(animated: true)
+      self.applyAdjustedQuad(adjusted, to: original)
+    }
+    present(editor, animated: true)
+  }
+
+  /// Re-runs the correction with the corners the user set and hands the result
+  /// back as a replacement for the page already delivered.
+  private func applyAdjustedQuad(_ quad: PdfScanQuad, to original: UIImage) {
+    guard let cgImage = original.cgImage else { return }
+    lastAppliedQuad = quad
+
+    let corrected = perspectiveCorrected(CIImage(cgImage: cgImage), using: quad)
+    guard let output = PdfScanRenderContext.shared.createCGImage(
+      corrected,
+      from: corrected.extent
+    ) else {
+      return
+    }
+
+    let page = UIImage(cgImage: output)
+    thumbnailView.image = page
+    logPdfEvent("scan_camera_page_adjusted", "page=\(pageCount)")
+    delegate?.cameraController(self, didAdjustLastPage: page)
   }
 
   @objc private func handleAutoToggle() {
@@ -460,12 +548,15 @@ final class PdfScanCameraViewController: UIViewController {
   /// and a few tens of milliseconds apart — and mapping one onto the other is
   /// exactly the class of coordinate bug that is invisible until the output is
   /// subtly trapezoidal. Detecting twice costs one extra Vision pass per page.
-  private func correctedImage(from image: CIImage) -> CIImage {
+  private func correctedImage(from image: CIImage) -> (image: CIImage, quad: PdfScanQuad?) {
     // Both candidates are already validated — the detector rejects implausible
     // quads — so an unusable still detection falls through to the live one, and
     // a page with neither is left uncropped rather than sheared into a wedge.
-    guard let quad = detector.detect(in: image) ?? lastQuad else { return image }
+    guard let quad = detector.detect(in: image) ?? lastQuad else { return (image, nil) }
+    return (perspectiveCorrected(image, using: quad), quad)
+  }
 
+  private func perspectiveCorrected(_ image: CIImage, using quad: PdfScanQuad) -> CIImage {
     let extent = image.extent
     func point(_ normalized: CGPoint) -> CGPoint {
       CGPoint(
@@ -483,6 +574,13 @@ final class PdfScanCameraViewController: UIViewController {
     correction.crop = true
     return correction.outputImage ?? image
   }
+
+  /// The whole frame, for when nothing was detected: the editor still needs a
+  /// starting quad to show, and the page edges are the safest guess.
+  private static let fullFrameQuad = PdfScanQuad(corners: [
+    CGPoint(x: 0, y: 1), CGPoint(x: 1, y: 1),
+    CGPoint(x: 1, y: 0), CGPoint(x: 0, y: 0),
+  ])
 }
 
 // MARK: - Live frames
@@ -582,7 +680,10 @@ extension PdfScanCameraViewController: AVCapturePhotoCaptureDelegate {
       return
     }
 
-    let corrected = correctedImage(from: CIImage(cgImage: cgImage))
+    let result = correctedImage(from: CIImage(cgImage: cgImage))
+    let corrected = result.image
+    storeOriginal(data, quad: result.quad ?? Self.fullFrameQuad)
+
     guard let output = PdfScanRenderContext.shared.createCGImage(corrected, from: corrected.extent) else {
       delegate?.cameraController(
         self,
@@ -601,10 +702,44 @@ extension PdfScanCameraViewController: AVCapturePhotoCaptureDelegate {
     doneButton.setTitle("Done (\(pageCount))", for: .normal)
     thumbnailView.image = page
     thumbnailView.isHidden = false
+    cropBadge.isHidden = false
     stability.reset()
 
     logPdfEvent("scan_camera_page_captured", "page=\(pageCount)")
     delegate?.cameraController(self, didCapture: page)
+  }
+}
+
+extension PdfScanCameraViewController {
+  private static let originalFileName = "pdf_scan_last_capture.jpg"
+
+  private var originalFileURL: URL {
+    FileManager.default.temporaryDirectory
+      .appendingPathComponent(Self.originalFileName)
+  }
+
+  /// Overwrites the single scratch file. Only the newest capture is editable,
+  /// so only the newest one is kept.
+  private func storeOriginal(_ data: Data, quad: PdfScanQuad) {
+    let url = originalFileURL
+    do {
+      try data.write(to: url, options: .atomic)
+      lastOriginalURL = url
+      lastAppliedQuad = quad
+    } catch {
+      // The page itself is already delivered; losing this only costs the
+      // ability to re-crop it, so it fails quietly.
+      lastOriginalURL = nil
+      lastAppliedQuad = nil
+    }
+  }
+
+  func discardStoredOriginal() {
+    if let lastOriginalURL {
+      try? FileManager.default.removeItem(at: lastOriginalURL)
+    }
+    lastOriginalURL = nil
+    lastAppliedQuad = nil
   }
 }
 
