@@ -1,7 +1,6 @@
 import Foundation
 import PDFKit
 import UIKit
-import VisionKit
 
 private struct PdfScanQualityProfile {
   let maxLongEdgePixels: CGFloat
@@ -17,76 +16,34 @@ private struct PdfScanQualityProfile {
   }
 }
 
-/// Owns POC 7 scanned-PDF generation. It keeps `VNDocumentCameraScan` page
-/// images native, processes one page at a time, writes a temporary PDF first,
-/// and reopens the result with PDFKit before publishing the final path.
-final class PdfScannedDocumentWriter {
-  func write(
-    scan: VNDocumentCameraScan,
-    request: PdfDocumentScanRequest,
-    outputURL: URL,
-    operationId: String,
-    isCancelled: () -> Bool,
-    onProgress: (Int64, Int64) -> Void
-  ) throws -> PdfDocumentScanResult {
-    try writePages(
-      pageCount: scan.pageCount,
-      sourceLabel: "scanner",
-      request: request,
-      outputURL: outputURL,
-      operationId: operationId,
-      isCancelled: isCancelled,
-      onProgress: onProgress,
-      imageAt: { pageIndex in
-        scan.imageOfPage(at: pageIndex)
-      }
-    )
-  }
-
+/// Renders image files into a PDF, one page at a time, writing to a temporary
+/// file first and reopening the result with PDFKit before publishing the path.
+///
+/// Used by image-to-PDF conversion. It once also served the in-viewer document
+/// scanner, which is why it is written around a page-at-a-time loop rather than
+/// a single image — scanning now lives in its own session-based flow with its
+/// own exporter.
+final class PdfImageDocumentWriter {
   func write(
     imageFileURLs: [URL],
-    request: PdfDocumentScanRequest,
+    quality: PdfScanQuality,
     outputURL: URL,
     operationId: String,
     isCancelled: () -> Bool,
     onProgress: (Int64, Int64) -> Void
-  ) throws -> PdfDocumentScanResult {
-    try writePages(
-      pageCount: imageFileURLs.count,
-      sourceLabel: "picked_images",
-      request: request,
-      outputURL: outputURL,
-      operationId: operationId,
-      isCancelled: isCancelled,
-      onProgress: onProgress,
-      imageAt: { pageIndex in
-        UIImage(contentsOfFile: imageFileURLs[pageIndex].path)
-      }
-    )
-  }
-
-  private func writePages(
-    pageCount: Int,
-    sourceLabel: String,
-    request: PdfDocumentScanRequest,
-    outputURL: URL,
-    operationId: String,
-    isCancelled: () -> Bool,
-    onProgress: (Int64, Int64) -> Void,
-    imageAt: (Int) -> UIImage?
-  ) throws -> PdfDocumentScanResult {
+  ) throws -> Int {
     let startedAt = Date()
+    let pageCount = imageFileURLs.count
     guard pageCount > 0 else {
       throw PdfPocError(
-        code: sourceLabel == "picked_images" ? "image_pick_cancelled" : "scan_failed",
-        message: sourceLabel == "picked_images"
-          ? "No images were selected."
-          : "The document scanner returned no pages.",
+        code: "image_pick_cancelled",
+        message: "No images were selected.",
         details: nil
       )
     }
+    let imageAt: (Int) -> UIImage? = { UIImage(contentsOfFile: imageFileURLs[$0].path) }
 
-    let profile = PdfScanQualityProfile.profile(for: request.quality)
+    let profile = PdfScanQualityProfile.profile(for: quality)
     let tempURL = temporaryURL(for: outputURL)
     try FileManager.default.createDirectory(
       at: outputURL.deletingLastPathComponent(),
@@ -96,8 +53,8 @@ final class PdfScannedDocumentWriter {
     try? FileManager.default.removeItem(at: outputURL)
 
     logPdfEvent(
-      "scan_pdf_write_start",
-      "operationId=\(operationId) source=\(sourceLabel) pages=\(pageCount) quality=\(request.quality) maxLongEdge=\(profile.maxLongEdgePixels) jpeg=\(profile.jpegQuality)"
+      "image_pdf_write_start",
+      "operationId=\(operationId) pages=\(pageCount) quality=\(quality) maxLongEdge=\(profile.maxLongEdgePixels) jpeg=\(profile.jpegQuality)"
     )
 
     let renderer = UIGraphicsPDFRenderer(bounds: .zero)
@@ -110,10 +67,8 @@ final class PdfScannedDocumentWriter {
         autoreleasepool {
           guard let sourceImage = imageAt(pageIndex) else {
             renderError = PdfPocError(
-              code: sourceLabel == "picked_images" ? "image_pick_failed" : "scan_failed",
-              message: sourceLabel == "picked_images"
-                ? "Could not decode a picked image."
-                : "Could not decode a scanner page image.",
+              code: "image_pick_failed",
+              message: "Could not decode a picked image.",
               details: "pageIndex=\(pageIndex)"
             )
             return
@@ -143,7 +98,7 @@ final class PdfScannedDocumentWriter {
     if isCancelled() {
       try? FileManager.default.removeItem(at: tempURL)
       throw PdfPocError(
-        code: "scan_cancelled",
+        code: "image_pdf_cancelled",
         message: "Document scan PDF generation was cancelled.",
         details: nil
       )
@@ -162,18 +117,13 @@ final class PdfScannedDocumentWriter {
     let fileSize = try fileSize(at: outputURL)
     let duration = Int64(Date().timeIntervalSince(startedAt) * 1000)
     logPdfEvent(
-      "scan_pdf_write_success",
+      "image_pdf_write_success",
       "operationId=\(operationId) path=\(outputURL.path) pages=\(pageCount) bytes=\(fileSize) durationMs=\(duration)"
     )
-    return PdfDocumentScanResult(
-      outputPath: outputURL.path,
-      pageCount: Int64(pageCount),
-      fileSizeBytes: fileSize,
-      durationMilliseconds: duration
-    )
+    return pageCount
   }
 
-  /// Applies the POC quality preset by limiting the long edge and round-tripping
+  /// Applies the quality preset by limiting the long edge and round-tripping
   /// through JPEG. Drawing onto a white renderer also prevents transparent/black
   /// backgrounds on devices with different default image context behavior.
   private func processedImage(_ image: UIImage, profile: PdfScanQualityProfile) -> UIImage {

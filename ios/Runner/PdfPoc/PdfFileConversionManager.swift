@@ -34,7 +34,7 @@ final class PdfFileConversionManager: NSObject {
 
   private let workQueue = DispatchQueue(label: "pdf.poc.file_conversion", qos: .userInitiated)
   private let convertedWriter = PdfConvertedDocumentWriter()
-  private let imageWriter = PdfScannedDocumentWriter()
+  private let imageWriter = PdfImageDocumentWriter()
   private let stateLock = NSLock()
   private let renderTimeout: TimeInterval = 60
   private var activeOperationId: String?
@@ -204,9 +204,9 @@ final class PdfFileConversionManager: NSObject {
     workQueue.async { [weak self] in
       guard let self else { return }
       do {
-        let scanResult = try self.imageWriter.write(
+        let pageCount = try self.imageWriter.write(
           imageFileURLs: [sourceURL],
-          request: PdfDocumentScanRequest(outputPath: outputURL.path, quality: request.imageQuality),
+          quality: request.imageQuality,
           outputURL: outputURL,
           operationId: operationId,
           isCancelled: { self.isCancelled(operationId) },
@@ -216,14 +216,10 @@ final class PdfFileConversionManager: NSObject {
             }
           }
         )
-        self.publish(
-          operationId: operationId,
-          outputURL: outputURL,
-          pageCount: Int(scanResult.pageCount)
-        )
+        self.publish(operationId: operationId, outputURL: outputURL, pageCount: pageCount)
       } catch let error as PdfPocError {
         try? FileManager.default.removeItem(at: outputURL)
-        if error.code == "scan_cancelled" {
+        if error.code == "image_pdf_cancelled" {
           DispatchQueue.main.async {
             self.finish(operationId: operationId, result: nil, cancelled: true)
           }

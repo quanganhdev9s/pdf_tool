@@ -14,7 +14,8 @@ export 'pdf_viewer_state.dart';
 
 class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     implements PdfPocFlutterApi {
-  PdfViewerBloc({required this.assetKey}) : super(PdfViewerState()) {
+  PdfViewerBloc({required this.assetKey, this.initialFilePath})
+      : super(PdfViewerState()) {
     logPdfEvent('viewer_bloc_init', <String, Object?>{'asset': assetKey});
     PdfPocFlutterApi.setUp(this);
 
@@ -102,9 +103,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerCancelSplitRequested>(_onCancelSplitRequested);
     on<PdfViewerRunMergeRequested>(_onRunMergeRequested);
     on<PdfViewerCancelMergeRequested>(_onCancelMergeRequested);
-    on<PdfViewerStartDocumentScanRequested>(_onStartDocumentScanRequested);
-    on<PdfViewerPickImagesForPdfRequested>(_onPickImagesForPdfRequested);
-    on<PdfViewerCancelDocumentScanRequested>(_onCancelDocumentScanRequested);
     on<PdfViewerPickFileForPdfConversionRequested>(
       _onPickFileForPdfConversionRequested,
     );
@@ -144,13 +142,16 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNativeSplitCompleted>(_onNativeSplitCompleted);
     on<PdfViewerNativeMergeProgress>(_onNativeMergeProgress);
     on<PdfViewerNativeMergeCompleted>(_onNativeMergeCompleted);
-    on<PdfViewerNativeDocumentScanProgress>(_onNativeDocumentScanProgress);
-    on<PdfViewerNativeDocumentScanCompleted>(_onNativeDocumentScanCompleted);
     on<PdfViewerNativePdfConversionProgress>(_onNativePdfConversionProgress);
     on<PdfViewerNativePdfConversionCompleted>(_onNativePdfConversionCompleted);
   }
 
   final String assetKey;
+
+  /// Set when the workspace was opened on a file rather than a bundled asset —
+  /// a scan the user just exported, for example. Every path that would reload
+  /// the asset reloads this file instead.
+  final String? initialFilePath;
   final PdfPocHostApi _api = PdfPocHostApi();
 
   Future<void> _onOpenRequested(
@@ -169,12 +170,19 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     Emitter<PdfViewerState> emit,
   ) async {
     await _run(emit, 'reset', () async {
-      final bytes = await _loadAssetBytes(assetKey);
-      logPdfEvent('reset_asset_bytes_loaded', <String, Object?>{
-        'asset': assetKey,
-        'bytes': bytes.length,
-      });
-      final info = await _api.resetWorkingCopy(assetKey, bytes);
+      final PdfDocumentInfo info;
+      final String? filePath = initialFilePath;
+      if (filePath != null) {
+        logPdfEvent('reset_external_document', <String, Object?>{'path': filePath});
+        info = await _api.openExternalDocument(filePath);
+      } else {
+        final bytes = await _loadAssetBytes(assetKey);
+        logPdfEvent('reset_asset_bytes_loaded', <String, Object?>{
+          'asset': assetKey,
+          'bytes': bytes.length,
+        });
+        info = await _api.resetWorkingCopy(assetKey, bytes);
+      }
       _applyDocumentInfo(emit, info);
       emit(
         state.copyWith(
@@ -197,10 +205,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           mergeCompletedPages: 0,
           mergeTotalPages: 0,
           mergeResult: null,
-          documentScanRunning: false,
-          documentScanCompletedPages: 0,
-          documentScanTotalPages: 0,
-          documentScanResult: null,
           conversionRunning: false,
           conversionCompletedPages: 0,
           conversionTotalPages: 0,
@@ -989,92 +993,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
-  Future<void> _onStartDocumentScanRequested(
-    PdfViewerStartDocumentScanRequested event,
-    Emitter<PdfViewerState> emit,
-  ) async {
-    await _startImageBasedPdfInput(
-      emit,
-      quality: event.quality,
-      label: 'document scan',
-      openingStatus: 'Opening Apple document scanner...',
-      action: () => _api.startDocumentScan(
-        PdfDocumentScanRequest(outputPath: '', quality: event.quality),
-      ),
-    );
-  }
-
-  Future<void> _onPickImagesForPdfRequested(
-    PdfViewerPickImagesForPdfRequested event,
-    Emitter<PdfViewerState> emit,
-  ) async {
-    await _startImageBasedPdfInput(
-      emit,
-      quality: event.quality,
-      label: 'pick images',
-      openingStatus: 'Opening image picker...',
-      action: () => _api.pickImagesForPdf(
-        PdfDocumentScanRequest(outputPath: '', quality: event.quality),
-      ),
-    );
-  }
-
-  Future<void> _startImageBasedPdfInput(
-    Emitter<PdfViewerState> emit, {
-    required PdfScanQuality quality,
-    required String label,
-    required String openingStatus,
-    required Future<void> Function() action,
-  }) async {
-    if (state.documentInfo == null) {
-      emit(state.copyWith(status: 'Open a document before $label.'));
-      return;
-    }
-    logPdfEvent('document_scan_input_request', <String, Object?>{
-      'label': label,
-      'quality': quality.name,
-    });
-    emit(
-      state.copyWith(
-        documentScanRunning: true,
-        documentScanCompletedPages: 0,
-        documentScanTotalPages: 0,
-        documentScanResult: null,
-        status: openingStatus,
-      ),
-    );
-    try {
-      await action();
-    } on PlatformException catch (error) {
-      emit(state.copyWith(documentScanRunning: false));
-      _showError(
-        emit,
-        label,
-        error.code,
-        error.message ?? 'Operation failed.',
-        error.details?.toString(),
-      );
-    }
-  }
-
-  Future<void> _onCancelDocumentScanRequested(
-    PdfViewerCancelDocumentScanRequested event,
-    Emitter<PdfViewerState> emit,
-  ) async {
-    try {
-      logPdfEvent('document_scan_cancel_request');
-      await _api.cancelDocumentScan();
-      emit(state.copyWith(status: 'Cancelling document scan...'));
-    } on PlatformException catch (error) {
-      _showError(
-        emit,
-        'cancel document scan',
-        error.code,
-        error.message ?? 'Operation failed.',
-        error.details?.toString(),
-      );
-    }
-  }
 
   Future<void> _onPickFileForPdfConversionRequested(
     PdfViewerPickFileForPdfConversionRequested event,
@@ -1425,10 +1343,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         mergeCompletedPages: 0,
         mergeTotalPages: 0,
         mergeResult: null,
-        documentScanRunning: false,
-        documentScanCompletedPages: 0,
-        documentScanTotalPages: 0,
-        documentScanResult: null,
         conversionRunning: false,
         conversionCompletedPages: 0,
         conversionTotalPages: 0,
@@ -1456,7 +1370,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         compressionRunning: false,
         splitRunning: false,
         mergeRunning: false,
-        documentScanRunning: false,
       ),
     );
     _showError(
@@ -1631,38 +1544,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
-  void _onNativeDocumentScanProgress(
-    PdfViewerNativeDocumentScanProgress event,
-    Emitter<PdfViewerState> emit,
-  ) {
-    emit(
-      state.copyWith(
-        documentScanCompletedPages: event.completedPages,
-        documentScanTotalPages: event.totalPages,
-        status:
-            'Document scan progress: ${event.completedPages}/${event.totalPages} pages.',
-      ),
-    );
-  }
-
-  void _onNativeDocumentScanCompleted(
-    PdfViewerNativeDocumentScanCompleted event,
-    Emitter<PdfViewerState> emit,
-  ) {
-    final result = event.result;
-    emit(
-      state.copyWith(
-        documentScanRunning: false,
-        documentScanResult: result,
-        status: event.cancelled
-            ? 'Document scan cancelled.'
-            : result == null
-            ? 'Document scan completed without an output result.'
-            : 'Scanned ${result.pageCount} pages into ${result.fileSizeBytes} bytes.',
-      ),
-    );
-  }
-
   void _onNativePdfConversionProgress(
     PdfViewerNativePdfConversionProgress event,
     Emitter<PdfViewerState> emit,
@@ -1704,12 +1585,20 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       return;
     }
     emit(state.copyWith(openedOnce: true));
-    final bytes = await _loadAssetBytes(assetKey);
-    logPdfEvent('open_asset_bytes_loaded', <String, Object?>{
-      'asset': assetKey,
-      'bytes': bytes.length,
-    });
-    final info = await _api.openAssetWorkingCopy(assetKey, bytes);
+
+    final PdfDocumentInfo info;
+    final String? filePath = initialFilePath;
+    if (filePath != null) {
+      logPdfEvent('open_external_document', <String, Object?>{'path': filePath});
+      info = await _api.openExternalDocument(filePath);
+    } else {
+      final bytes = await _loadAssetBytes(assetKey);
+      logPdfEvent('open_asset_bytes_loaded', <String, Object?>{
+        'asset': assetKey,
+        'bytes': bytes.length,
+      });
+      info = await _api.openAssetWorkingCopy(assetKey, bytes);
+    }
     _applyDocumentInfo(emit, info);
     emit(
       state.copyWith(
@@ -1731,10 +1620,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         mergeCompletedPages: 0,
         mergeTotalPages: 0,
         mergeResult: null,
-        documentScanRunning: false,
-        documentScanCompletedPages: 0,
-        documentScanTotalPages: 0,
-        documentScanResult: null,
         conversionRunning: false,
         conversionCompletedPages: 0,
         conversionTotalPages: 0,
@@ -1916,7 +1801,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         compressionRunning: false,
         splitRunning: false,
         mergeRunning: false,
-        documentScanRunning: false,
         conversionRunning: false,
       ),
     );
@@ -2206,52 +2090,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     if (!isClosed) {
       add(
         PdfViewerNativeMergeCompleted(
-          operationId: operationId,
-          result: result,
-          cancelled: cancelled,
-        ),
-      );
-    }
-  }
-
-  @override
-  void onDocumentScanProgress(
-    String operationId,
-    int completedPages,
-    int totalPages,
-  ) {
-    logPdfEvent('callback_document_scan_progress', <String, Object?>{
-      'operationId': operationId,
-      'completedPages': completedPages,
-      'totalPages': totalPages,
-    });
-    if (!isClosed) {
-      add(
-        PdfViewerNativeDocumentScanProgress(
-          operationId: operationId,
-          completedPages: completedPages,
-          totalPages: totalPages,
-        ),
-      );
-    }
-  }
-
-  @override
-  void onDocumentScanCompleted(
-    String operationId,
-    PdfDocumentScanResult? result,
-    bool cancelled,
-  ) {
-    logPdfEvent('callback_document_scan_completed', <String, Object?>{
-      'operationId': operationId,
-      'cancelled': cancelled,
-      'outputPath': result?.outputPath,
-      'pageCount': result?.pageCount,
-      'fileSizeBytes': result?.fileSizeBytes,
-    });
-    if (!isClosed) {
-      add(
-        PdfViewerNativeDocumentScanCompleted(
           operationId: operationId,
           result: result,
           cancelled: cancelled,

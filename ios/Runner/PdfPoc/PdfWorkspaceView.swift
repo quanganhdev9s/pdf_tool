@@ -63,18 +63,6 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
   )
   func workspaceView(
     _ view: PdfWorkspaceView,
-    didUpdateDocumentScanProgress operationId: String,
-    completedPages: Int64,
-    totalPages: Int64
-  )
-  func workspaceView(
-    _ view: PdfWorkspaceView,
-    didCompleteDocumentScan operationId: String,
-    result: PdfDocumentScanResult?,
-    cancelled: Bool
-  )
-  func workspaceView(
-    _ view: PdfWorkspaceView,
     didUpdatePdfConversionProgress operationId: String,
     completedPages: Int64,
     totalPages: Int64
@@ -105,7 +93,6 @@ final class PdfWorkspaceView: UIView {
   private lazy var ocrManager = PdfOcrManager()
   private lazy var compressionManager = PdfCompressionManager()
   private lazy var splitMergeManager = PdfSplitMergeManager()
-  private lazy var documentScannerManager = PdfDocumentScannerManager()
   private lazy var fileConversionManager = PdfFileConversionManager()
   private lazy var officePreviewManager = PdfOfficePreviewManager()
   private let pageOperationsManager = PdfPageOperationsManager()
@@ -197,7 +184,6 @@ final class PdfWorkspaceView: UIView {
     compressionManager.cancel()
     splitMergeManager.cancelSplit()
     splitMergeManager.cancelMerge()
-    documentScannerManager.cancel()
     fileConversionManager.cancel()
     hideOcrResultOverlay()
     inkManager.close()
@@ -767,61 +753,6 @@ final class PdfWorkspaceView: UIView {
     splitMergeManager.cancelMerge()
   }
 
-  func startDocumentScan(_ request: PdfDocumentScanRequest) throws {
-    try ensureMainThread()
-    guard let session else {
-      throw PdfPocError.documentNotOpen()
-    }
-    let outputURL = documentScanOutputURL(for: session.workingURL, request: request)
-    guard let presenter = nearestViewController() else {
-      throw PdfPocError(
-        code: "internal_error",
-        message: "Could not find a UIKit presenter for the document scanner.",
-        details: nil
-      )
-    }
-    logPdfEvent(
-      "start_document_scan_request",
-      "quality=\(request.quality) output=\(outputURL.path)"
-    )
-    hideSelectionToolbar()
-    hideSystemSelectionMenu()
-    freeTextManager.cancelSelection()
-    inkManager.setModeEnabled(false)
-    try documentScannerManager.start(request: request, outputURL: outputURL, presenter: presenter)
-  }
-
-  func pickImagesForPdf(_ request: PdfDocumentScanRequest) throws {
-    try ensureMainThread()
-    guard let session else {
-      throw PdfPocError.documentNotOpen()
-    }
-    let outputURL = pickedImagesOutputURL(for: session.workingURL, request: request)
-    guard let presenter = nearestViewController() else {
-      throw PdfPocError(
-        code: "internal_error",
-        message: "Could not find a UIKit presenter for the image picker.",
-        details: nil
-      )
-    }
-    logPdfEvent(
-      "pick_images_for_pdf_request",
-      "quality=\(request.quality) output=\(outputURL.path)"
-    )
-    hideSelectionToolbar()
-    hideSystemSelectionMenu()
-    freeTextManager.cancelSelection()
-    inkManager.setModeEnabled(false)
-    try documentScannerManager.pickImages(request: request, outputURL: outputURL, presenter: presenter)
-  }
-
-  func cancelDocumentScan() throws {
-    try ensureMainThread()
-    _ = try requireDocument()
-    logPdfEvent("cancel_document_scan_request")
-    documentScannerManager.cancel()
-  }
-
   func pickFileForPdfConversion(_ request: PdfConvertToPdfRequest) throws {
     try ensureMainThread()
     guard let session else {
@@ -950,6 +881,46 @@ final class PdfWorkspaceView: UIView {
     return outputs
   }
 
+  /// Opens a PDF from anywhere on disk — a scan the user just exported, for
+  /// example — without requiring a document to already be on screen.
+  ///
+  /// `openGeneratedOutput` cannot serve this: it needs an existing session to
+  /// derive the working directory from, and it rejects any path outside that
+  /// directory. Both are right for its own job and wrong for this one.
+  ///
+  /// The file is copied into the working directory first, so editing an opened
+  /// scan cannot mutate the PDF sitting in the user's Documents folder.
+  func openExternalDocument(_ path: String) throws -> PdfDocumentInfo {
+    try ensureMainThread()
+    let sourceURL = URL(fileURLWithPath: path).standardizedFileURL
+    guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+      throw PdfPocError(
+        code: "asset_not_found",
+        message: "That PDF no longer exists.",
+        details: path
+      )
+    }
+
+    let workingURL = try workingCopyURL(for: "external:\(sourceURL.lastPathComponent)")
+    do {
+      try FileManager.default.createDirectory(
+        at: workingURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+      )
+      try? FileManager.default.removeItem(at: workingURL)
+      try FileManager.default.copyItem(at: sourceURL, to: workingURL)
+    } catch {
+      throw PdfPocError(
+        code: "asset_copy_failed",
+        message: "Could not open a writable copy of that PDF.",
+        details: error.localizedDescription
+      )
+    }
+
+    logPdfEvent("open_external_document_request", "path=\(sourceURL.path)")
+    return try openGeneratedDocument(at: workingURL, assetKeyPrefix: "external")
+  }
+
   func openGeneratedOutput(_ path: String) throws -> PdfDocumentInfo {
     let outputURL = try requireGeneratedOutputURL(path)
     logPdfEvent("open_generated_output_request", "path=\(outputURL.path)")
@@ -1056,7 +1027,6 @@ final class PdfWorkspaceView: UIView {
     configureOcr()
     configureCompression()
     configureSplitMerge()
-    configureDocumentScanner()
     configureFileConversion()
     officePreviewManager.onPicked = { [weak self] document in
       guard let self else { return }
@@ -1196,49 +1166,6 @@ final class PdfWorkspaceView: UIView {
     }
   }
 
-  private func configureDocumentScanner() {
-    documentScannerManager.onProgress = { [weak self] operationId, completedPages, totalPages in
-      guard let self else { return }
-      self.delegate?.workspaceView(
-        self,
-        didUpdateDocumentScanProgress: operationId,
-        completedPages: completedPages,
-        totalPages: totalPages
-      )
-    }
-    documentScannerManager.onCompleted = { [weak self] operationId, result, cancelled in
-      guard let self else { return }
-      self.delegate?.workspaceView(
-        self,
-        didCompleteDocumentScan: operationId,
-        result: result,
-        cancelled: cancelled
-      )
-    }
-    documentScannerManager.onGeneratedDocumentReady = { [weak self] outputURL in
-      guard let self else { return }
-      do {
-        try self.openGeneratedDocument(at: outputURL, assetKeyPrefix: "scanned-output")
-      } catch let error as PdfPocError {
-        self.delegate?.workspaceView(self, didFailOperation: "document scan", error: error)
-      } catch {
-        self.delegate?.workspaceView(
-          self,
-          didFailOperation: "document scan",
-          error: PdfPocError(
-            code: "invalid_pdf",
-            message: "The generated scan PDF could not be opened.",
-            details: error.localizedDescription
-          )
-        )
-      }
-    }
-    documentScannerManager.onError = { [weak self] operationId, error in
-      guard let self else { return }
-      self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
-    }
-  }
-
   private func configureFileConversion() {
     fileConversionManager.onProgress = { [weak self] operationId, completedPages, totalPages in
       guard let self else { return }
@@ -1343,34 +1270,6 @@ final class PdfWorkspaceView: UIView {
     let stamp = Int(Date().timeIntervalSince1970)
     return workingURL.deletingLastPathComponent()
       .appendingPathComponent("\(baseName)_merged_\(stamp).pdf")
-  }
-
-  private func documentScanOutputURL(
-    for workingURL: URL,
-    request: PdfDocumentScanRequest
-  ) -> URL {
-    let requestedPath = request.outputPath.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !requestedPath.isEmpty {
-      return URL(fileURLWithPath: requestedPath)
-    }
-    let baseName = workingURL.deletingPathExtension().lastPathComponent
-    let stamp = Int(Date().timeIntervalSince1970)
-    return workingURL.deletingLastPathComponent()
-      .appendingPathComponent("\(baseName)_scan_\(request.quality)_\(stamp).pdf")
-  }
-
-  private func pickedImagesOutputURL(
-    for workingURL: URL,
-    request: PdfDocumentScanRequest
-  ) -> URL {
-    let requestedPath = request.outputPath.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !requestedPath.isEmpty {
-      return URL(fileURLWithPath: requestedPath)
-    }
-    let baseName = workingURL.deletingPathExtension().lastPathComponent
-    let stamp = Int(Date().timeIntervalSince1970)
-    return workingURL.deletingLastPathComponent()
-      .appendingPathComponent("\(baseName)_picked_images_\(request.quality)_\(stamp).pdf")
   }
 
   @discardableResult

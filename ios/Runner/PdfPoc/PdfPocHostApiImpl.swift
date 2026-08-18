@@ -223,18 +223,6 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.cancelMerge() }
   }
 
-  func startDocumentScan(request: PdfDocumentScanRequest) throws {
-    try call { try $0.startDocumentScan(request) }
-  }
-
-  func pickImagesForPdf(request: PdfDocumentScanRequest) throws {
-    try call { try $0.pickImagesForPdf(request) }
-  }
-
-  func cancelDocumentScan() throws {
-    try call { try $0.cancelDocumentScan() }
-  }
-
   func pickFileForPdfConversion(request: PdfConvertToPdfRequest) throws {
     try call { try $0.pickFileForPdfConversion(request) }
   }
@@ -305,6 +293,10 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
 
   func openGeneratedOutput(path: String) throws -> PdfDocumentInfo {
     try callWithResult { try $0.openGeneratedOutput(path) }
+  }
+
+  func openExternalDocument(path: String) throws -> PdfDocumentInfo {
+    try callWithResult { try $0.openExternalDocument(path) }
   }
 
   func shareGeneratedOutput(path: String) throws {

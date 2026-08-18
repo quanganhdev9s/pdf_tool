@@ -28,10 +28,6 @@ class PdfViewerState {
     this.mergeCompletedPages = 0,
     this.mergeTotalPages = 0,
     this.mergeResult,
-    this.documentScanRunning = false,
-    this.documentScanCompletedPages = 0,
-    this.documentScanTotalPages = 0,
-    this.documentScanResult,
     this.conversionRunning = false,
     this.conversionCompletedPages = 0,
     this.conversionTotalPages = 0,
@@ -66,10 +62,6 @@ class PdfViewerState {
   final int mergeCompletedPages;
   final int mergeTotalPages;
   final PdfMergeResult? mergeResult;
-  final bool documentScanRunning;
-  final int documentScanCompletedPages;
-  final int documentScanTotalPages;
-  final PdfDocumentScanResult? documentScanResult;
   final bool conversionRunning;
   final int conversionCompletedPages;
   final int conversionTotalPages;
@@ -106,10 +98,6 @@ class PdfViewerState {
     int? mergeCompletedPages,
     int? mergeTotalPages,
     Object? mergeResult = _unset,
-    bool? documentScanRunning,
-    int? documentScanCompletedPages,
-    int? documentScanTotalPages,
-    Object? documentScanResult = _unset,
     bool? conversionRunning,
     int? conversionCompletedPages,
     int? conversionTotalPages,
@@ -160,14 +148,6 @@ class PdfViewerState {
       mergeResult: mergeResult == _unset
           ? this.mergeResult
           : mergeResult as PdfMergeResult?,
-      documentScanRunning: documentScanRunning ?? this.documentScanRunning,
-      documentScanCompletedPages:
-          documentScanCompletedPages ?? this.documentScanCompletedPages,
-      documentScanTotalPages:
-          documentScanTotalPages ?? this.documentScanTotalPages,
-      documentScanResult: documentScanResult == _unset
-          ? this.documentScanResult
-          : documentScanResult as PdfDocumentScanResult?,
       conversionRunning: conversionRunning ?? this.conversionRunning,
       conversionCompletedPages:
           conversionCompletedPages ?? this.conversionCompletedPages,

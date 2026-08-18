@@ -223,28 +223,8 @@ class PdfMergeResult {
   int durationMilliseconds;
 }
 
+/// Output resolution and compression for images rendered into a PDF.
 enum PdfScanQuality { standard, high }
-
-class PdfDocumentScanRequest {
-  PdfDocumentScanRequest({required this.outputPath, required this.quality});
-
-  String outputPath;
-  PdfScanQuality quality;
-}
-
-class PdfDocumentScanResult {
-  PdfDocumentScanResult({
-    required this.outputPath,
-    required this.pageCount,
-    required this.fileSizeBytes,
-    required this.durationMilliseconds,
-  });
-
-  String outputPath;
-  int pageCount;
-  int fileSizeBytes;
-  int durationMilliseconds;
-}
 
 enum PdfConvertPageSize { a4, letter }
 
@@ -421,12 +401,6 @@ abstract class PdfPocHostApi {
 
   void cancelMerge();
 
-  void startDocumentScan(PdfDocumentScanRequest request);
-
-  void pickImagesForPdf(PdfDocumentScanRequest request);
-
-  void cancelDocumentScan();
-
   void pickFileForPdfConversion(PdfConvertToPdfRequest request);
 
   void convertUrlToPdf(PdfConvertUrlRequest request);
@@ -457,6 +431,11 @@ abstract class PdfPocHostApi {
   List<PdfGeneratedOutput> listGeneratedOutputs();
 
   PdfDocumentInfo openGeneratedOutput(String path);
+
+  /// Opens a PDF from an arbitrary path as a fresh working copy. Unlike
+  /// [openGeneratedOutput] this needs no document already open and accepts
+  /// paths outside the native working directory.
+  PdfDocumentInfo openExternalDocument(String path);
 
   void shareGeneratedOutput(String path);
 
@@ -510,18 +489,6 @@ abstract class PdfPocFlutterApi {
   void onMergeCompleted(
     String operationId,
     PdfMergeResult? result,
-    bool cancelled,
-  );
-
-  void onDocumentScanProgress(
-    String operationId,
-    int completedPages,
-    int totalPages,
-  );
-
-  void onDocumentScanCompleted(
-    String operationId,
-    PdfDocumentScanResult? result,
     bool cancelled,
   );
 

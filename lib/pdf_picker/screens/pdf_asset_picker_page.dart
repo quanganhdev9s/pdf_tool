@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../pdf_viewer/data/pdf_assets.dart';
 import '../../pdf_viewer/screens/pdf_viewer_page.dart';
+import '../../scan/scan_flow.dart';
+import '../../scan/screens/scan_library_page.dart';
 import '../cubit/pdf_asset_picker_bloc.dart';
 
 class PdfAssetPickerPage extends StatelessWidget {
@@ -25,7 +27,30 @@ class _PdfAssetPickerView extends StatelessWidget {
     return BlocBuilder<PdfAssetPickerCubit, PdfAssetPickerState>(
       builder: (context, state) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Chọn PDF')),
+          appBar: AppBar(
+            title: const Text('Chọn PDF'),
+            actions: <Widget>[
+              IconButton(
+                tooltip: 'PDF đã quét',
+                icon: const Icon(Icons.folder_open_outlined),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ScanLibraryPage(),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Quét tài liệu',
+                icon: const Icon(Icons.document_scanner_outlined),
+                onPressed: () => startScanFlow(context, fromPhotoLibrary: false),
+              ),
+              IconButton(
+                tooltip: 'Chọn ảnh',
+                icon: const Icon(Icons.photo_library_outlined),
+                onPressed: () => startScanFlow(context, fromPhotoLibrary: true),
+              ),
+            ],
+          ),
           body: SafeArea(
             child: ListView.separated(
               padding: const EdgeInsets.all(16),

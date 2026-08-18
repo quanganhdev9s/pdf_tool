@@ -11,9 +11,16 @@ import 'document_viewer_page.dart';
 import 'pdf_page_reorder_page.dart';
 
 class PdfViewerPage extends StatefulWidget {
-  const PdfViewerPage({super.key, required this.assetKey});
+  const PdfViewerPage({
+    super.key,
+    required this.assetKey,
+    this.initialFilePath,
+  });
 
   final String assetKey;
+
+  /// When set, the workspace opens this file instead of the bundled asset.
+  final String? initialFilePath;
 
   @override
   State<PdfViewerPage> createState() => _PdfViewerPageState();
@@ -38,7 +45,10 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
   @override
   void initState() {
     super.initState();
-    _bloc = PdfViewerBloc(assetKey: widget.assetKey);
+    _bloc = PdfViewerBloc(
+      assetKey: widget.assetKey,
+      initialFilePath: widget.initialFilePath,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _bloc.add(const PdfViewerOpenRequested());

@@ -14,6 +14,7 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let applicationRegistrar = engineBridge.applicationRegistrar
     PdfPocRuntime.shared.configure(binaryMessenger: applicationRegistrar.messenger())
+    PdfScanCoordinator.shared.configure(binaryMessenger: applicationRegistrar.messenger())
     applicationRegistrar.register(
       PdfPlatformViewFactory(),
       withId: "pdf_poc_view"
@@ -25,6 +26,10 @@ import UIKit
     applicationRegistrar.register(
       PdfDocumentViewerPlatformViewFactory(),
       withId: "pdf_poc_document_viewer_view"
+    )
+    applicationRegistrar.register(
+      PdfScanReviewPlatformViewFactory(coordinator: PdfScanCoordinator.shared),
+      withId: "pdf_scan_review_view"
     )
   }
 }
