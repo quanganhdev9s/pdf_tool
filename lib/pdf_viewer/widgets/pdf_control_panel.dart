@@ -109,6 +109,8 @@ class PdfControlPanel extends StatelessWidget {
           onAddFreeText: onAddFreeText,
           onBeginFreeTextAreaSelection: onBeginFreeTextAreaSelection,
         );
+      case PdfControlPanelMode.textEdit:
+        return const SizedBox.shrink();
       case PdfControlPanelMode.signature:
         return _SignatureControls(state: state);
       case PdfControlPanelMode.pageOperations:

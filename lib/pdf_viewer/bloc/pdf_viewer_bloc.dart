@@ -44,6 +44,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
     on<PdfViewerSaveRequested>(_onSaveRequested);
     on<PdfViewerInkModeChanged>(_onInkModeChanged);
+    on<PdfViewerTextEditModeChanged>(_onTextEditModeChanged);
+    on<PdfViewerNativeTextBlockSelected>(_onNativeTextBlockSelected);
     on<PdfViewerClearInkRequested>(_onClearInkRequested);
     on<PdfViewerCommitInkRequested>(_onCommitInkRequested);
     on<PdfViewerDeleteSelectedAnnotationRequested>(
@@ -473,6 +475,46 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           ),
         );
       },
+    );
+  }
+
+  Future<void> _onTextEditModeChanged(
+    PdfViewerTextEditModeChanged event,
+    Emitter<PdfViewerState> emit,
+  ) async {
+    await _run(
+      emit,
+      event.enabled ? 'enable text editing' : 'leave text editing',
+      () async {
+        logPdfEvent('set_text_edit_mode_request', <String, Object?>{
+          'enabled': event.enabled,
+        });
+        await _api.setTextEditModeEnabled(event.enabled);
+        emit(
+          state.copyWith(
+            textEditModeEnabled: event.enabled,
+            selectedTextBlock: null,
+            inkModeEnabled: event.enabled ? false : state.inkModeEnabled,
+            status: event.enabled
+                ? 'Tap text to edit the whole paragraph.'
+                : 'Read mode enabled.',
+          ),
+        );
+      },
+    );
+  }
+
+  void _onNativeTextBlockSelected(
+    PdfViewerNativeTextBlockSelected event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        selectedTextBlock: event.block,
+        status: event.block == null
+            ? 'No text at that point. Tap directly on a line.'
+            : 'Editing a line of ${event.block!.text.length} characters.',
+      ),
     );
   }
 
@@ -1907,6 +1949,18 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     });
     if (!isClosed) {
       add(PdfViewerNativeSelectionChanged(selectedText));
+    }
+  }
+
+  @override
+  @override
+  void onTextBlockSelected(PdfTextBlock? block) {
+    logPdfEvent('callback_text_block_selected', <String, Object?>{
+      'pageIndex': block?.pageIndex,
+      'length': block?.text.length,
+    });
+    if (!isClosed) {
+      add(PdfViewerNativeTextBlockSelected(block));
     }
   }
 

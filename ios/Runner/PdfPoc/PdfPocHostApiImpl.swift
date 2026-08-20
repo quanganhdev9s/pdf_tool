@@ -95,6 +95,10 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     try call { try $0.beginFreeTextAreaSelection() }
   }
 
+  func setTextEditModeEnabled(enabled: Bool) throws {
+    try call { try $0.setTextEditModeEnabled(enabled) }
+  }
+
   func setInkModeEnabled(enabled: Bool) throws {
     try call { try $0.setInkModeEnabled(enabled) }
   }

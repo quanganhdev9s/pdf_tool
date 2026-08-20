@@ -500,6 +500,161 @@ struct PdfFreeTextRequest: Hashable, CustomStringConvertible {
   }
 }
 
+/// The paragraph the user tapped, with the styling read back off the page.
+///
+/// A paragraph, not the single line under the finger: the lines around the tap
+/// that read as the same block are gathered in with it and `text` carries them
+/// joined into flowing text.
+///
+/// `bounds` is in visible page coordinates, like every other rect crossing this
+/// bridge. The style fields are measured, not assumed — see
+/// `PdfTextEditManager` for how each one is obtained and how far it can be
+/// trusted.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfTextBlock: Hashable, CustomStringConvertible {
+  var pageIndex: Int64
+  var bounds: PdfRect
+  var text: String
+  /// Point size taken from the run's own font when PDFKit reports one, and
+  /// derived from the line height when it does not.
+  var fontSize: Double
+  /// Sampled from the darkest pixels of the run.
+  var textColor: PdfColor
+  /// Sampled from the lightest pixels around the run. What the cover is painted
+  /// with, so an edit on tinted paper does not leave a white patch.
+  var backgroundColor: PdfColor
+  /// PostScript name of the run's font, e.g. `Helvetica-Bold`. Null when PDFKit
+  /// could not resolve one, or when the resolved font is not installed.
+  var fontName: String? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfTextBlock? {
+    let pageIndex = pigeonVar_list[0] as! Int64
+    let bounds = pigeonVar_list[1] as! PdfRect
+    let text = pigeonVar_list[2] as! String
+    let fontSize = pigeonVar_list[3] as! Double
+    let textColor = pigeonVar_list[4] as! PdfColor
+    let backgroundColor = pigeonVar_list[5] as! PdfColor
+    let fontName: String? = nilOrValue(pigeonVar_list[6])
+
+    return PdfTextBlock(
+      pageIndex: pageIndex,
+      bounds: bounds,
+      text: text,
+      fontSize: fontSize,
+      textColor: textColor,
+      backgroundColor: backgroundColor,
+      fontName: fontName
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      pageIndex,
+      bounds,
+      text,
+      fontSize,
+      textColor,
+      backgroundColor,
+      fontName,
+    ]
+  }
+  static func == (lhs: PdfTextBlock, rhs: PdfTextBlock) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.pageIndex, rhs.pageIndex) && PdfPocApiPigeonInternal.deepEquals(lhs.bounds, rhs.bounds) && PdfPocApiPigeonInternal.deepEquals(lhs.text, rhs.text) && PdfPocApiPigeonInternal.deepEquals(lhs.fontSize, rhs.fontSize) && PdfPocApiPigeonInternal.deepEquals(lhs.textColor, rhs.textColor) && PdfPocApiPigeonInternal.deepEquals(lhs.backgroundColor, rhs.backgroundColor) && PdfPocApiPigeonInternal.deepEquals(lhs.fontName, rhs.fontName)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfTextBlock")
+    PdfPocApiPigeonInternal.deepHash(value: pageIndex, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: bounds, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: text, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fontSize, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: textColor, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: backgroundColor, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fontName, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfTextBlock(pageIndex: \(String(describing: pageIndex)), bounds: \(String(describing: bounds)), text: \(String(describing: text)), fontSize: \(String(describing: fontSize)), textColor: \(String(describing: textColor)), backgroundColor: \(String(describing: backgroundColor)), fontName: \(String(describing: fontName)))"
+  }
+}
+
+/// Replaces the text of a block with `text`, or removes it when `text` is
+/// empty.
+///
+/// Native-only now: the paragraph on the page is the input field, so this never
+/// crosses the bridge. It stays a Pigeon type because the native side is
+/// generated from this file and passes it between its own layers.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct PdfTextEditRequest: Hashable, CustomStringConvertible {
+  var pageIndex: Int64
+  var bounds: PdfRect
+  var text: String
+  var fontSize: Double
+  var textColor: PdfColor
+  var backgroundColor: PdfColor
+  var fontName: String? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> PdfTextEditRequest? {
+    let pageIndex = pigeonVar_list[0] as! Int64
+    let bounds = pigeonVar_list[1] as! PdfRect
+    let text = pigeonVar_list[2] as! String
+    let fontSize = pigeonVar_list[3] as! Double
+    let textColor = pigeonVar_list[4] as! PdfColor
+    let backgroundColor = pigeonVar_list[5] as! PdfColor
+    let fontName: String? = nilOrValue(pigeonVar_list[6])
+
+    return PdfTextEditRequest(
+      pageIndex: pageIndex,
+      bounds: bounds,
+      text: text,
+      fontSize: fontSize,
+      textColor: textColor,
+      backgroundColor: backgroundColor,
+      fontName: fontName
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      pageIndex,
+      bounds,
+      text,
+      fontSize,
+      textColor,
+      backgroundColor,
+      fontName,
+    ]
+  }
+  static func == (lhs: PdfTextEditRequest, rhs: PdfTextEditRequest) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.pageIndex, rhs.pageIndex) && PdfPocApiPigeonInternal.deepEquals(lhs.bounds, rhs.bounds) && PdfPocApiPigeonInternal.deepEquals(lhs.text, rhs.text) && PdfPocApiPigeonInternal.deepEquals(lhs.fontSize, rhs.fontSize) && PdfPocApiPigeonInternal.deepEquals(lhs.textColor, rhs.textColor) && PdfPocApiPigeonInternal.deepEquals(lhs.backgroundColor, rhs.backgroundColor) && PdfPocApiPigeonInternal.deepEquals(lhs.fontName, rhs.fontName)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("PdfTextEditRequest")
+    PdfPocApiPigeonInternal.deepHash(value: pageIndex, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: bounds, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: text, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fontSize, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: textColor, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: backgroundColor, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fontName, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "PdfTextEditRequest(pageIndex: \(String(describing: pageIndex)), bounds: \(String(describing: bounds)), text: \(String(describing: text)), fontSize: \(String(describing: fontSize)), textColor: \(String(describing: textColor)), backgroundColor: \(String(describing: backgroundColor)), fontName: \(String(describing: fontName)))"
+  }
+}
+
 /// Generated class from Pigeon that represents data sent in messages.
 struct PdfFreeTextAreaSelection: Hashable, CustomStringConvertible {
   var pageIndex: Int64
@@ -1353,38 +1508,42 @@ private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
     case 138:
       return PdfFreeTextRequest.fromList(self.readValue() as! [Any?])
     case 139:
-      return PdfFreeTextAreaSelection.fromList(self.readValue() as! [Any?])
+      return PdfTextBlock.fromList(self.readValue() as! [Any?])
     case 140:
-      return PdfExportResult.fromList(self.readValue() as! [Any?])
+      return PdfTextEditRequest.fromList(self.readValue() as! [Any?])
     case 141:
-      return PdfOcrRequest.fromList(self.readValue() as! [Any?])
+      return PdfFreeTextAreaSelection.fromList(self.readValue() as! [Any?])
     case 142:
-      return PdfOcrBlock.fromList(self.readValue() as! [Any?])
+      return PdfExportResult.fromList(self.readValue() as! [Any?])
     case 143:
-      return PdfCompressionRequest.fromList(self.readValue() as! [Any?])
+      return PdfOcrRequest.fromList(self.readValue() as! [Any?])
     case 144:
-      return PdfCompressionResult.fromList(self.readValue() as! [Any?])
+      return PdfOcrBlock.fromList(self.readValue() as! [Any?])
     case 145:
-      return PdfPageRange.fromList(self.readValue() as! [Any?])
+      return PdfCompressionRequest.fromList(self.readValue() as! [Any?])
     case 146:
-      return PdfSplitRequest.fromList(self.readValue() as! [Any?])
+      return PdfCompressionResult.fromList(self.readValue() as! [Any?])
     case 147:
-      return PdfSplitOutput.fromList(self.readValue() as! [Any?])
+      return PdfPageRange.fromList(self.readValue() as! [Any?])
     case 148:
-      return PdfSplitResult.fromList(self.readValue() as! [Any?])
+      return PdfSplitRequest.fromList(self.readValue() as! [Any?])
     case 149:
-      return PdfMergeRequest.fromList(self.readValue() as! [Any?])
+      return PdfSplitOutput.fromList(self.readValue() as! [Any?])
     case 150:
-      return PdfMergeResult.fromList(self.readValue() as! [Any?])
+      return PdfSplitResult.fromList(self.readValue() as! [Any?])
     case 151:
-      return PdfConvertToPdfRequest.fromList(self.readValue() as! [Any?])
+      return PdfMergeRequest.fromList(self.readValue() as! [Any?])
     case 152:
-      return PdfConvertToPdfResult.fromList(self.readValue() as! [Any?])
+      return PdfMergeResult.fromList(self.readValue() as! [Any?])
     case 153:
-      return PdfConvertUrlRequest.fromList(self.readValue() as! [Any?])
+      return PdfConvertToPdfRequest.fromList(self.readValue() as! [Any?])
     case 154:
-      return PdfViewableDocument.fromList(self.readValue() as! [Any?])
+      return PdfConvertToPdfResult.fromList(self.readValue() as! [Any?])
     case 155:
+      return PdfConvertUrlRequest.fromList(self.readValue() as! [Any?])
+    case 156:
+      return PdfViewableDocument.fromList(self.readValue() as! [Any?])
+    case 157:
       return PdfGeneratedOutput.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1424,56 +1583,62 @@ private class PdfPocApiPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PdfFreeTextRequest {
       super.writeByte(138)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfFreeTextAreaSelection {
+    } else if let value = value as? PdfTextBlock {
       super.writeByte(139)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfExportResult {
+    } else if let value = value as? PdfTextEditRequest {
       super.writeByte(140)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfOcrRequest {
+    } else if let value = value as? PdfFreeTextAreaSelection {
       super.writeByte(141)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfOcrBlock {
+    } else if let value = value as? PdfExportResult {
       super.writeByte(142)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfCompressionRequest {
+    } else if let value = value as? PdfOcrRequest {
       super.writeByte(143)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfCompressionResult {
+    } else if let value = value as? PdfOcrBlock {
       super.writeByte(144)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfPageRange {
+    } else if let value = value as? PdfCompressionRequest {
       super.writeByte(145)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSplitRequest {
+    } else if let value = value as? PdfCompressionResult {
       super.writeByte(146)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSplitOutput {
+    } else if let value = value as? PdfPageRange {
       super.writeByte(147)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfSplitResult {
+    } else if let value = value as? PdfSplitRequest {
       super.writeByte(148)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfMergeRequest {
+    } else if let value = value as? PdfSplitOutput {
       super.writeByte(149)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfMergeResult {
+    } else if let value = value as? PdfSplitResult {
       super.writeByte(150)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfConvertToPdfRequest {
+    } else if let value = value as? PdfMergeRequest {
       super.writeByte(151)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfConvertToPdfResult {
+    } else if let value = value as? PdfMergeResult {
       super.writeByte(152)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfConvertUrlRequest {
+    } else if let value = value as? PdfConvertToPdfRequest {
       super.writeByte(153)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfViewableDocument {
+    } else if let value = value as? PdfConvertToPdfResult {
       super.writeByte(154)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfGeneratedOutput {
+    } else if let value = value as? PdfConvertUrlRequest {
       super.writeByte(155)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfViewableDocument {
+      super.writeByte(156)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfGeneratedOutput {
+      super.writeByte(157)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1513,6 +1678,11 @@ protocol PdfPocHostApi {
   func addMarkupFromCurrentSelection(type: PdfMarkupType) throws
   func addFreeText(request: PdfFreeTextRequest) throws
   func beginFreeTextAreaSelection() throws
+  /// Turns the page into a tap target for editing text runs. A tap turns the
+  /// line under it into the input field, so nothing else about the edit crosses
+  /// this bridge — the text, the keyboard and the commit all stay native, and
+  /// only the resulting page state comes back.
+  func setTextEditModeEnabled(enabled: Bool) throws
   func setInkModeEnabled(enabled: Bool) throws
   func clearCurrentInkInput() throws
   func commitCurrentInkToPdf() throws
@@ -1785,6 +1955,25 @@ class PdfPocHostApiSetup {
       }
     } else {
       beginFreeTextAreaSelectionChannel.setMessageHandler(nil)
+    }
+    /// Turns the page into a tap target for editing text runs. A tap turns the
+    /// line under it into the input field, so nothing else about the edit crosses
+    /// this bridge — the text, the keyboard and the commit all stay native, and
+    /// only the resulting page state comes back.
+    let setTextEditModeEnabledChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setTextEditModeEnabled\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setTextEditModeEnabledChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let enabledArg = args[0] as! Bool
+        do {
+          try api.setTextEditModeEnabled(enabled: enabledArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setTextEditModeEnabledChannel.setMessageHandler(nil)
     }
     let setInkModeEnabledChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setInkModeEnabled\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
@@ -2442,6 +2631,8 @@ protocol PdfPocFlutterApiProtocol {
   func onSearchStateChanged(state stateArg: PdfSearchState, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onSelectionChanged(selectedText selectedTextArg: String?, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onFreeTextAreaSelected(selection selectionArg: PdfFreeTextAreaSelection, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  /// The text run under the last tap, or null when the tap landed on no text.
+  func onTextBlockSelected(block blockArg: PdfTextBlock?, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOcrProgress(operationId operationIdArg: String, completedPages completedPagesArg: Int64, totalPages totalPagesArg: Int64, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOcrResult(operationId operationIdArg: String, block blockArg: PdfOcrBlock, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOcrCompleted(operationId operationIdArg: String, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
@@ -2579,6 +2770,25 @@ class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
     let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onFreeTextAreaSelected\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage([selectionArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  /// The text run under the last tap, or null when the tap landed on no text.
+  func onTextBlockSelected(block blockArg: PdfTextBlock?, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onTextBlockSelected\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([blockArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {
         completion(.failure(createConnectionError(withChannelName: channelName)))
         return

@@ -73,6 +73,14 @@ final class PdfSelectionToolbar: UIView {
   }
 
   private func configure() {
+    // Sized before anything is pinned inside it. A view built at zero and then
+    // asked to hold a stack view with six-point margins is a set of constraints
+    // that cannot all hold, which UIKit logs at length and then breaks one of
+    // — and the layout it settles on passes negative widths to CoreGraphics.
+    if bounds.isEmpty {
+      frame = CGRect(x: 0, y: 0, width: 320, height: 44)
+    }
+
     backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.98)
     layer.cornerRadius = 12
     layer.borderColor = UIColor.separator.cgColor
@@ -161,5 +169,19 @@ extension UIColor {
     let green = CGFloat((argb >> 8) & 0xFF) / 255.0
     let blue = CGFloat(argb & 0xFF) / 255.0
     self.init(red: red, green: green, blue: blue, alpha: alpha)
+  }
+
+  /// The inverse, for colours measured on the page rather than chosen in
+  /// Flutter. Components are read in the device RGB space the sampler works in.
+  var argb: Int64 {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+      return Int64(bitPattern: 0xFF00_0000)
+    }
+    func byte(_ value: CGFloat) -> Int64 { Int64(min(max(value, 0), 1) * 255) }
+    return byte(alpha) << 24 | byte(red) << 16 | byte(green) << 8 | byte(blue)
   }
 }

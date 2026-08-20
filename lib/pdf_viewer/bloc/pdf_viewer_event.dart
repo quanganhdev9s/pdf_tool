@@ -64,6 +64,19 @@ final class PdfViewerAddFixedFreeTextRequested extends PdfViewerEvent {
   final String text;
 }
 
+/// Turns the tap-to-pick-text surface on the page on or off.
+final class PdfViewerTextEditModeChanged extends PdfViewerEvent {
+  const PdfViewerTextEditModeChanged(this.enabled);
+
+  final bool enabled;
+}
+
+final class PdfViewerNativeTextBlockSelected extends PdfViewerEvent {
+  const PdfViewerNativeTextBlockSelected(this.block);
+
+  final PdfTextBlock? block;
+}
+
 final class PdfViewerBeginFreeTextAreaSelectionRequested
     extends PdfViewerEvent {
   const PdfViewerBeginFreeTextAreaSelectionRequested();

@@ -479,6 +479,179 @@ class PdfFreeTextRequest {
   }
 }
 
+/// The paragraph the user tapped, with the styling read back off the page.
+///
+/// A paragraph, not the single line under the finger: the lines around the tap
+/// that read as the same block are gathered in with it and `text` carries them
+/// joined into flowing text.
+///
+/// `bounds` is in visible page coordinates, like every other rect crossing this
+/// bridge. The style fields are measured, not assumed — see
+/// `PdfTextEditManager` for how each one is obtained and how far it can be
+/// trusted.
+class PdfTextBlock {
+  PdfTextBlock({
+    required this.pageIndex,
+    required this.bounds,
+    required this.text,
+    required this.fontSize,
+    required this.textColor,
+    required this.backgroundColor,
+    this.fontName,
+  });
+
+  int pageIndex;
+
+  PdfRect bounds;
+
+  String text;
+
+  /// Point size taken from the run's own font when PDFKit reports one, and
+  /// derived from the line height when it does not.
+  double fontSize;
+
+  /// Sampled from the darkest pixels of the run.
+  PdfColor textColor;
+
+  /// Sampled from the lightest pixels around the run. What the cover is painted
+  /// with, so an edit on tinted paper does not leave a white patch.
+  PdfColor backgroundColor;
+
+  /// PostScript name of the run's font, e.g. `Helvetica-Bold`. Null when PDFKit
+  /// could not resolve one, or when the resolved font is not installed.
+  String? fontName;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      pageIndex,
+      bounds,
+      text,
+      fontSize,
+      textColor,
+      backgroundColor,
+      fontName,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static PdfTextBlock decode(Object result) {
+    result as List<Object?>;
+    return PdfTextBlock(
+      pageIndex: result[0]! as int,
+      bounds: result[1]! as PdfRect,
+      text: result[2]! as String,
+      fontSize: result[3]! as double,
+      textColor: result[4]! as PdfColor,
+      backgroundColor: result[5]! as PdfColor,
+      fontName: result[6] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfTextBlock || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(pageIndex, other.pageIndex) && _deepEquals(bounds, other.bounds) && _deepEquals(text, other.text) && _deepEquals(fontSize, other.fontSize) && _deepEquals(textColor, other.textColor) && _deepEquals(backgroundColor, other.backgroundColor) && _deepEquals(fontName, other.fontName);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfTextBlock(pageIndex: $pageIndex, bounds: $bounds, text: $text, fontSize: $fontSize, textColor: $textColor, backgroundColor: $backgroundColor, fontName: $fontName)';
+  }
+}
+
+/// Replaces the text of a block with `text`, or removes it when `text` is
+/// empty.
+///
+/// Native-only now: the paragraph on the page is the input field, so this never
+/// crosses the bridge. It stays a Pigeon type because the native side is
+/// generated from this file and passes it between its own layers.
+class PdfTextEditRequest {
+  PdfTextEditRequest({
+    required this.pageIndex,
+    required this.bounds,
+    required this.text,
+    required this.fontSize,
+    required this.textColor,
+    required this.backgroundColor,
+    this.fontName,
+  });
+
+  int pageIndex;
+
+  PdfRect bounds;
+
+  String text;
+
+  double fontSize;
+
+  PdfColor textColor;
+
+  PdfColor backgroundColor;
+
+  String? fontName;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      pageIndex,
+      bounds,
+      text,
+      fontSize,
+      textColor,
+      backgroundColor,
+      fontName,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static PdfTextEditRequest decode(Object result) {
+    result as List<Object?>;
+    return PdfTextEditRequest(
+      pageIndex: result[0]! as int,
+      bounds: result[1]! as PdfRect,
+      text: result[2]! as String,
+      fontSize: result[3]! as double,
+      textColor: result[4]! as PdfColor,
+      backgroundColor: result[5]! as PdfColor,
+      fontName: result[6] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! PdfTextEditRequest || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(pageIndex, other.pageIndex) && _deepEquals(bounds, other.bounds) && _deepEquals(text, other.text) && _deepEquals(fontSize, other.fontSize) && _deepEquals(textColor, other.textColor) && _deepEquals(backgroundColor, other.backgroundColor) && _deepEquals(fontName, other.fontName);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'PdfTextEditRequest(pageIndex: $pageIndex, bounds: $bounds, text: $text, fontSize: $fontSize, textColor: $textColor, backgroundColor: $backgroundColor, fontName: $fontName)';
+  }
+}
+
 class PdfFreeTextAreaSelection {
   PdfFreeTextAreaSelection({
     required this.pageIndex,
@@ -1498,56 +1671,62 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is PdfFreeTextRequest) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfFreeTextAreaSelection) {
+    }    else if (value is PdfTextBlock) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfExportResult) {
+    }    else if (value is PdfTextEditRequest) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfOcrRequest) {
+    }    else if (value is PdfFreeTextAreaSelection) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfOcrBlock) {
+    }    else if (value is PdfExportResult) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfCompressionRequest) {
+    }    else if (value is PdfOcrRequest) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfCompressionResult) {
+    }    else if (value is PdfOcrBlock) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfPageRange) {
+    }    else if (value is PdfCompressionRequest) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSplitRequest) {
+    }    else if (value is PdfCompressionResult) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSplitOutput) {
+    }    else if (value is PdfPageRange) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSplitResult) {
+    }    else if (value is PdfSplitRequest) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfMergeRequest) {
+    }    else if (value is PdfSplitOutput) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfMergeResult) {
+    }    else if (value is PdfSplitResult) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfConvertToPdfRequest) {
+    }    else if (value is PdfMergeRequest) {
       buffer.putUint8(151);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfConvertToPdfResult) {
+    }    else if (value is PdfMergeResult) {
       buffer.putUint8(152);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfConvertUrlRequest) {
+    }    else if (value is PdfConvertToPdfRequest) {
       buffer.putUint8(153);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfViewableDocument) {
+    }    else if (value is PdfConvertToPdfResult) {
       buffer.putUint8(154);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfGeneratedOutput) {
+    }    else if (value is PdfConvertUrlRequest) {
       buffer.putUint8(155);
+      writeValue(buffer, value.encode());
+    }    else if (value is PdfViewableDocument) {
+      buffer.putUint8(156);
+      writeValue(buffer, value.encode());
+    }    else if (value is PdfGeneratedOutput) {
+      buffer.putUint8(157);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1582,38 +1761,42 @@ class _PigeonCodec extends StandardMessageCodec {
       case 138:
         return PdfFreeTextRequest.decode(readValue(buffer)!);
       case 139:
-        return PdfFreeTextAreaSelection.decode(readValue(buffer)!);
+        return PdfTextBlock.decode(readValue(buffer)!);
       case 140:
-        return PdfExportResult.decode(readValue(buffer)!);
+        return PdfTextEditRequest.decode(readValue(buffer)!);
       case 141:
-        return PdfOcrRequest.decode(readValue(buffer)!);
+        return PdfFreeTextAreaSelection.decode(readValue(buffer)!);
       case 142:
-        return PdfOcrBlock.decode(readValue(buffer)!);
+        return PdfExportResult.decode(readValue(buffer)!);
       case 143:
-        return PdfCompressionRequest.decode(readValue(buffer)!);
+        return PdfOcrRequest.decode(readValue(buffer)!);
       case 144:
-        return PdfCompressionResult.decode(readValue(buffer)!);
+        return PdfOcrBlock.decode(readValue(buffer)!);
       case 145:
-        return PdfPageRange.decode(readValue(buffer)!);
+        return PdfCompressionRequest.decode(readValue(buffer)!);
       case 146:
-        return PdfSplitRequest.decode(readValue(buffer)!);
+        return PdfCompressionResult.decode(readValue(buffer)!);
       case 147:
-        return PdfSplitOutput.decode(readValue(buffer)!);
+        return PdfPageRange.decode(readValue(buffer)!);
       case 148:
-        return PdfSplitResult.decode(readValue(buffer)!);
+        return PdfSplitRequest.decode(readValue(buffer)!);
       case 149:
-        return PdfMergeRequest.decode(readValue(buffer)!);
+        return PdfSplitOutput.decode(readValue(buffer)!);
       case 150:
-        return PdfMergeResult.decode(readValue(buffer)!);
+        return PdfSplitResult.decode(readValue(buffer)!);
       case 151:
-        return PdfConvertToPdfRequest.decode(readValue(buffer)!);
+        return PdfMergeRequest.decode(readValue(buffer)!);
       case 152:
-        return PdfConvertToPdfResult.decode(readValue(buffer)!);
+        return PdfMergeResult.decode(readValue(buffer)!);
       case 153:
-        return PdfConvertUrlRequest.decode(readValue(buffer)!);
+        return PdfConvertToPdfRequest.decode(readValue(buffer)!);
       case 154:
-        return PdfViewableDocument.decode(readValue(buffer)!);
+        return PdfConvertToPdfResult.decode(readValue(buffer)!);
       case 155:
+        return PdfConvertUrlRequest.decode(readValue(buffer)!);
+      case 156:
+        return PdfViewableDocument.decode(readValue(buffer)!);
+      case 157:
         return PdfGeneratedOutput.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1900,6 +2083,28 @@ class PdfPocHostApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Turns the page into a tap target for editing text runs. A tap turns the
+  /// line under it into the input field, so nothing else about the edit crosses
+  /// this bridge — the text, the keyboard and the commit all stay native, and
+  /// only the resulting page state comes back.
+  Future<void> setTextEditModeEnabled(bool enabled) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setTextEditModeEnabled$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[enabled]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
@@ -2756,6 +2961,9 @@ abstract class PdfPocFlutterApi {
 
   void onFreeTextAreaSelected(PdfFreeTextAreaSelection selection);
 
+  /// The text run under the last tap, or null when the tap landed on no text.
+  void onTextBlockSelected(PdfTextBlock? block);
+
   void onOcrProgress(String operationId, int completedPages, int totalPages);
 
   void onOcrResult(String operationId, PdfOcrBlock block);
@@ -2923,6 +3131,27 @@ abstract class PdfPocFlutterApi {
           final PdfFreeTextAreaSelection arg_selection = args[0]! as PdfFreeTextAreaSelection;
           try {
             api.onFreeTextAreaSelected(arg_selection);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onTextBlockSelected$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final PdfTextBlock? arg_block = args[0] as PdfTextBlock?;
+          try {
+            api.onTextBlockSelected(arg_block);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
