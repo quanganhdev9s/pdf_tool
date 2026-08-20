@@ -84,6 +84,7 @@ typedef NS_ERROR_ENUM(QPdfBridgeErrorDomain, QPdfBridgeError) {
 + (BOOL)eraseAtURL:(NSURL *)inputURL
              toURL:(NSURL *)outputURL
               plan:(NSDictionary<NSNumber *, NSArray<NSNumber *> *> *)plan
+              hide:(nullable NSDictionary<NSNumber *, NSDictionary<NSNumber *, NSNumber *> *> *)hide
         overlayURL:(nullable NSURL *)overlayURL
       overlayPages:(nullable NSArray<NSNumber *> *)overlayPages
            qdfMode:(BOOL)qdfMode

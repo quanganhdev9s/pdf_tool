@@ -9,6 +9,7 @@
 #include <qpdf/QPDFObjectHandle.hh>
 #include <qpdf/QPDFTokenizer.hh>
 
+#include <map>
 #include <set>
 #include <string>
 #include <utility>
@@ -50,8 +51,26 @@ class CountShowText final: public QPDFObjectHandle::TokenFilter
 class DropShowText final: public QPDFObjectHandle::TokenFilter
 {
   public:
-    explicit DropShowText(std::set<size_t> targets):
-        targets(std::move(targets))
+    /// `drop` are ordinals to remove outright. `hide` maps an ordinal to the
+    /// text render mode in force at it, for the ones that have to stay.
+    ///
+    /// Hiding exists because deleting is not always on offer: showing text
+    /// advances the text matrix, so an operator can only be removed when
+    /// everything drawing after it in the same segment goes too. Render mode 3
+    /// keeps the advance and draws nothing — nothing moves, and whatever is
+    /// behind the words is untouched, so there is no patch to paint and no
+    /// background colour to match.
+    ///
+    /// What it does not do is take the words out of the file; search and copy
+    /// still find them. Deleting is always preferred, this is the fallback.
+    DropShowText(std::set<size_t> drop, std::map<size_t, int> hide):
+        targets(std::move(drop)),
+        hidden(std::move(hide))
+    {
+    }
+
+    explicit DropShowText(std::set<size_t> drop):
+        targets(std::move(drop))
     {
     }
 
@@ -81,6 +100,21 @@ class DropShowText final: public QPDFObjectHandle::TokenFilter
         // put this filter's ordinals out of step with the scanner's on the
         // Swift side, which numbers them the same way.
         size_t const ordinal = showIndex++;
+
+        // Wrapped rather than removed: mode 3 in front, the operator and its
+        // operands unchanged, then the mode that was in force put back. Not 0 —
+        // a run drawn in mode 2 is stroked, and resetting it to fill would
+        // change how the rest of the segment is painted.
+        auto const hide = hidden.find(ordinal);
+        if (hide != hidden.end()) {
+            write("\n3 Tr\n");
+            flush();
+            writeToken(token);
+            write("\n" + std::to_string(hide->second) + " Tr\n");
+            ++hiddenCount;
+            return;
+        }
+
         if (targets.find(ordinal) == targets.end()) {
             flush();
             writeToken(token);
@@ -135,6 +169,11 @@ class DropShowText final: public QPDFObjectHandle::TokenFilter
         return dropped;
     }
 
+    size_t hiddenTotal() const
+    {
+        return hiddenCount;
+    }
+
   private:
     void
     flush()
@@ -162,8 +201,10 @@ class DropShowText final: public QPDFObjectHandle::TokenFilter
     }
 
     std::set<size_t> targets;
+    std::map<size_t, int> hidden;
     size_t showIndex{0};
     size_t dropped{0};
+    size_t hiddenCount{0};
     std::vector<QPDFTokenizer::Token> pending;
 };
 

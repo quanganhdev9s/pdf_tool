@@ -26,11 +26,6 @@ enum PdfTextOverlay {
     /// khi gõ không lấn được sang block dưới.
     var maxHeight: CGFloat?
 
-    /// Miếng vá sơn trước khi đặt chữ. Nil trong hầu hết trường hợp.
-    ///
-    /// Chỉ dùng khi `deletionPlan` từ chối xoá: block đó vẫn còn chữ cũ trong
-    /// content stream, sơn đè là nước cuối — chữ cũ vẫn search ra được.
-    var patch: (rect: CGRect, colour: UIColor)?
   }
 
   enum Failure: Error, LocalizedError {
@@ -68,8 +63,7 @@ enum PdfTextOverlay {
     to url: URL
   ) throws -> [Int] {
     let drawable = requests.filter {
-      // Chỉ có miếng vá, không có chữ, thì vẫn phải vẽ.
-      ($0.patch != nil || !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         && $0.bounds.width > 1 && $0.bounds.height > 0
         && $0.bounds.origin.x.isFinite && $0.bounds.origin.y.isFinite
     }
@@ -121,17 +115,6 @@ enum PdfTextOverlay {
           width: request.bounds.width,
           height: request.bounds.height
         )
-        flipped.patch = request.patch.map { patch in
-          (
-            rect: CGRect(
-              x: patch.rect.minX,
-              y: fold - patch.rect.maxY,
-              width: patch.rect.width,
-              height: patch.rect.height
-            ),
-            colour: patch.colour
-          )
-        }
         draw(flipped, into: context)
       }
 
@@ -171,13 +154,6 @@ enum PdfTextOverlay {
   /// đúng layout mà `UITextView` đang chạy. Chiều cao thả tự do: chữ dài hơn
   /// chữ cũ phải được tràn ra ngoài block chứ không bị cắt.
   static func draw(_ request: Request, into context: CGContext) {
-    if let patch = request.patch, patch.rect.width > 0, patch.rect.height > 0 {
-      context.saveGState()
-      context.setFillColor(patch.colour.cgColor)
-      context.fill(patch.rect)
-      context.restoreGState()
-    }
-
     let text = request.text
     guard !text.isEmpty, request.bounds.width > 1 else { return }
 

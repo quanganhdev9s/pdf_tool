@@ -49,6 +49,7 @@ errorWithCode(QPdfBridgeError code, std::string const& message)
     return [self eraseAtURL:inputURL
                       toURL:outputURL
                        plan:plan
+                       hide:nil
                  overlayURL:nil
                overlayPages:nil
                     qdfMode:qdfMode
@@ -58,6 +59,7 @@ errorWithCode(QPdfBridgeError code, std::string const& message)
 + (BOOL)eraseAtURL:(NSURL*)inputURL
              toURL:(NSURL*)outputURL
               plan:(NSDictionary<NSNumber*, NSArray<NSNumber*>*>*)plan
+              hide:(NSDictionary<NSNumber*, NSDictionary<NSNumber*, NSNumber*>*>*)hide
         overlayURL:(NSURL*)overlayURL
       overlayPages:(NSArray<NSNumber*>*)overlayPages
            qdfMode:(BOOL)qdfMode
@@ -70,7 +72,14 @@ errorWithCode(QPdfBridgeError code, std::string const& message)
         QPDFPageDocumentHelper documents(pdf);
         auto pages = documents.getAllPages();
 
-        for (NSNumber* key in plan) {
+        // Pages named by either half of the request. A page can be hidden on
+        // without anything being dropped from it, and the other way round.
+        NSMutableSet<NSNumber*>* touched = [NSMutableSet setWithArray:plan.allKeys];
+        if (hide != nil) {
+            [touched addObjectsFromArray:hide.allKeys];
+        }
+
+        for (NSNumber* key in touched) {
             NSInteger const pageIndex = key.integerValue;
             if (pageIndex < 0 || static_cast<size_t>(pageIndex) >= pages.size()) {
                 if (error) {
@@ -80,19 +89,27 @@ errorWithCode(QPdfBridgeError code, std::string const& message)
                 }
                 return NO;
             }
-            NSArray<NSNumber*>* ordinals = plan[key];
-            if (ordinals.count == 0) {
-                continue;
-            }
             std::set<size_t> targets;
-            for (NSNumber* ordinal in ordinals) {
+            for (NSNumber* ordinal in plan[key]) {
                 if (ordinal.integerValue >= 0) {
                     targets.insert(static_cast<size_t>(ordinal.integerValue));
                 }
             }
+
+            std::map<size_t, int> hidden;
+            for (NSNumber* ordinal in hide[key]) {
+                if (ordinal.integerValue >= 0) {
+                    hidden[static_cast<size_t>(ordinal.integerValue)] =
+                        hide[key][ordinal].intValue;
+                }
+            }
+
+            if (targets.empty() && hidden.empty()) {
+                continue;
+            }
             // The filter runs when QPDFWriter serialises the page, not now.
             pages[static_cast<size_t>(pageIndex)].addContentTokenFilter(
-                std::make_shared<DropShowText>(std::move(targets)));
+                std::make_shared<DropShowText>(std::move(targets), std::move(hidden)));
         }
 
         // The overlay is opened only once there is something to lay over, and

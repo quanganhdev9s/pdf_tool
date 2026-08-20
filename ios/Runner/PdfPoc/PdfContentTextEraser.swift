@@ -18,15 +18,20 @@ enum PdfContentTextEraser {
   /// Tính trước khi ghi, vì câu trả lời đổi thứ mà caller vẽ: block bị từ chối
   /// vẫn còn chữ cũ nên chữ mới phải đặt lên một miếng vá.
   struct Plan {
-    /// Chỉ số trang → các ordinal cần bỏ.
+    /// Chỉ số trang → các ordinal xoá hẳn.
     fileprivate var ordinals: [Int: [Int]] = [:]
-    /// Block sẽ bị xoá operator.
+    /// Chỉ số trang → ordinal chỉ giấu, kèm `Tr` gốc để trả lại.
+    fileprivate var hidden: [Int: [Int: Int]] = [:]
+    /// Block đã xử lý được, cách này hay cách kia.
     var erased: [Request] = []
-    /// Block mà xoá sẽ làm xô chữ còn lại. Không phải lỗi — caller sơn vá.
+    /// Block không tìm thấy operator nào — trang sai, hoặc chữ nằm trong
+    /// XObject mà bộ quét không đi vào.
     var refused: [Request] = []
     var operatorsDropped: Int = 0
+    /// Số operator phải giấu thay vì xoá. Chữ của chúng **vẫn nằm trong file**.
+    var operatorsHidden: Int = 0
 
-    var isEmpty: Bool { ordinals.isEmpty }
+    var isEmpty: Bool { ordinals.isEmpty && hidden.isEmpty }
   }
 
   enum Failure: Error, LocalizedError {
@@ -77,17 +82,25 @@ enum PdfContentTextEraser {
       }
 
       var ordinals: Set<Int> = []
+      var toHide: [Int: Int] = [:]
       for request in pageRequests {
-        if let ops = PdfContentStreamReader.deletionPlan(for: request.rect, on: page) {
-          ordinals.formUnion(ops)
+        if let removal = PdfContentStreamReader.removalPlan(for: request.rect, on: page) {
+          ordinals.formUnion(removal.delete)
+          toHide.merge(removal.hide) { first, _ in first }
           plan.erased.append(request)
         } else {
           plan.refused.append(request)
         }
       }
+      // Xoá thắng giấu: một ordinal xoá được thì không cần giấu.
+      toHide = toHide.filter { !ordinals.contains($0.key) }
       if !ordinals.isEmpty {
         plan.ordinals[pageIndex] = ordinals.sorted()
         plan.operatorsDropped += ordinals.count
+      }
+      if !toHide.isEmpty {
+        plan.hidden[pageIndex] = toHide
+        plan.operatorsHidden += toHide.count
       }
     }
     return plan
@@ -118,10 +131,17 @@ enum PdfContentTextEraser {
     }
 
     do {
+      let bridgeHide = plan.hidden.reduce(into: [NSNumber: [NSNumber: NSNumber]]()) { result, entry in
+        result[NSNumber(value: entry.key)] = entry.value.reduce(into: [NSNumber: NSNumber]()) {
+          $0[NSNumber(value: $1.key)] = NSNumber(value: $1.value)
+        }
+      }
+
       try QPdfTextEraser.erase(
         at: url,
         to: scratch,
         plan: bridgePlan,
+        hide: bridgeHide,
         overlayURL: overlayPages.isEmpty ? nil : overlay,
         overlayPages: overlayPages.map { NSNumber(value: $0) },
         qdfMode: qdfMode
@@ -130,6 +150,104 @@ enum PdfContentTextEraser {
     } catch {
       throw Failure.bridge(error)
     }
+  }
+
+  /// Làm chữ trong các hình chữ nhật **vô hình tại chỗ**, không xoá.
+  ///
+  /// Tách riêng khỏi `plan`/`write` vì nó trả lời một câu khác. Kia là "ghi
+  /// chỉnh sửa vào file", chạy một lần lúc Lưu. Đây là "làm chữ này biến mất
+  /// khỏi màn hình ngay bây giờ", và có thể gọi bất cứ lúc nào.
+  ///
+  /// Dùng `3 Tr` cho **mọi** operator trúng đích, kể cả những cái xoá được:
+  /// giấu không làm dịch chuyển gì, nên không cần biết nhóm có chạy hết segment
+  /// hay không, và không có gì để từ chối. Đổi lại chữ vẫn nằm trong file —
+  /// việc xoá thật vẫn để dành cho lúc Lưu.
+  ///
+  /// Trả về số operator đã giấu. Caller tự lo mở lại tài liệu: mọi
+  /// `PDFDocument` trên URL này thành cũ sau khi hàm trả về.
+  @discardableResult
+  static func hide(_ requests: [Request], at url: URL) throws -> Int {
+    guard !requests.isEmpty else { return 0 }
+
+    var hidden: [Int: [Int: Int]] = [:]
+    guard let document = PDFDocument(url: url) else {
+      throw Failure.bridge(CocoaError(.fileReadCorruptFile))
+    }
+
+    for (pageIndex, pageRequests) in Dictionary(grouping: requests, by: \.pageIndex) {
+      guard let page = document.page(at: pageIndex) else { continue }
+
+      // Vẫn phải đối chiếu: ordinal là địa chỉ chung giữa hai bộ quét, và giấu
+      // nhầm chỗ thì làm biến mất chữ người dùng không hề đụng tới.
+      let seenHere = PdfContentStreamReader.showTextOps(on: page).count
+      var bridgeError: NSError?
+      let seenByQpdf = QPdfTextEraser.showTextOperatorCount(
+        at: url, page: pageIndex, error: &bridgeError
+      )
+      if let bridgeError { throw Failure.bridge(bridgeError) }
+      guard seenByQpdf == seenHere else {
+        throw Failure.scannersDisagree(
+          pageIndex: pageIndex, coreGraphics: seenHere, qpdf: seenByQpdf
+        )
+      }
+
+      var modes: [Int: Int] = [:]
+      for request in pageRequests {
+        guard let removal = PdfContentStreamReader.removalPlan(for: request.rect, on: page)
+        else {
+          // Bộ quét không thấy operator nào có gốc nằm trong hình chữ nhật này.
+          // Hoặc chữ nằm trong Form XObject — chỗ mù đã biết — hoặc toạ độ của
+          // hai bên không khớp nhau.
+          // In cả toạ độ ra: lệch đều một khoảng nghĩa là hai bên khác gốc toạ
+          // độ; rải rác nghĩa là chuyện khác.
+          let ops = PdfContentStreamReader.showTextOps(on: page)
+          let nearby = ops
+            .filter { abs($0.origin.y - request.rect.midY) < 40 }
+            .prefix(4)
+            .map { "(\(Int($0.origin.x)),\(Int($0.origin.y)))" }
+            .joined(separator: " ")
+          logPdfEvent(
+            "text_removal_empty",
+            "pageIndex=\(pageIndex) rect=\(request.rect.integral.debugDescription) "
+              + "ops=\(ops.count) media=\(page.bounds(for: .mediaBox).integral.debugDescription) "
+              + "crop=\(page.bounds(for: .cropBox).integral.debugDescription) "
+              + "rotation=\(page.rotation) nearby=[\(nearby)] "
+              + "allY=[\(ops.prefix(6).map { String(Int($0.origin.y)) }.joined(separator: ","))]"
+          )
+          continue
+        }
+        // Cả hai tập, không chỉ tập giấu: ở đây không xoá gì cả. Và lấy `Tr`
+        // thật của từng cái — trả bừa 0 sẽ bật lớp OCR đang ẩn lên.
+        modes.merge(removal.modes) { first, _ in first }
+      }
+      if !modes.isEmpty { hidden[pageIndex] = modes }
+    }
+
+    guard !hidden.isEmpty else { return 0 }
+
+    let scratch = FileManager.default.temporaryDirectory
+      .appendingPathComponent("qpdf-hide-\(UUID().uuidString).pdf")
+    defer { try? FileManager.default.removeItem(at: scratch) }
+
+    let bridgeHide = hidden.reduce(into: [NSNumber: [NSNumber: NSNumber]]()) { result, entry in
+      result[NSNumber(value: entry.key)] = entry.value.reduce(into: [NSNumber: NSNumber]()) {
+        $0[NSNumber(value: $1.key)] = NSNumber(value: $1.value)
+      }
+    }
+
+    do {
+      try QPdfTextEraser.erase(
+        at: url, to: scratch,
+        plan: [:], hide: bridgeHide,
+        overlayURL: nil, overlayPages: [],
+        qdfMode: false
+      )
+      _ = try FileManager.default.replaceItemAt(url, withItemAt: scratch)
+    } catch {
+      throw Failure.bridge(error)
+    }
+
+    return hidden.values.reduce(0) { $0 + $1.count }
   }
 
   /// Đọc rồi ghi lại y nguyên, không đổi gì.

@@ -55,6 +55,26 @@ enum PdfContentStreamReader {
     var attributes: Attributes
   }
 
+  /// Một operator có thuộc về dòng nằm trong `rect` không.
+  ///
+  /// `origin` là điểm **baseline**, còn `rect` là hộp dòng PDFKit báo — và hai
+  /// thứ đó không có quan hệ cố định. Trên tài liệu đo được, hộp cao 5pt cho
+  /// chữ 11pt và nằm *trên* baseline 2pt, nên đòi origin nằm gọn trong hộp là
+  /// trượt sạch.
+  ///
+  /// Nới xuống dưới rộng tay, lên trên thì dè: baseline có thể tụt khá sâu so
+  /// với hộp, nhưng gần như không bao giờ nhô cao hơn. Dung sai tính theo **cỡ
+  /// chữ** chứ không theo chiều cao hộp — chính chiều cao hộp mới là thứ không
+  /// đáng tin ở đây. Và vì nó nhỏ hơn một cỡ chữ, nó không thể với tới baseline
+  /// của dòng kế tiếp.
+  static func belongs(_ origin: CGPoint, to rect: CGRect, fontSize: CGFloat) -> Bool {
+    let slack = max(fontSize * 0.6, 2)
+    return origin.x >= rect.minX - 2
+      && origin.x <= rect.maxX + 2
+      && origin.y >= rect.minY - slack
+      && origin.y <= rect.maxY + 2
+  }
+
   /// Every visible run on the page, in the order the page draws them.
   ///
   /// The whole page at once, because a scan costs the same whether one line is
@@ -66,6 +86,7 @@ enum PdfContentStreamReader {
 
     // The font dictionary is looked up once per resource name rather than once
     // per run: a page of body text is thousands of runs and a handful of fonts.
+    let toPageSpace = pageSpaceTransform(page)
     var fonts: [String: (baseFont: String?, forceBold: Bool)] = [:]
     return state.hits.filter { $0.renderMode != 3 && $0.renderMode != 7 }.map { hit in
       let resource = hit.fontResource
@@ -83,7 +104,7 @@ enum PdfContentStreamReader {
       // and comes back as CoreGraphics complaining about invalid numeric
       // values for the rest of the session.
       return Run(
-        origin: finite(hit.origin) ? hit.origin : .zero,
+        origin: finite(hit.origin) ? hit.origin.applying(toPageSpace) : .zero,
         attributes: Attributes(
           fontName: font?.baseFont,
           fontSize: hit.fontSize.isFinite && hit.fontSize > 0.01 ? hit.fontSize : nil,
@@ -110,10 +131,9 @@ enum PdfContentStreamReader {
   /// First rather than a blend: a line is one run of one style often enough,
   /// and where it is not, its opening is a better answer than an average.
   static func attributes(in rect: CGRect, among runs: [Run]) -> Attributes? {
-    // Grown a little: the baseline of a line sits inside its box, but a run
-    // that starts a hair left of the reported edge is still that line's.
-    let target = rect.insetBy(dx: -2, dy: -1)
-    return runs.first { target.contains($0.origin) }?.attributes
+    runs.first {
+      belongs($0.origin, to: rect, fontSize: $0.attributes.fontSize ?? rect.height)
+    }?.attributes
   }
 
   // MARK: - Addressing operators for deletion
@@ -130,62 +150,118 @@ enum PdfContentStreamReader {
     var origin: CGPoint
     /// False for the render modes that draw nothing — a scan's OCR layer.
     var isVisible: Bool
+    /// `Tr` của operator này. Cần để trả lại đúng trạng thái sau khi giấu chữ:
+    /// chữ gốc có thể đang ở mode 2 (viền), trả về 0 là đổi cách vẽ.
+    var renderMode: Int
+    /// Cỡ chữ đã nhân theo ma trận. Dùng làm dung sai khi đối chiếu với hộp
+    /// dòng của PDFKit.
+    var fontSize: CGFloat
   }
 
   /// Every text-showing operator on the page, invisible ones included.
   static func showTextOps(on page: PDFPage) -> [ShowTextOp] {
     guard let pageRef = page.pageRef, let state = scan(pageRef) else { return [] }
+    let toPageSpace = pageSpaceTransform(page)
     return state.hits.map { hit in
       ShowTextOp(
         index: hit.opIndex,
         segment: hit.segment,
-        origin: finite(hit.origin) ? hit.origin : .zero,
-        isVisible: hit.renderMode != 3 && hit.renderMode != 7
+        origin: finite(hit.origin) ? hit.origin.applying(toPageSpace) : .zero,
+        isVisible: hit.renderMode != 3 && hit.renderMode != 7,
+        renderMode: hit.renderMode,
+        fontSize: hit.fontSize.isFinite && hit.fontSize > 0.01 ? hit.fontSize : 0
       )
     }
   }
 
-  /// The operators to delete so that nothing is drawn inside `rect` any more,
-  /// or nil when deleting them would move text that stays.
+  /// Cách làm cho chữ trong `rect` không còn hiện: xoá cái nào, giấu cái nào.
   ///
-  /// Deleting a text-showing operator costs the page the advance that operator
-  /// made to the text matrix. Anything that draws after it *in the same
-  /// segment* was positioned by that advance and would slide backwards; once
-  /// the line matrix moves again the debt is cleared, because every positioning
-  /// operator computes from the line matrix, which showing text never touches.
+  /// Xoá một operator vẽ chữ là mất luôn đoạn nó đẩy text matrix, nên mọi
+  /// operator vẽ sau nó **trong cùng segment** sẽ tụt lại. Xoá chỉ an toàn khi
+  /// nhóm bị xoá chạy tới hết segment.
   ///
-  /// So a plan is safe exactly when, in every segment it touches, the operators
-  /// being deleted run to the end of that segment. A paragraph selected whole —
-  /// which is the only unit `PdfTextEditManager` offers — normally satisfies
-  /// that, because the line below it begins with a `Td` or a `T*`. When it does
-  /// not, this returns nil rather than a plan that would visibly shift the page,
-  /// and the caller is expected to fall back to covering rather than deleting.
+  /// Khi không an toàn thì không từ chối nữa mà **giấu**: `3 Tr` bảo trình đọc
+  /// tính bước tiến nhưng không vẽ gì. Không có gì dịch chuyển, và nền phía
+  /// dưới không bị đụng tới — không cần sơn vá.
   ///
-  /// Nil also comes back when nothing was found, so the caller cannot tell an
-  /// empty selection from an unsafe one — neither is a deletion, and the
-  /// fallback is the same.
-  static func deletionPlan(for rect: CGRect, on page: PDFPage) -> [Int]? {
+  /// Cái giá của giấu: chữ **vẫn nằm trong file**, search và copy vẫn ra. Nên
+  /// xoá luôn được ưu tiên, giấu chỉ là nước lui — và caller nên đếm số bị giấu.
+  ///
+  /// Trả nil khi không tìm thấy operator nào trong `rect`.
+  static func removalPlan(for rect: CGRect, on page: PDFPage) -> Removal? {
     let ops = showTextOps(on: page)
     guard !ops.isEmpty else { return nil }
 
-    // Grown the same way `attributes(in:among:)` grows it: a run that starts a
-    // hair outside the reported edge is still the line's.
-    let target = rect.insetBy(dx: -2, dy: -1)
-    let doomed = Set(ops.filter { target.contains($0.origin) }.map(\.index))
+    let doomed = Set(
+      ops.filter {
+        belongs($0.origin, to: rect, fontSize: $0.fontSize > 0 ? $0.fontSize : rect.height)
+      }.map(\.index)
+    )
     guard !doomed.isEmpty else { return nil }
 
     var segments: [Int: [ShowTextOp]] = [:]
     for op in ops { segments[op.segment, default: []].append(op) }
 
+    var deletable: Set<Int> = []
     for group in segments.values {
       let ordered = group.sorted { $0.index < $1.index }
       guard let first = ordered.firstIndex(where: { doomed.contains($0.index) }) else { continue }
-      // From the first doomed operator onwards, the rest of the segment has to
-      // go too, or what survives it moves.
-      if ordered[first...].contains(where: { !doomed.contains($0.index) }) { return nil }
+      // Từ operator bị đánh dấu đầu tiên trở đi, phần còn lại của segment cũng
+      // phải đi hết — nếu không thì cái sống sót sẽ dịch chỗ.
+      let tail = ordered[first...]
+      if !tail.contains(where: { !doomed.contains($0.index) }) {
+        deletable.formUnion(tail.map(\.index))
+      }
     }
 
-    return doomed.sorted()
+    // `Tr` gốc của **mọi** operator trúng đích, không chỉ nhóm phải giấu.
+    //
+    // Ai giấu cũng cần con số này để trả lại trạng thái, kể cả operator vốn xoá
+    // được — `hide()` giấu tất cả. Trả bừa 0 cho chúng là đổi chế độ vẽ cho
+    // phần còn lại của text object: trên trang scan, lớp OCR đang ở mode 3 sẽ
+    // bật lên và hiện thành một tầng chữ thứ hai.
+    let modes = Dictionary(
+      ops.filter { doomed.contains($0.index) }.map { ($0.index, $0.renderMode) },
+      uniquingKeysWith: { first, _ in first }
+    )
+    let hidden = doomed.subtracting(deletable)
+    return Removal(
+      delete: deletable.sorted(),
+      hide: modes.filter { hidden.contains($0.key) },
+      modes: modes
+    )
+  }
+
+  /// Kết quả của `removalPlan`.
+  struct Removal {
+    /// Ordinal xoá hẳn khỏi content stream.
+    var delete: [Int]
+    /// Ordinal chỉ giấu, kèm `Tr` gốc để trả lại sau khi vẽ xong.
+    var hide: [Int: Int]
+    /// `Tr` gốc của mọi ordinal trúng đích, xoá được hay không.
+    var modes: [Int: Int]
+  }
+
+  /// Đưa toạ độ của bộ quét về đúng hệ mà PDFKit dùng.
+  ///
+  /// `CGPDFScanner` chạy content stream trong **không gian PDF thô**: gốc toạ
+  /// độ của user space, chưa áp `/Rotate`, chưa tính origin của box. PDFKit thì
+  /// trả hộp và vùng chọn trong hệ đã xoay và đã dời theo box.
+  ///
+  /// Trên trang thường — không xoay, box gốc `(0,0)` — hai hệ trùng nhau, nên
+  /// chuyện này ẩn cho tới khi gặp một tài liệu không như vậy. Lúc đó không có
+  /// origin nào rơi vào hình chữ nhật PDFKit đưa cho, và mọi thứ dựa vào việc
+  /// đối chiếu toạ độ đều im lặng không tìm thấy gì.
+  ///
+  /// Dùng `getDrawingTransform` của CoreGraphics thay vì tự dựng ma trận: nó là
+  /// phép toán chính hãng cho đúng việc này, và tự lo cả bốn góc xoay.
+  private static func pageSpaceTransform(_ page: PDFPage) -> CGAffineTransform {
+    guard let pageRef = page.pageRef else { return .identity }
+    let target = page.bounds(for: .cropBox)
+    guard target.width > 1, target.height > 1 else { return .identity }
+    return pageRef.getDrawingTransform(
+      .cropBox, rect: target, rotate: 0, preserveAspectRatio: true
+    )
   }
 
   // MARK: - Running the scanner

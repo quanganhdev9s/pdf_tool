@@ -18,6 +18,16 @@ import UIKit
 final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognizerDelegate {
   var onSelection: ((PdfTextBlock?) -> Void)?
 
+  /// Nhờ workspace làm chữ gốc vô hình ngay, trước khi ô nhập mở ra.
+  ///
+  /// Trả về trang **thay thế** — tài liệu bị ghi lại và mở lại nên đối tượng
+  /// trang cũ thành rác. Trả nil nghĩa là không giấu được, và mọi thứ chạy như
+  /// cũ: miếng vá làm nhiệm vụ che.
+  var onHideOriginal: ((Int, CGRect) -> PDFPage?)?
+
+  /// Nhờ workspace trả tài liệu về trạng thái trước khi giấu, khi bấm Huỷ.
+  var onRestoreOriginal: (() -> Void)?
+
   /// Nhờ workspace ghi chỉnh sửa vào trang. Manager giữ cử chỉ, ô nhập và
   /// style; chỉ việc đụng vào document là ở ngoài.
   var onCommit: ((PdfTextEditCommit) -> Void)?
@@ -52,7 +62,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     var text: String
     var font: UIFont
     var ink: UIColor
-    var paper: UIColor
     var kern: CGFloat
 
     /// Chiều cao tối đa chữ được chiếm, tính từ đỉnh `bounds` xuống. Bằng
@@ -134,6 +143,10 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// generous.
   static let kernRange: ClosedRange<CGFloat> = -0.03...0.4
 
+  /// Bề rộng dải mép trái/phải dùng để lấy màu nền, tính bằng điểm trang.
+  /// Nằm ngoài glyph nên đọc được nền thật, đủ hẹp để không chạm block bên cạnh.
+  static let paperMargin: CGFloat = 6
+
   /// Least difference in luma between ink and paper for the pair to be read as
   /// text on a background at all. Below it the sample probably caught an image
   /// or a solid fill, and inventing an ink colour from it would produce
@@ -187,6 +200,33 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// for the two to belong together. Keeps a neighbouring column out.
   static let paragraphOverlapShare: CGFloat = 0.4
 
+  /// Khoảng trống ngang bao nhiêu thì cắt một dòng làm hai, theo chiều cao dòng.
+  ///
+  /// `selectionsByLine` trả về cả một hàng chữ là một dòng, kể cả khi hàng đó là
+  /// `Tên:` rồi một khoảng trống rộng rồi `Nguyễn Văn A`. Hai thứ đó không liên
+  /// quan gì nhau nhưng đến đây là một hình chữ nhật duy nhất, nên `continues()`
+  /// không bao giờ được hỏi tới.
+  ///
+  /// Một dấu cách thường rộng khoảng 0.25 chiều cao dòng, nên ngưỡng này nằm
+  /// cách xa mọi khoảng cách từ ngữ bình thường.
+  static let paragraphColumnGap: CGFloat = 0.3
+
+  /// Khe rộng gấp mấy lần khoảng cách từ của chính dòng đó thì coi là sang cột.
+  ///
+  /// Ngưỡng cố định theo chiều cao dòng không dùng được: chữ dàn đều kéo giãn
+  /// dấu cách rất rộng, còn ô bảng thì có khi chỉ cách nhau vài điểm. Đo dấu
+  /// cách thật của dòng rồi nhân lên thì cùng một luật chạy được cho cả hai.
+  static let columnGapInSpaces: CGFloat = 2.5
+
+  /// Hai dòng cùng đoạn thì gộp lại không rộng hơn dòng rộng nhất bao nhiêu.
+  ///
+  /// Kiểm tra chồng lấn phía trên tính theo dòng **hẹp hơn**, và phải như vậy:
+  /// dòng cuối một đoạn thường ngắn hơn hẳn các dòng trên. Nhưng chính vì thế
+  /// một từ ngắn nằm lệch hẳn sang bên cũng lọt — nó chỉ cần chồng 40% của
+  /// chính nó, tức là vài điểm. Chỗ này chặn lại: hai dòng cùng đoạn nằm gần
+  /// như trong cùng một cột, nên hợp của chúng phải xấp xỉ dòng rộng nhất.
+  static let paragraphSpreadShare: CGFloat = 1.35
+
   /// Stands in for "as tall as it needs", in points.
   ///
   /// `CGFloat.greatestFiniteMagnitude` is the usual idiom and it is a way to
@@ -218,7 +258,14 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
   /// Floor on a resized block, in points. Below this the field is too small to
   /// aim at, and a drag past a neighbour would otherwise collapse it to nothing.
+  /// Sàn tuyệt đối cho kích thước block, tính bằng điểm. Bề rộng thật sự cho
+  /// phép được tính theo cỡ chữ trong `minimumWidth` — 24 điểm ở chữ 11pt là
+  /// hai ký tự, ở chữ 40pt thì chưa đủ một.
   static let minimumBlockSize = CGSize(width: 24, height: 10)
+
+  /// Bề rộng tối thiểu tính theo cỡ chữ. Hẹp hơn thì ô nhập xuống dòng sau mỗi
+  /// chữ và không còn dùng được.
+  static let minimumWidthInEms: CGFloat = 4
 
   private weak var pdfView: PDFView?
   private let highlightLayer = CAShapeLayer()
@@ -275,6 +322,14 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// rebuilt on a zoom change and not on every frame of a scroll.
   private var editingTypography: (name: String?, size: CGFloat, kern: CGFloat)?
 
+  /// Trần cho chiều cao ô nhập, toạ độ trang. Tính lúc mở ô nhập và mỗi lần
+  /// kéo nút — không tính khi gõ, vì hỏi nó là đọc lại block cả trang.
+  private var editingFloor: CGFloat?
+
+  /// Chữ gốc của lần sửa này đã bị giấu trong tài liệu chưa. Quyết định có dựng
+  /// miếng vá không, và có phải lùi lại khi bấm Huỷ không.
+  private var editingHidOriginal = false
+
   /// Nhớ câu trả lời gần nhất của `sizeThatFits` kèm dữ kiện đã hỏi. Ô nhập
   /// được bố cục lại mỗi lần cuộn/zoom/gõ, mà chỉ gõ mới đổi chiều cao.
   private var editingFit: (text: String, width: CGFloat, top: CGFloat, height: CGFloat)?
@@ -302,7 +357,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// to cover. The two rectangles are different things — the run that has to be
   /// hidden, and the room the new words are given — and only the first is
   /// painted.
-  private let coverBackdrop = UIView()
 
   private lazy var tapGesture: UITapGestureRecognizer = {
     let gesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
@@ -415,8 +469,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       dismissEditor()
       clearHighlight()
       blockLayer.path = nil
-      coverBackdrop.isHidden = true
-    }
+      }
     logPdfEvent("set_text_edit_mode", "enabled=\(enabled)")
   }
 
@@ -439,6 +492,23 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// Drops the blocks read off the pages. For when the document object is
   /// replaced by an equivalent one — a save and reopen — where the cached
   /// selections point at pages that are no longer in it.
+  /// Trỏ các chỉnh sửa đang chờ sang trang của tài liệu mới.
+  ///
+  /// `CommittedEdit` giữ chính đối tượng trang, mà mở lại tài liệu làm mọi đối
+  /// tượng cũ thành rác. Chỉ số trang thì không đổi — cùng file, cùng thứ tự —
+  /// nên nó là cầu nối duy nhất còn dùng được.
+  func remapPages(to document: PDFDocument, from previous: PDFDocument) {
+    committedEdits = committedEdits.compactMap { edit in
+      let index = previous.index(for: edit.page)
+      guard index != NSNotFound, let page = document.page(at: index) else { return nil }
+      var moved = edit
+      moved.page = page
+      return moved
+    }
+    blockCache.removeAll()
+    runCache.removeAll()
+  }
+
   func invalidateBlocks() {
     blockCache.removeAll()
     runCache.removeAll()
@@ -450,6 +520,10 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
   @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
     guard isEnabled, let pdfView else { return }
+
+    // Ô nhập đang mở thì đóng nó trước — và `dismissEditor` lo phần trả chữ gốc
+    // về. Không làm vậy thì chạm sang block khác sẽ bỏ lại lần giấu cũ mồ côi.
+    if editingStyle != nil { dismissEditor() }
     let viewPoint = gesture.location(in: pdfView)
     guard let page = pdfView.page(for: viewPoint, nearest: true) else {
       report(nil)
@@ -508,7 +582,9 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
         usableName(of: edit.font),
         Double(edit.font.pointSize),
         PdfColor(argb: edit.ink.argb),
-        PdfColor(argb: edit.paper.argb)
+        // Không còn ai sơn nền nữa, nhưng `PdfTextBlock` vẫn có ô này và Dart
+        // vẫn đọc — trả trắng cho xong.
+        PdfColor(argb: UIColor.white.argb)
       )
       // Khôi phục luôn tracking — annotation trước đây không mang được, nên chữ
       // cứ xích lại gần nhau sau mỗi lần sửa.
@@ -537,8 +613,17 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       phase("stream")
       let measured = measuredFont(of: line.selection, lineHeight: line.bounds.height)
       phase("font")
-      let colours = sampledColours(of: line.bounds, on: page)
-      phase("colours")
+      // Đo màu bằng pixel là một lượt render trang, nên chỉ đo khi thật sự
+      // phải đo. Content stream khai màu mực thì không phải; còn màu giấy thì
+      // không còn ai dùng từ khi bỏ lớp che.
+      var sampled: (ink: UIColor, paper: UIColor)?
+      func colours() -> (ink: UIColor, paper: UIColor) {
+        if let sampled { return sampled }
+        let result = sampledColours(of: line.bounds, on: page)
+        sampled = result
+        return result
+      }
+
       let font = resolvedFont(
         measured: measured,
         stream: stream,
@@ -549,11 +634,9 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       )
       phase("weight")
 
-      // Màu giấy vẫn phải lấy từ pixel: nền có thể là hình chữ nhật, ô bảng,
-      // ảnh — không có operator nào để hỏi.
       let ink = stream?.fill.map {
         UIColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: 1)
-      } ?? colours.ink
+      } ?? colours().ink
 
       let candidate = font.name.flatMap { UIFont(name: $0, size: font.size) }
         ?? UIFont.systemFont(ofSize: font.size)
@@ -567,7 +650,8 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
         font.name,
         Double(font.size),
         PdfColor(argb: ink.argb),
-        PdfColor(argb: colours.paper.argb)
+        // Không ai sơn nền nữa. Báo màu đã đo nếu tình cờ có, trắng nếu không.
+        PdfColor(argb: (sampled?.paper ?? .white).argb)
       )
       logPdfEvent(
         "text_block_selected",
@@ -610,6 +694,20 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
         - luma(of: UIColor(argb: style.ink.argb))) / 2, 0.1)
     )
 
+    // Giấu chữ gốc — sau khi đo xong, và chỉ với block chưa từng sửa.
+    //
+    // Thứ tự này bắt buộc: `3 Tr` làm `runs()` bỏ qua chính mấy operator đó, mà
+    // pixel cũng không còn chữ để đo, nên giấu trước là mất sạch dữ liệu đo
+    // style. Đo xong rồi mới giấu.
+    //
+    // Tài liệu bị ghi lại và mở lại, nên `page` từ đây trở đi là trang mới.
+    var page = page
+    editingHidOriginal = false
+    if block.edit == nil, let replacement = onHideOriginal?(pageIndex, cover) {
+      page = replacement
+      editingHidOriginal = true
+    }
+
     phase("cover")
     logPdfEvent("text_block_select_phases", timings.joined(separator: " "))
 
@@ -636,8 +734,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     /// The committed edit covering this block, when there is one. Its presence
     /// is what says the style comes from the edit rather than from the page.
     var edit: CommittedEdit?
-    /// Paper colour, taken from the cover under that annotation.
-    var paper: UIColor?
     /// What that cover covers — the original run, not the box the replacement
     /// was given. Nil for a block that has not been edited yet, whose own
     /// bounds are the run.
@@ -711,27 +807,81 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       }
     guard !lines.isEmpty else { return [] }
 
-    var groups: [[(selection: PDFSelection, bounds: CGRect)]] = []
-    for line in lines {
-      if let previous = groups.last?.last,
-         let count = groups.last?.count,
-         count < Self.paragraphLineLimit,
-         continues(from: previous.bounds, to: line.bounds) {
-        groups[groups.count - 1].append(line)
-      } else {
-        groups.append([line])
-      }
-    }
+    // Cắt trước khi gộp: một hàng chữ có khoảng trống rộng ở giữa phải thành hai
+    // dòng riêng, rồi mới tới lượt `continues()` quyết định chúng có cùng đoạn.
+    let pieces = lines.flatMap { self.split($0, on: page) }
+    guard !pieces.isEmpty else { return [] }
 
-    return groups.map { group in
+    return grouped(pieces).map { group in
       TextBlock(
         bounds: group.dropFirst().reduce(group[0].bounds) { $0.union($1.bounds) },
         text: joined(group.map { $0.selection.string ?? "" }),
         lines: group,
         edit: nil,
-        paper: nil,
         cover: nil
       )
+    }
+  }
+
+  /// Gom các mảnh dòng thành block, theo hình học chứ không theo thứ tự đọc.
+  ///
+  /// Cách cũ so mỗi mảnh với mảnh **ngay trước nó** trong thứ tự đọc. Với văn
+  /// bản một cột thì đúng, với bảng thì sai hẳn: thứ tự đọc chạy ngang hết một
+  /// hàng rồi mới xuống hàng sau, nên ô cột 1 bị đem so với ô cột cuối cùng của
+  /// hàng trên nó, còn ô ngay bên dưới nó thì không bao giờ được so.
+  ///
+  /// Ở đây hai mảnh nối với nhau khi `continues` nói chúng cùng đoạn, **bất kể
+  /// nằm đâu trong thứ tự đọc**, rồi block là các thành phần liên thông. Cột
+  /// của bảng tự gom dọc với nhau vì cùng khoảng x và sát nhau theo y; ô bên
+  /// cạnh không gom vì không chồng lấn ngang.
+  ///
+  /// So từng cặp, `n²` phép so hình chữ nhật. Một trang dày cỡ vài trăm mảnh
+  /// thì vẫn rẻ hơn nhiều so với `selectionsByLine` sinh ra chúng.
+  private func grouped(
+    _ pieces: [(selection: PDFSelection, bounds: CGRect)]
+  ) -> [[(selection: PDFSelection, bounds: CGRect)]] {
+    var parent = Array(0..<pieces.count)
+    var size = Array(repeating: 1, count: pieces.count)
+
+    func root(_ index: Int) -> Int {
+      var current = index
+      while parent[current] != current {
+        parent[current] = parent[parent[current]]
+        current = parent[current]
+      }
+      return current
+    }
+
+    for i in 0..<pieces.count {
+      for j in (i + 1)..<pieces.count {
+        let a = root(i), b = root(j)
+        guard a != b else { continue }
+        // Chặn trên cho một block. Không phải để tiết kiệm mà để một trang thân
+        // bài liền mạch không thành một block duy nhất — chạm vào đâu cũng chọn
+        // cả trang thì không sửa được gì.
+        guard size[a] + size[b] <= Self.paragraphLineLimit else { continue }
+        guard continues(from: pieces[i].bounds, to: pieces[j].bounds) else { continue }
+        if size[a] < size[b] {
+          parent[a] = b
+          size[b] += size[a]
+        } else {
+          parent[b] = a
+          size[a] += size[b]
+        }
+      }
+    }
+
+    var groups: [Int: [(selection: PDFSelection, bounds: CGRect)]] = [:]
+    for index in pieces.indices { groups[root(index), default: []].append(pieces[index]) }
+
+    // Trong mỗi block, sắp lại theo thứ tự đọc: trên xuống dưới, trái sang
+    // phải. `joined()` nối chuỗi theo thứ tự này.
+    return groups.values.map { group in
+      group.sorted {
+        abs($0.bounds.midY - $1.bounds.midY) > 1
+          ? $0.bounds.midY > $1.bounds.midY
+          : $0.bounds.minX < $1.bounds.minX
+      }
     }
   }
 
@@ -749,7 +899,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
           text: edit.text,
           lines: [],
           edit: edit,
-          paper: edit.paper,
           cover: edit.cover
         )
       }
@@ -836,7 +985,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       return
     }
 
-    let editingIndex = editingStyle.map { Int($0.pageIndex) }
     let path = CGMutablePath()
     var missing: [(page: PDFPage, index: Int)] = []
 
@@ -850,11 +998,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       }
       for block in cached {
         // Block đang có ô nhập thì không vẽ viền — ô nhập đã chỉ ra chỗ rồi.
-        if index == editingIndex,
-           let editing = editingOriginalBounds,
-           block.occupied.intersects(editingCover.map { editing.union($0) } ?? editing) {
-          continue
-        }
+        if isUnderField(block.occupied, pageIndex: index) { continue }
         guard Self.isDrawable(block.bounds) else { continue }
         let rect = pdfView.convert(block.bounds, from: page).insetBy(dx: -2, dy: -2)
         guard Self.isDrawable(rect), rect.width > 6, rect.height > 6,
@@ -961,19 +1105,125 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     return nil
   }
 
-  /// Whether `next`, which sits directly above or below `current`, belongs to
-  /// the same block of text.
+  /// Cắt một dòng ở những chỗ trống ngang đủ rộng.
+  ///
+  /// Đi theo hộp của từng ký tự chứ không theo hộp của cả dòng, vì hộp dòng đã
+  /// nuốt mất khoảng trống rồi. Bỏ qua ký tự trắng: chỗ trống trong bố cục kiểu
+  /// cột thường do lệnh định vị tạo ra, nhưng khi nó là một chuỗi dấu cách thật
+  /// thì chính mấy dấu cách đó sẽ bắc cầu qua khe và che mất nó.
+  private func split(
+    _ line: (selection: PDFSelection, bounds: CGRect),
+    on page: PDFPage
+  ) -> [(selection: PDFSelection, bounds: CGRect)] {
+    let count = line.selection.numberOfTextRanges(on: page)
+    guard count > 0, let text = page.string as NSString? else { return [line] }
+
+    // Hộp của từng ký tự không phải khoảng trắng, theo thứ tự.
+    var boxes: [CGRect] = []
+    for slot in 0..<count {
+      let range = line.selection.range(at: slot, on: page)
+      guard range.location != NSNotFound else { continue }
+      for index in range.location..<min(range.location + range.length, text.length) {
+        let character = text.substring(with: NSRange(location: index, length: 1))
+        guard character.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { continue }
+        let box = page.characterBounds(at: index)
+        guard Self.isDrawable(box) else { continue }
+        boxes.append(box)
+      }
+    }
+    guard boxes.count > 1 else { return [line] }
+
+    // Khe giữa các ký tự liền nhau. Trong một từ thì gần bằng 0; giữa hai từ là
+    // bề rộng dấu cách; giữa hai ô bảng thì lớn hơn hẳn.
+    var gaps: [CGFloat] = []
+    for index in 1..<boxes.count {
+      gaps.append(boxes[index].minX - boxes[index - 1].maxX)
+    }
+
+    // Dấu cách của chính dòng này, ước lượng bằng trung vị các khe thật sự có
+    // bề rộng. Bỏ khe trong từ ra, nếu không trung vị sẽ về 0 và mọi thứ đều
+    // thành ranh giới cột.
+    let spaced = gaps.filter { $0 > 0.5 }.sorted()
+    let space = spaced.isEmpty ? 0 : spaced[spaced.count / 2]
+    let threshold = max(
+      space * Self.columnGapInSpaces,
+      line.bounds.height * Self.paragraphColumnGap
+    )
+
+    var pieces: [CGRect] = []
+    var open = boxes[0]
+    for index in 1..<boxes.count {
+      if gaps[index - 1] > threshold {
+        pieces.append(open)
+        open = boxes[index]
+      } else {
+        open = open.union(boxes[index])
+      }
+    }
+    pieces.append(open)
+
+    guard pieces.count > 1 else {
+      // Không cắt, nhưng vẫn ghi lại khe lớn nhất: nếu bảng bị gộp thì con số
+      // này với ngưỡng đứng cạnh nhau nói ngay phải chỉnh bao nhiêu.
+      if let widest = gaps.max(), widest > 1 {
+        logPdfEvent(
+          "text_line_intact",
+          "widest=\(String(format: "%.1f", widest)) threshold=\(String(format: "%.1f", threshold)) "
+            + "space=\(String(format: "%.1f", space)) height=\(Int(line.bounds.height))"
+        )
+      }
+      return [line]
+    }
+
+    logPdfEvent(
+      "text_line_split",
+      "pieces=\(pieces.count) threshold=\(String(format: "%.1f", threshold)) "
+        + "space=\(String(format: "%.1f", space)) width=\(Int(line.bounds.width))"
+    )
+
+    // Chiều cao lấy từ dòng gốc, không lấy từ hộp ký tự: mấy phép kiểm gộp đoạn
+    // so chiều cao với nhau, mà hộp ký tự cao thấp tuỳ chữ có dấu hay không.
+    return pieces.compactMap { piece in
+      let bounds = CGRect(
+        x: piece.minX,
+        y: line.bounds.minY,
+        width: piece.width,
+        height: line.bounds.height
+      )
+      guard let selection = page.selection(for: bounds.insetBy(dx: -1, dy: -1)),
+            !(selection.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else { return nil }
+      return (selection, bounds)
+    }
+  }
+
+  /// Hai mảnh dòng có thuộc cùng một block không.
+  ///
+  /// Đối xứng — không có mảnh nào là "trước", vì `grouped` gọi nó theo cặp chứ
+  /// không theo thứ tự đọc.
   private func continues(from current: CGRect, to next: CGRect) -> Bool {
     let gap = next.maxY < current.maxY
       ? current.minY - next.maxY
       : next.minY - current.maxY
-    guard gap <= current.height * Self.paragraphLineGap else { return false }
+    // Đo theo dòng **thấp hơn**, không theo `current`. Một tiêu đề cỡ lớn cấp
+    // cho thứ nằm dưới nó một khoảng dôi rất rộng, và dòng thân bài cách đó cả
+    // một hàng trống vẫn lọt vào cùng block với tiêu đề.
+    let leading = min(current.height, next.height)
+    guard gap <= leading * Self.paragraphLineGap else { return false }
 
     let ratio = next.height / max(current.height, 0.01)
     guard Self.paragraphHeightRatio.contains(ratio) else { return false }
 
     let overlap = min(current.maxX, next.maxX) - max(current.minX, next.minX)
-    return overlap >= min(current.width, next.width) * Self.paragraphOverlapShare
+    guard overlap >= min(current.width, next.width) * Self.paragraphOverlapShare else {
+      return false
+    }
+
+    // Và không được nằm lệch hẳn sang bên: hợp của hai dòng phải xấp xỉ dòng
+    // rộng nhất. Kiểm tra chồng lấn ở trên không bắt được chuyện này vì nó tính
+    // theo dòng hẹp hơn.
+    let spread = max(current.maxX, next.maxX) - min(current.minX, next.minX)
+    return spread <= max(current.width, next.width) * Self.paragraphSpreadShare
   }
 
   /// Nối các dòng của block thành chữ liền.
@@ -1016,6 +1266,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     editingOriginalBounds = bounds
     editingCover = cover
     editingKern = kern
+    editingFloor = typingFloor(for: bounds, on: page)
     editingTypography = nil
     editingStyle = PdfTextEditRequest(
       pageIndex: block.pageIndex,
@@ -1044,28 +1295,21 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     editor.tintColor = .systemBlue
     editingTypography = nil
 
-    coverBackdrop.backgroundColor = UIColor(argb: block.backgroundColor.argb)
-    coverBackdrop.isUserInteractionEnabled = false
 
-    if coverBackdrop.superview == nil {
-      pdfView.addSubview(coverBackdrop)
-    }
     if editor.superview == nil {
       pdfView.addSubview(editor)
     }
     for handle in resizeHandles.values where handle.superview == nil {
       pdfView.addSubview(handle)
     }
-    coverBackdrop.isHidden = false
     editor.isHidden = false
     for handle in resizeHandles.values { handle.isHidden = false }
-    // Xếp chồng có chủ đích, dưới lên trên: miếng vá, chữ đang gõ, viền, nút.
+    // Xếp chồng có chủ đích, dưới lên trên: chữ đang gõ, viền, nút.
     //
     // `fieldBorder` phải nâng ở đây: nó là layer gắn lúc setup, còn miếng vá là
     // subview được đưa lên trước mỗi lần mở ô nhập, nên vá đục sẽ phủ mất viền.
     // Gắn lại một sublayer đã gắn sẽ đẩy nó lên đầu — cách duy nhất để layer
     // vượt qua subview thêm sau.
-    pdfView.bringSubviewToFront(coverBackdrop)
     pdfView.bringSubviewToFront(editor)
     pdfView.layer.addSublayer(fieldBorder)
     for handle in resizeHandles.values { pdfView.bringSubviewToFront(handle) }
@@ -1143,8 +1387,14 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     // bàn phím. Chạm trần thì ô nhập chuyển sang cuộn bên trong, gõ tiếp bình
     // thường. Bản trước chặn luôn phím và thành ra không gõ nổi dòng thứ hai
     // nếu chưa kéo khung to.
+    // Trần lấy từ giá trị tính sẵn, không tính lại mỗi phím.
+    //
+    // `typingFloor` phải hỏi `blocks()`, mà sau lần giấu chữ thì tài liệu được
+    // mở lại và cache block bị xoá sạch — nên gọi ở đây là mỗi phím một lượt
+    // `selectionsByLine` cộng `characterBounds` toàn trang. Đó là chỗ bàn phím
+    // đơ. Trần chỉ đổi khi kéo nút, nên tính lại ở đó là đủ.
     let floorInView = pdfView.convert(
-      CGPoint(x: bounds.minX, y: typingFloor(for: bounds, on: page)), from: page
+      CGPoint(x: bounds.minX, y: editingFloor ?? page.bounds(for: .cropBox).minY), from: page
     ).y
     let capped = floorInView.isFinite
       ? max(min(wanted, floorInView - (rect.minY - headroom)), rect.height + headroom)
@@ -1166,35 +1416,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
         )
       }
     }
-
-    // Miếng vá bám chữ gốc, không bám ô nhập — che lúc gõ đúng bằng che lúc ghi.
-    if let cover = editingCover {
-      let patch = pdfView.convert(
-        Self.coverRect(for: cover, in: page.bounds(for: .cropBox)),
-        from: page
-      )
-      coverBackdrop.isHidden = !Self.isDrawable(patch)
-      if Self.isDrawable(patch), coverBackdrop.frame != patch {
-        coverBackdrop.frame = patch
-      }
-    } else {
-      coverBackdrop.isHidden = true
-    }
-
-    // Viền chạy từ cạnh trên block tới chỗ chữ kết thúc — đúng hình chữ nhật mà
-    // bốn nút kéo ngồi ở góc. Cạnh trên lấy từ block vì đó là chỗ dòng đầu rơi
-    // xuống; cạnh dưới lấy từ chữ vì đó là chỗ chữ thật sự dừng.
-    let outline = CGRect(
-      x: rect.minX,
-      y: rect.minY,
-      width: rect.width,
-      height: max(rect.height, editor.frame.maxY - rect.minY)
-    )
-    fieldBorder.isHidden = false
-    fieldBorder.frame = pdfView.bounds
-    fieldBorder.path = Self.isDrawable(outline)
-      ? UIBezierPath(roundedRect: outline, cornerRadius: 3).cgPath
-      : nil
 
     let grip = CGRect(
       origin: .zero,
@@ -1270,12 +1491,14 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       if corner.movesTopEdge { maxY += dy } else { minY += dy }
 
       // Không cho vượt qua cạnh neo: lật ngược hình là chỗ NaN bắt đầu.
-      (minX, maxX) = Self.separated(minX, maxX, moving: corner.movesLeftEdge, by: Self.minimumBlockSize.width)
+      (minX, maxX) = Self.separated(minX, maxX, moving: corner.movesLeftEdge, by: minimumWidth)
       (minY, maxY) = Self.separated(minY, maxY, moving: !corner.movesTopEdge, by: Self.minimumBlockSize.height)
 
       let proposed = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
       let allowed = allowedBounds(proposed, from: corner, anchoredAt: start, on: page)
       editingBounds = allowed
+      // Bề ngang đổi thì hàng xóm chặn đường cũng đổi.
+      editingFloor = typingFloor(for: allowed, on: page)
       editingStyle?.bounds = PdfRect(
         x: allowed.origin.x,
         y: allowed.origin.y,
@@ -1323,29 +1546,32 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     // Rộng trước, cao sau — hai giới hạn phụ thuộc nhau, cố định thứ tự để cú
     // kéo không dao động giữa hai đáp án.
     for other in others where overlaps(Self.span(minY, maxY), Self.span(other.minY, other.maxY)) {
+      // Chỉ hàng xóm nằm **ngoài** block, về phía đang kéo, mới chặn được.
+      //
+      // Có lúc điều kiện này được nới thành "bắt đầu sau cạnh trái của ta", và
+      // một block nằm ngay phía trên cùng lề trái lập tức kẹp bề rộng về 0 rồi
+      // rơi xuống kích thước tối thiểu — kéo góc trên-phải là khung sập còn 24
+      // điểm.
       if corner.movesLeftEdge {
-        // Mọi hàng xóm bắt đầu bên trái cạnh phải của ta đều chặn được, không
-        // chỉ hàng xóm nằm hẳn ngoài block gốc — điều kiện cũ bỏ lọt những
-        // block chỉ chồng lấn một phần.
-        guard other.maxX <= own.maxX else { continue }
+        guard other.maxX <= own.minX + Self.blockGutter else { continue }
         minX = max(minX, other.maxX + Self.blockGutter)
       } else {
-        guard other.minX >= own.minX else { continue }
+        guard other.minX >= own.maxX - Self.blockGutter else { continue }
         maxX = min(maxX, other.minX - Self.blockGutter)
       }
     }
     for other in others where overlaps(Self.span(minX, maxX), Self.span(other.minX, other.maxX)) {
       if corner.movesTopEdge {
-        guard other.minY >= own.minY else { continue }
+        guard other.minY >= own.maxY - Self.blockGutter else { continue }
         maxY = min(maxY, other.minY - Self.blockGutter)
       } else {
-        guard other.maxY <= own.maxY else { continue }
+        guard other.maxY <= own.minY + Self.blockGutter else { continue }
         minY = max(minY, other.maxY + Self.blockGutter)
       }
     }
 
     // Kích thước tối thiểu do cạnh đang kéo nhường, không phải cạnh neo.
-    (minX, maxX) = Self.separated(minX, maxX, moving: corner.movesLeftEdge, by: Self.minimumBlockSize.width)
+    (minX, maxX) = Self.separated(minX, maxX, moving: corner.movesLeftEdge, by: minimumWidth)
     (minY, maxY) = Self.separated(minY, maxY, moving: !corner.movesTopEdge, by: Self.minimumBlockSize.height)
 
     let allowed = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
@@ -1357,6 +1583,21 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       )
     }
     return allowed
+  }
+
+  /// Bề rộng hẹp nhất block được phép có, theo cỡ chữ đang sửa.
+  private var minimumWidth: CGFloat {
+    max(Self.minimumBlockSize.width, CGFloat(editingStyle?.fontSize ?? 0) * Self.minimumWidthInEms)
+  }
+
+  /// Vùng này có đang nằm dưới ô nhập không.
+  ///
+  /// Một hàm cho cả hai chỗ cần biết — vẽ viền và vẽ xem trước. Trước đây mỗi
+  /// chỗ tự viết, và chỗ vẽ xem trước quên mất, nên chữ bị vẽ chồng hai lần.
+  private func isUnderField(_ rect: CGRect, pageIndex: Int) -> Bool {
+    guard let style = editingStyle, Int(style.pageIndex) == pageIndex,
+          let editing = editingOriginalBounds else { return false }
+    return rect.intersects(editingCover.map { editing.union($0) } ?? editing)
   }
 
   /// Các block khác trên trang, trừ chính block đang sửa và chữ gốc dưới miếng vá.
@@ -1410,6 +1651,8 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     request.text = editor.text ?? ""
     // Đọc trước khi `dismissEditor` xoá.
     let kern = editingKern
+    // Lần giấu này được giữ: chữ mới sắp thế chỗ chữ cũ.
+    editingHidOriginal = false
     dismissEditor()
     onCommit?(PdfTextEditCommit(request: request, cover: cover, kern: kern))
     onSelection?(nil)
@@ -1419,6 +1662,8 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     guard var request = editingStyle, let cover = editingCover else { return }
     request.text = ""
     let kern = editingKern
+    // Xoá chữ: chữ gốc phải ở nguyên trạng thái bị giấu.
+    editingHidOriginal = false
     dismissEditor()
     onCommit?(PdfTextEditCommit(request: request, cover: cover, kern: kern))
     onSelection?(nil)
@@ -1430,6 +1675,16 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   }
 
   func dismissEditor() {
+    // Đóng mà không commit thì phải trả chữ gốc về. Chỗ này chứ không phải
+    // trong `cancelEditing`: nút Huỷ chỉ là một trong nhiều đường đóng — tap ra
+    // ngoài, tap sang block khác, tắt chế độ sửa đều đi qua đây, và trước đây
+    // ba đường đó để chữ gốc bị giấu vĩnh viễn mà không có gì thay thế.
+    //
+    // `commitEditing` tắt cờ trước khi gọi vào đây, vì lần giấu đó phải giữ.
+    if editingHidOriginal {
+      editingHidOriginal = false
+      onRestoreOriginal?()
+    }
     editor.resignFirstResponder()
     editor.isHidden = true
     // Trả về mặc định: ô nhập sau mở ra chưa chạm trần nào.
@@ -1438,14 +1693,15 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     fieldBorder.path = nil
     editor.text = ""
     for handle in resizeHandles.values { handle.isHidden = true }
-    coverBackdrop.isHidden = true
     editingStyle = nil
     editingPage = nil
     editingBounds = nil
     editingOriginalBounds = nil
     editingCover = nil
     editingKern = 0
+    editingFloor = nil
     editingTypography = nil
+    editingHidOriginal = false
     editingFit = nil
     resizeStartBounds = nil
     refreshBlockOutlines()
@@ -1774,6 +2030,13 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
   /// Sampling scale for a run of this height. Shared so a measurement taken on
   /// the page and the one it is compared against are made of the same pixels.
+  /// Nền của một vùng, một pixel mỗi hàng, trên xuống dưới.
+  ///
+  /// Render vùng đó **nới rộng sang hai bên**, rồi mỗi hàng lấy trung bình các
+  /// cột ở mép trái và mép phải. Chữ nằm giữa nên hai mép là nền thật.
+  ///
+  /// Nướng sẵn thành ảnh 1×N ngay tại đây: nền không đổi trong suốt lần sửa, và
+  /// tính lại mỗi frame là trả tiền cho một thứ đứng yên.
   private func sampleScale(for height: CGFloat) -> CGFloat {
     min(
       max(Self.colourSampleLineHeight / max(height, 1), Self.colourSampleScaleRange.lowerBound),
@@ -1917,12 +2180,13 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     text: String,
     bounds: CGRect,
     on page: PDFPage,
-    colours: (ink: UIColor, paper: UIColor)
+    colours: () -> (ink: UIColor, paper: UIColor)
   ) -> (name: String?, size: CGFloat) {
     guard let stream else {
-      // Nothing to read: fall back to comparing how much ink the page lays down
-      // against how much the reported font would.
-      return weighted(measured, text: text, bounds: bounds, on: page, colours: colours)
+      // Không đọc được gì: lùi về so mật độ mực trang đặt xuống với mật độ mà
+      // font được báo sẽ đặt. Đây là chỗ duy nhất cần tới pixel, nên `colours`
+      // là closure — nhánh dưới không gọi thì không ai render gì cả.
+      return weighted(measured, text: text, bounds: bounds, on: page, colours: colours())
     }
 
     // A size that disagrees wildly with the glyphs on the page is a text matrix
@@ -2044,6 +2308,9 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
   private func report(_ block: PdfTextBlock?) {
     if block == nil {
+      // Chạm ra ngoài là bỏ, y như bấm Huỷ — nên chữ gốc đã giấu phải trả lại.
+      // Không trả thì nó ở lại vô hình mà chẳng có chữ mới nào thay.
+      if editingHidOriginal { onRestoreOriginal?() }
       dismissEditor()
       clearHighlight()
     }
@@ -2161,7 +2428,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       text: text,
       font: font,
       ink: ink,
-      paper: UIColor(argb: request.backgroundColor.argb),
       kern: commit.kern,
       // Bằng đúng chiều cao khung: khung đã nở theo chữ nên lưới cắt chỉ còn
       // việc gì khi khung bị kéo nhỏ lại sau đó.
@@ -2182,7 +2448,6 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
           text: text,
           lines: [],
           edit: edit,
-          paper: edit.paper,
           cover: cover
         )
       )
@@ -2233,11 +2498,12 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     for page in pdfView.visiblePages {
       let index = document.index(for: page)
       for edit in committedEdits where edit.page === page {
-        let patch = pdfView.convert(edit.cover, from: page)
-        guard Self.isDrawable(patch), patch.intersects(bounds) else { continue }
-        context.setFillColor(edit.paper.cgColor)
-        context.fill(patch)
-
+        // Chỉnh sửa đang mở ô nhập thì để ô nhập vẽ. Không bỏ qua thì chữ hiện
+        // hai lần: một bản đứng ở chỗ lần sửa trước, một bản chạy theo tay khi
+        // đang kéo.
+        if isUnderField(edit.occupied, pageIndex: index) { continue }
+        // Không sơn gì cả: chữ gốc đã bị `3 Tr` giấu trong tài liệu, nền dưới
+        // đó là nền thật và không ai được đụng vào.
         guard !edit.text.isEmpty else { continue }
         let box = pdfView.convert(edit.bounds, from: page)
         guard Self.isDrawable(box) else { continue }
