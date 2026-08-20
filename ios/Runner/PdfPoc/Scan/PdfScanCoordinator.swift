@@ -19,7 +19,7 @@ final class PdfScanCoordinator: NSObject {
   /// that it discards colour outright — a red stamp or a signature ends up black
   /// or gone — so the review screen still offers the other presets, and the user
   /// can switch a page or the whole session at any point.
-  static let defaultPreset: PdfScanPreset = .blackAndWhite
+  static let defaultPreset: PdfScanPreset = .magicColor
 
   private let store = PdfScanSessionStore()
   private let processor = PdfScanImageProcessor()

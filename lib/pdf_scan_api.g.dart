@@ -116,19 +116,34 @@ enum PdfScanSource {
   photoPicker,
 }
 
-/// Enhancement applied to a page. Kept as a closed set rather than a bag of
-/// generic photo knobs: each preset is tuned against fixture images, so it can
-/// be regression-tested.
+/// Enhancement applied to a page. A closed set rather than generic photo
+/// knobs, so each one can be regression-tested; named and ordered after
+/// CamScanner, because that is what users arrive already knowing.
 ///
-/// Uneven lighting is not a preset and not a control: the pipeline detects
-/// under-lit regions itself and corrects only those, with the gain bounded. It
-/// is deliberately not exposed — a global knob moved parts of the capture that
-/// were already correct, and a manual one made the user do the detector's job.
+///  - [auto] — picks one of the modes below from the page's content. It never
+///    picks [blackAndWhite]; see the classifier in `PdfScanImageProcessor`.
+///  - [lighten] — for colourful, well-lit originals whose background is artwork
+///    rather than paper. Corrects illumination halfway and never clips to
+///    white, because the full treatment flattens a photograph's tonality away.
+///  - [magicColor] — the default. Lighting flattened, paper clipped to true
+///    white, colour kept and lifted so a stamp or highlighter survives.
+///  - [grayMode] — the same, desaturated, stretched wider.
+///  - [blackAndWhite] — two tones from a global cut. Crisp and small; right for
+///    clean printed text.
+///  - [blackAndWhite2] — two tones from a local comparison. Grainier, but it
+///    survives faint pencil and lighting the flatten could not remove.
+///
+/// Uneven lighting is not a preset and not a control: every preset above starts
+/// by flattening the page's illumination, so there is nothing for a user to
+/// aim.
 enum PdfScanPreset {
+  auto,
   original,
-  enhancedColor,
-  cleanGrayscale,
+  lighten,
+  magicColor,
+  grayMode,
   blackAndWhite,
+  blackAndWhite2,
 }
 
 /// Output resolution and compression for the exported PDF.
@@ -328,7 +343,7 @@ class PdfScanExportResult {
   int durationMilliseconds;
 
   /// Human-readable tally of the presets that produced this file, e.g.
-  /// "enhancedColor x3, original x1". Surfaced in the export confirmation.
+  /// "magicColor x3, original x1". Surfaced in the export confirmation.
   String presetSummary;
 
   List<Object?> _toList() {

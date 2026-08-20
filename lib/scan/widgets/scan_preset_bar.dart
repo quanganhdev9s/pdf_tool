@@ -6,21 +6,24 @@ import '../bloc/scan_review_bloc.dart';
 
 /// Preset picker plus the original/enhanced comparison toggle.
 ///
-/// Presets are a closed set rather than sliders: each one is tuned against
-/// fixture images and can be regression-tested, which a free-form brightness
-/// control cannot be. Shadow correction is not here at all — the pipeline
-/// detects under-lit regions and fixes only those, so there is nothing for the
-/// user to aim.
+/// Presets are a closed set rather than sliders: each is tuned against fixture
+/// images and can be regression-tested, which a brightness slider cannot be.
+/// Labels and order are CamScanner's verbatim, so a user arriving from another
+/// scanner app reads the bar without trying anything; insertion order below is
+/// the render order.
 class ScanPresetBar extends StatelessWidget {
   const ScanPresetBar({super.key, required this.state});
 
   final ScanReviewState state;
 
   static const Map<PdfScanPreset, String> _labels = <PdfScanPreset, String>{
+    PdfScanPreset.auto: 'Auto',
     PdfScanPreset.original: 'Original',
-    PdfScanPreset.enhancedColor: 'Enhanced',
-    PdfScanPreset.cleanGrayscale: 'Grayscale',
+    PdfScanPreset.lighten: 'Lighten',
+    PdfScanPreset.magicColor: 'Magic Color',
+    PdfScanPreset.grayMode: 'Gray Mode',
     PdfScanPreset.blackAndWhite: 'B&W',
+    PdfScanPreset.blackAndWhite2: 'B&W2',
   };
 
   @override

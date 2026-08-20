@@ -107,13 +107,16 @@ final class PdfScanSessionRecord {
     }
   }
 
-  /// Tally used in the export result, e.g. "enhancedColor x3, original x1".
+  /// Tally used in the export result, e.g. "magicColor x3, original x1".
   var presetSummary: String {
     var counts: [PdfScanPreset: Int] = [:]
     for page in pages {
       counts[page.preset, default: 0] += 1
     }
-    let ordered: [PdfScanPreset] = [.original, .enhancedColor, .cleanGrayscale, .blackAndWhite]
+    let ordered: [PdfScanPreset] = [
+      .auto, .original, .lighten, .magicColor, .grayMode,
+      .blackAndWhite, .blackAndWhite2,
+    ]
     return ordered
       .compactMap { preset in
         guard let count = counts[preset], count > 0 else { return nil }
@@ -126,10 +129,13 @@ final class PdfScanSessionRecord {
 extension PdfScanPreset {
   var storageKey: String {
     switch self {
+    case .auto: return "auto"
     case .original: return "original"
-    case .enhancedColor: return "enhancedColor"
-    case .cleanGrayscale: return "cleanGrayscale"
+    case .lighten: return "lighten"
+    case .magicColor: return "magicColor"
+    case .grayMode: return "grayMode"
     case .blackAndWhite: return "blackAndWhite"
+    case .blackAndWhite2: return "blackAndWhite2"
     }
   }
 }

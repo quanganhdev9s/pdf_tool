@@ -4,160 +4,120 @@ import Foundation
 import Metal
 import UIKit
 
-/// Per-preset pipeline constants.
+/// Pipeline constants.
 ///
-/// Every value here was chosen by rendering the pipeline over a real dim-lit
-/// capture and comparing the output, not by reasoning from the symptom. That
-/// distinction matters: an earlier pass tuned these by argument alone and made
-/// the output worse. Each note below records what was observed at which value,
-/// so the next change starts from evidence rather than from scratch.
-///
-/// Re-tuning means rendering variants over sample captures again — the sample
-/// set these were derived from is no longer in the repository.
-///
-/// The constants behind background estimation, shadow detection, gain limiting,
-/// white balance and the adaptive threshold (`backgroundDilationFraction`,
-/// `backgroundBlurFraction`, `shadowMaskOnset`/`shadowMaskFull`, `maxGain`,
-/// `whiteBalanceGainRange`, `adaptiveMeanFraction`, `adaptiveThreshold`) are
-/// starting points reasoned from what each stage does, *not* swept over
-/// captures. They are the first thing to check if output regresses.
+/// These were derived by rendering variants and comparing output, not by
+/// reasoning from the symptom — an earlier pass tuned them by argument alone
+/// and made the output worse. Re-tuning means rendering variants again.
 enum PdfScanTuning {
-  /// Radius of the morphological maximum that removes text from the background
-  /// estimate, as a fraction of the long edge.
+  /// Radius of the morphological maximum that erases ink from the background
+  /// estimate, as a fraction of the long edge, and its absolute ceiling.
   ///
-  /// Has to be wider than a stroke and narrower than a shadow. A plain blur
-  /// cannot do this job: ink pulls the average down, so a dense paragraph reads
-  /// as a shadow and gets lifted until the text goes gray. Taking the local
-  /// maximum first throws the ink away and leaves the paper.
+  /// Must be wider than a stroke, narrower than a shadow. A plain blur cannot
+  /// do this: ink pulls the average down, so a dense paragraph reads as shadow
+  /// and gets lifted until the text goes grey.
   static let backgroundDilationFraction: CGFloat = 0.006
-
-  /// Absolute ceiling on the dilation radius. Morphology cost grows with
-  /// radius, and past this the estimate stops improving.
   static let backgroundDilationMaxPixels: Float = 18
 
-  /// Blur applied after the dilation, as a fraction of the long edge. Smooths
-  /// the estimate into an illumination field; wide, because lighting varies
-  /// slowly and anything sharper starts tracking page content.
+  /// Blur applied after the dilation. Wide, because lighting varies slowly and
+  /// anything sharper starts tracking page content.
   static let backgroundBlurFraction: CGFloat = 0.04
 
-  /// Long edge the background estimate and every measurement taken from it are
-  /// computed at.
-  ///
-  /// The estimate is an illumination field — smooth by construction, and about
-  /// to be blurred by 4% of the long edge anyway — so computing it at full
-  /// resolution buys nothing and costs the most expensive filters in the
-  /// pipeline running over 16x the pixels. The morphology, the blur, the
-  /// histogram and the white-balance average all run here; only the divide runs
-  /// at full size.
+  /// Long edge every measurement pass runs at. The estimate is smooth by
+  /// construction, so full resolution buys nothing; only the divide runs full
+  /// size.
   static let measurementLongEdge: CGFloat = 512
 
-  /// Share of the brightest pixels treated as glare rather than paper.
-  ///
-  /// The paper reference used to be the single brightest pixel of the estimate,
-  /// which one specular highlight is enough to push above real paper — and a
-  /// reference set too high under-corrects the whole page. A high percentile
-  /// answers the same question and cannot be moved by a handful of pixels.
+  /// Share of the brightest pixels treated as glare rather than paper, so one
+  /// specular highlight cannot move the paper reference.
   static let paperLevelGlareShare: CGFloat = 0.02
 
-  /// Below this the frame has no bright region at all: not a document under
-  /// uneven light, a failed capture. Correcting from it would invent a paper
-  /// level that is not there.
+  /// Below this the frame has no bright region at all — a failed capture, not a
+  /// document. Flattening is skipped rather than run at full gain over noise.
   static let minimumPaperLevel: CGFloat = 0.12
 
-  /// Where the shadow mask turns on, as a shortfall from the paper level:
-  /// `(paper - background) / paper`. Below the first value nothing is treated
-  /// as shadow, above the second the correction is applied in full, and the
-  /// ramp between them is what keeps a lifted region from showing a visible
-  /// edge against its surroundings.
-  static let shadowMaskOnset: CGFloat = 0.12
-  static let shadowMaskFull: CGFloat = 0.45
+  /// Ceiling on the correction gain. This high only because the white point
+  /// runs after the flattening: amplified paper noise lands above the clip and
+  /// disappears. Raise the white point before raising this.
+  static let maxGain: CGFloat = 4.5
 
-  /// Ceiling on the correction gain, as a function of `shadowLift`.
-  ///
-  /// The single most important constant here, and the reason this pipeline
-  /// bounds gain instead of clamping the divisor's floor. An unbounded divide
-  /// multiplies sensor noise by the same factor it multiplies signal, so a
-  /// corner the light never reached explodes into full-amplitude colour
-  /// confetti. Around 2–2.5x a genuinely dim region becomes readable while its
-  /// noise stays under what denoising can absorb.
-  static func maxGain(shadowLift: CGFloat) -> CGFloat {
-    let t = min(max(shadowLift, 0), 1)
-    return 2.0 + 0.5 * t
-  }
-
-  /// Where the two controls that read it sit on their ranges: `maxGain` and
-  /// `adaptiveThreshold`. A single constant rather than per-page state — shadow
-  /// correction is automatic, so nothing varies it from one page to the next.
-  static let shadowLift: CGFloat = 0.5
-
-  /// Bounds on the per-channel gains auto white balance may apply.
-  ///
-  /// Gray-world assumes the average of the frame is neutral, which holds for a
-  /// document — paper is most of the pixels and ink is roughly neutral. It
-  /// stops holding on coloured stock or a page that is mostly a photograph, so
-  /// the gains are clamped: a warm cast comes out, a genuinely yellow page
-  /// stays yellow instead of being bleached to white.
+  /// Bounds on gray-world white balance. Clamped so a warm cast comes out while
+  /// genuinely yellow stock stays yellow.
   static let whiteBalanceGainRange: ClosedRange<CGFloat> = 0.75...1.35
 
-  /// Runs *after* the correction. Before it, shadow noise is only a couple of
-  /// levels deep and indistinguishable from paper texture; after it, it is the
-  /// loudest thing in the frame.
-  static let noiseLevel: Float = 0.05
+  /// Runs after the flattening and before the white point, so the clip decides
+  /// paper-versus-ink from a denoised signal rather than from speckle.
+  static let noiseLevel: Float = 0.06
   static let noiseSharpness: Float = 0.30
 
-  /// `CIDocumentEnhancer` strength.
+  /// Black and white points for the remap after the flattening. The white point
+  /// is a hard clip: a soft roll-off was the previous behaviour and is why the
+  /// background came out pale uneven grey — nothing was ever actually white.
+  /// Grey mode cuts deeper because tone has to carry the contrast chroma was.
+  static let magicColorBlackPoint: CGFloat = 0.16
+  static let magicColorWhitePoint: CGFloat = 0.90
+  static let grayBlackPoint: CGFloat = 0.20
+  static let grayWhitePoint: CGFloat = 0.88
+
+  /// The global cut behind `blackAndWhite`, and the ramp around it that keeps
+  /// glyph edges from stair-stepping. Only defensible after the flattening.
+  static let binaryCut: CGFloat = 0.62
+  static let binarySoftness: CGFloat = 0.03
+
+  /// Positive vibrance after the white point, so a stamp or a highlighter reads
+  /// as what it is. The cast is handled by white balance and the clip, not by
+  /// draining chroma — draining it also drained blue ballpoint.
+  static let chromaBoost: Float = 0.35
+
+  /// How much of the correction Lighten applies.
   ///
-  /// Measured contribution is small: on a dim capture, running it alone left
-  /// the unlit corner black and the warm cast fully intact. It adds some local
-  /// contrast, so it stays, but the correction does the real work.
-  static let enhancerAmount: Float = 1.0
+  /// Lighten is for pages whose background is artwork. A large photograph
+  /// survives both the maximum and the blur, so the full treatment reads it as
+  /// illumination and divides it away: measured against a synthetic spread,
+  /// full strength landed 0.35 RMS from the original artwork, half strength
+  /// 0.17. The cost is that an unevenly lit page keeps some gradient (blank
+  /// paper 0.73 rather than 0.99), which is why this is not the default.
+  static let lightenFlattenStrength: CGFloat = 0.5
 
-  /// Negative vibrance moves weakly saturated pixels much further than strongly
-  /// saturated ones, so it drains a residual cast while leaving real ink
-  /// coloured. At -0.85 it also drained blue ballpoint, which reads as low
-  /// saturation once the page is flattened — hence the gentler value here.
-  static let chromaSuppression: Float = -0.45
+  /// Lighten's tail: lift midtones, and never clip to white — on a magazine
+  /// page the "white" would be somebody's photograph.
+  static let lightenGamma: Float = 0.80
+  static let lightenBlackPoint: CGFloat = 0.02
+  static let lightenWhitePoint: CGFloat = 0.96
 
-  /// Luminance above which a pixel is pulled to paper white.
-  static let paperWhitePoint: CGFloat = 0.86
+  /// Auto's classifier. Over synthetic pages under three lighting conditions,
+  /// colour share measured 0.0000 on every neutral page, 0.031 on a page
+  /// carrying one red stamp and 0.96 on a magazine spread; ink level measured
+  /// 0.11 for printed text and 0.60 for pencil. Both thresholds sit in those
+  /// gaps.
+  static let autoChromaThreshold: CGFloat = 0.12
+  static let autoColourShare: CGFloat = 0.02
+  static let autoInkPercentile: CGFloat = 0.02
+  static let autoFaintInkLevel: CGFloat = 0.45
 
-  /// Radius of the local-mean blur behind the adaptive threshold, as a fraction
-  /// of the long edge. Has to be comfortably wider than a stroke or the mean
-  /// tracks the ink itself and glyphs hollow out; narrow enough that it follows
-  /// shading the correction left behind.
+  /// Unsharp mask, applied last so its bright halo lands in the clipped region
+  /// and only the dark side — the side that reads as crisp — survives.
+  static let sharpenRadiusFraction: CGFloat = 0.0008
+  static let sharpenIntensity: Float = 0.5
+
+  /// Bradley's adaptive threshold: the local-mean radius, and how far below its
+  /// mean a pixel must sit to count as ink. The radius must exceed a stroke or
+  /// the mean tracks the ink itself and glyphs hollow out.
   static let adaptiveMeanFraction: CGFloat = 0.015
+  static let adaptiveThreshold: CGFloat = 0.89
 
-  /// How far below its local mean a pixel must sit to be called ink, as a ratio
-  /// of the two. Bradley's adaptive threshold in the same shape: compare
-  /// against the neighbourhood, not against a number that has to be right for
-  /// the whole page.
-  static func adaptiveThreshold(shadowLift: CGFloat) -> CGFloat {
-    let t = min(max(shadowLift, 0), 1)
-    return 0.94 - (0.94 - 0.84) * t
-  }
-
-  /// Long-edge ceiling for the processed image written to disk.
   static let processedLongEdge: CGFloat = 2400
   static let processedJpegQuality: CGFloat = 0.92
 }
 
-/// The Metal-backed `CIContext` every scan render goes through.
+/// The Metal-backed `CIContext` every scan render goes through — one for the
+/// whole app, because a second duplicates the shader cache, buffer pool and
+/// command queue and shares none of them.
 ///
-/// One for the whole app, not one per processor. A `CIContext` owns a compiled
-/// shader cache, an intermediate-buffer pool and a command queue; a second one
-/// duplicates all three and shares none of them, so the review canvas and the
-/// full-resolution writer were each paying to warm up the same kernels.
-///
-/// Core Image already picks Metal on a real device — this only makes the device
-/// explicit and pins the one setting that matters. `workingFormat: .RGBAh` keeps
-/// the chain in half-float: the pipeline divides by small numbers in several
-/// places, which 8-bit-per-channel intermediates cannot carry, and half-float is
-/// roughly half the bandwidth of full float for the same headroom.
-///
-/// The working *colour space* is deliberately left at the default. Every tone
-/// curve in this file — the paper-white curve, the shadow-mask ramp, the
-/// adaptive threshold — is a set of coordinates in whatever space the chain
-/// runs in, so changing it silently re-tunes all of them.
+/// `RGBAh` because the pipeline divides by small numbers in several places,
+/// which 8-bit intermediates cannot carry. The working *colour space* is left
+/// at the default deliberately: every threshold in this file is a coordinate in
+/// whatever space the chain runs in, so changing it re-tunes all of them.
 enum PdfScanRenderContext {
   static let shared: CIContext = {
     let options: [CIContextOption: Any] = [
@@ -167,8 +127,6 @@ enum PdfScanRenderContext {
     if let device = MTLCreateSystemDefaultDevice() {
       return CIContext(mtlDevice: device, options: options)
     }
-    // Simulator without a Metal device, or a device that failed to hand one
-    // over. Correctness does not depend on the renderer, only speed does.
     return CIContext(options: options)
   }()
 }
@@ -201,8 +159,7 @@ final class PdfScanImageProcessor {
     let output = render(source: CIImage(cgImage: scaled), extent: extent, preset: preset)
 
     // Encoded straight off the render rather than via `CGImage` and `UIImage`:
-    // those are two extra full-page copies of a 2400px image, per page, for a
-    // file that is about to be written anyway.
+    // those are two extra full-page copies per page.
     guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else {
       throw PdfPocError(
         code: "scan_processing_failed",
@@ -230,121 +187,132 @@ final class PdfScanImageProcessor {
     }
   }
 
-  // MARK: - Pipelines
+  // MARK: - Pipeline
 
-  /// The pipeline, in the order the stages depend on each other.
+  ///     luma → background estimate → flatten → white balance → denoise → tail
   ///
-  ///     luma → background estimate → shadow mask → bounded correction
-  ///       → white balance → denoise → preset
+  /// The order is not cosmetic. Measurements run on luma because a colour cast
+  /// makes per-channel brightness lie. White balance runs after the flattening,
+  /// not before: the cast in a shadow is not the cast in the lit part of the
+  /// same page, so measuring first averages two different casts. Every tail
+  /// then ends in a *hard* decision about what counts as paper — a clipped
+  /// white point or a threshold — which is the difference between this and a
+  /// photo filter.
   ///
-  /// The order is not cosmetic.
-  ///
-  /// Everything measured is measured on luma, because a colour cast makes
-  /// per-channel brightness lie: a yellow page reads as a blue-channel shadow.
-  /// The background estimate strips text out before it strips lighting out, so
-  /// a dense paragraph is not mistaken for a dark region. The mask exists so
-  /// the correction can be *selective* — a page is usually mostly fine, and a
-  /// global divide spends gain on parts that never needed it, which is how a
-  /// well-lit half ends up washed out. Gain is bounded because a divide
-  /// multiplies noise exactly as much as it multiplies signal.
-  ///
-  /// White balance comes *after* the correction rather than before: the cast in
-  /// a shadow is not the cast in the lit part of the same page, so measuring it
-  /// first means measuring an average of two different casts. Once lighting is
-  /// flat there is one cast to remove. Denoise then runs on what the gain
-  /// exposed, before the preset, so the threshold is not thresholding noise.
-  ///
+  /// Auto resolves here, after the shared head: asked of the raw capture, "is
+  /// this page coloured" is confounded by cast and shadow; asked after a tail,
+  /// the tail has already answered it.
   private func render(
     source: CIImage,
     extent: CGRect,
     preset: PdfScanPreset
   ) -> CIImage {
-    let shadowLift = PdfScanTuning.shadowLift
     guard preset != .original else { return source }
 
-    var working = shadowCorrected(source, extent: extent, shadowLift: shadowLift)
+    let strength = preset == .lighten ? PdfScanTuning.lightenFlattenStrength : 1
+    var working = illuminationFlattened(source, extent: extent, strength: strength)
     working = whiteBalanced(working, extent: extent)
     working = denoised(working)
 
-    switch preset {
-    case .original:
-      return source
+    let resolved = preset == .auto ? autoResolved(working, extent: extent) : preset
 
-    case .enhancedColor:
-      working = documentEnhanced(working)
+    switch resolved {
+    case .original, .auto:
+      // `.original` returned above; `autoResolved` never answers `.auto`.
+      return working
+
+    case .lighten:
+      let gamma = CIFilter.gammaAdjust()
+      gamma.inputImage = working
+      gamma.power = PdfScanTuning.lightenGamma
+      working = gamma.outputImage?.cropped(to: extent) ?? working
+      working = levelled(
+        working,
+        blackPoint: PdfScanTuning.lightenBlackPoint,
+        whitePoint: PdfScanTuning.lightenWhitePoint
+      )
+      return sharpened(working, extent: extent)
+
+    case .magicColor:
+      working = levelled(
+        working,
+        blackPoint: PdfScanTuning.magicColorBlackPoint,
+        whitePoint: PdfScanTuning.magicColorWhitePoint
+      )
       let vibrance = CIFilter.vibrance()
       vibrance.inputImage = working
-      vibrance.amount = PdfScanTuning.chromaSuppression
-      working = vibrance.outputImage ?? working
-      return paperWhitened(working)
+      vibrance.amount = PdfScanTuning.chromaBoost
+      working = vibrance.outputImage?.cropped(to: extent) ?? working
+      return sharpened(working, extent: extent)
 
-    case .cleanGrayscale:
-      working = desaturated(working)
-      working = documentEnhanced(working)
-      return paperWhitened(working)
+    case .grayMode:
+      working = levelled(
+        lumaExtracted(working),
+        blackPoint: PdfScanTuning.grayBlackPoint,
+        whitePoint: PdfScanTuning.grayWhitePoint
+      )
+      return sharpened(working, extent: extent)
 
     case .blackAndWhite:
-      working = desaturated(working)
-      return adaptiveThresholded(working, extent: extent, shadowLift: shadowLift)
+      let cut = PdfScanTuning.binaryCut
+      let softness = PdfScanTuning.binarySoftness
+      return levelled(
+        lumaExtracted(working),
+        blackPoint: max(cut - softness, 0),
+        whitePoint: min(cut + softness, 1)
+      ).cropped(to: extent)
+
+    case .blackAndWhite2:
+      return adaptiveThresholded(lumaExtracted(working), extent: extent)
     }
   }
 
-  // MARK: - Shadow correction
+  // MARK: - Illumination flattening
 
-  /// Steps 1–4: luma, background estimate, shadow mask, bounded correction.
+  /// Divides the page by its own illumination field.
   ///
-  /// The correction is expressed as a *divisor image* rather than a gain image
-  /// because Core Image's multiply blend cannot produce a result above 1, while
-  /// its divide blend can. Divisor 1 means "leave this pixel alone", so mixing
-  /// the divisor toward white by the shadow mask is exactly "apply the
-  /// correction only where shadow was detected".
-  private func shadowCorrected(
+  /// The divisor is the estimate *itself*, not the estimate normalised by the
+  /// paper level. Normalising made the correction relative, so an evenly lit
+  /// but underexposed capture — no shadow to detect — passed through untouched
+  /// and landed as grey paper (0.758 in simulation, against pure white here).
+  /// Dividing by the estimate is the reflectance formulation: blank paper is
+  /// 1.0 regardless of exposure, which is what lets one global white point run
+  /// afterwards.
+  ///
+  /// Expressed as a divisor rather than a gain because Core Image's multiply
+  /// blend cannot produce a result above 1 and every gain here is above 1.
+  private func illuminationFlattened(
     _ image: CIImage,
     extent: CGRect,
-    shadowLift: CGFloat
+    strength: CGFloat
   ) -> CIImage {
-    let luma = lumaExtracted(image)
-    guard let estimate = estimatedBackground(luma, extent: extent),
-          let paperLevel = paperLevel(of: estimate) else {
+    guard let estimate = estimatedBackground(lumaExtracted(image), extent: extent),
+          hasUsablePaperLevel(estimate) else {
       return image
     }
 
-    let ceiling = PdfScanTuning.maxGain(shadowLift: shadowLift)
-    let scale = 1 / paperLevel
-
-    // background / paperLevel, floored so the gain it implies cannot exceed
-    // `ceiling`, and capped at 1 so a region brighter than the paper estimate
-    // is never darkened.
-    //
-    // Built at measurement size and scaled up at the end: the estimate carries
-    // no detail finer than the blur that made it, so upscaling it costs nothing
-    // in accuracy and keeps three filters off the full-resolution image.
-    let normalize = CIFilter.colorMatrix()
-    normalize.inputImage = estimate.small
-    normalize.rVector = CIVector(x: scale, y: 0, z: 0, w: 0)
-    normalize.gVector = CIVector(x: 0, y: scale, z: 0, w: 0)
-    normalize.bVector = CIVector(x: 0, y: 0, z: scale, w: 0)
-    normalize.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-    guard let normalized = normalize.outputImage?.cropped(to: estimate.extent) else {
-      return image
-    }
-
-    let floor = 1 / ceiling
+    // Floored so the implied gain cannot exceed `maxGain`, capped at 1 so a
+    // specular highlight is never darkened. Built at measurement size: the
+    // estimate carries no detail finer than the blur that made it.
+    let floor = 1 / PdfScanTuning.maxGain
     let clamp = CIFilter.colorClamp()
-    clamp.inputImage = normalized
+    clamp.inputImage = estimate
     clamp.minComponents = CIVector(x: floor, y: floor, z: floor, w: 0)
     clamp.maxComponents = CIVector(x: 1, y: 1, z: 1, w: 1)
     guard var divisor = clamp.outputImage?.cropped(to: estimate.extent) else { return image }
 
-    // Mix toward white — no correction — everywhere the detector did not call
-    // shadow. This is what keeps a page that is mostly fine from being spent
-    // gain it never needed.
-    let mask = shadowMask(normalized: normalized, extent: estimate.extent)
-    let restrict = CIFilter.blendWithMask()
-    restrict.inputImage = divisor
-    restrict.backgroundImage = CIImage(color: .white).cropped(to: estimate.extent)
-    restrict.maskImage = mask
-    divisor = restrict.outputImage?.cropped(to: estimate.extent) ?? divisor
+    // Mix toward 1 — toward "change nothing" — for a partial correction.
+    if strength < 1 {
+      let soften = CIFilter.colorMatrix()
+      soften.inputImage = divisor
+      soften.rVector = CIVector(x: strength, y: 0, z: 0, w: 0)
+      soften.gVector = CIVector(x: 0, y: strength, z: 0, w: 0)
+      soften.bVector = CIVector(x: 0, y: 0, z: strength, w: 0)
+      soften.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+      let rest = 1 - strength
+      soften.biasVector = CIVector(x: rest, y: rest, z: rest, w: 0)
+      divisor = soften.outputImage?.cropped(to: estimate.extent) ?? divisor
+    }
 
     divisor = divisor
       .transformed(by: CGAffineTransform(
@@ -354,90 +322,149 @@ final class PdfScanImageProcessor {
       .clampedToExtent()
       .cropped(to: extent)
 
-    // Verified by rendering both arrangements: divide blend treats
-    // `backgroundImage` as the base, so this evaluates image / divisor.
+    // Divide blend treats `backgroundImage` as the base: this is image/divisor.
     let divide = CIFilter.divideBlendMode()
     divide.inputImage = divisor
     divide.backgroundImage = image
     return divide.outputImage?.cropped(to: extent) ?? image
   }
 
-  /// Rec. 709 luma into all three channels.
-  private func lumaExtracted(_ image: CIImage) -> CIImage {
-    let weights = CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0)
-    let matrix = CIFilter.colorMatrix()
-    matrix.inputImage = image
-    matrix.rVector = weights
-    matrix.gVector = weights
-    matrix.bVector = weights
-    matrix.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-    return matrix.outputImage ?? image
-  }
-
-  /// The illumination field, held at measurement resolution.
-  private struct PdfScanBackgroundEstimate {
-    let small: CIImage
-    let extent: CGRect
-  }
-
-  /// The paper, without the text on it: a morphological maximum to erase ink,
-  /// then a wide blur to turn what is left into a smooth illumination field.
+  /// The paper without the text on it, at measurement resolution: a
+  /// morphological maximum to erase ink, then a wide blur to smooth what is
+  /// left into an illumination field.
   ///
-  /// Both run on a downscaled copy — see `measurementLongEdge`.
-  private func estimatedBackground(
-    _ luma: CIImage,
+  /// Rectangle rather than circle because `CIMorphologyRectangleMaximum` is
+  /// separable — linear in the radius where the circular variant is quadratic —
+  /// and the blur two lines later erases the shape of the structuring element.
+  private func estimatedBackground(_ luma: CIImage, extent: CGRect) -> CIImage? {
+    let (small, smallExtent) = measurementScaled(luma, extent: extent)
+    let longEdge = max(smallExtent.width, smallExtent.height)
+
+    let radius = min(
+      max(longEdge * PdfScanTuning.backgroundDilationFraction, 1),
+      CGFloat(PdfScanTuning.backgroundDilationMaxPixels)
+    )
+    let dilate = CIFilter.morphologyRectangleMaximum()
+    dilate.inputImage = small.clampedToExtent()
+    dilate.width = Float(max(Int(radius) * 2 + 1, 3))
+    dilate.height = dilate.width
+    guard let dilated = dilate.outputImage else { return nil }
+
+    let blur = CIFilter.boxBlur()
+    blur.inputImage = dilated.clampedToExtent()
+    blur.radius = max(Float(longEdge * PdfScanTuning.backgroundBlurFraction), 1)
+    return blur.outputImage?.cropped(to: smallExtent)
+  }
+
+  /// Whether the frame has a bright enough region to be a document at all.
+  /// A gate, not a scale factor — it exists so a black frame is passed through
+  /// instead of being multiplied by the gain ceiling into noise.
+  private func hasUsablePaperLevel(_ estimate: CIImage) -> Bool {
+    guard let counts = histogram(of: estimate, extent: estimate.extent),
+          let level = percentile(
+            counts,
+            share: PdfScanTuning.paperLevelGlareShare,
+            fromTop: true
+          ) else {
+      return false
+    }
+    return level > PdfScanTuning.minimumPaperLevel
+  }
+
+  // MARK: - Auto
+
+  /// Picks a preset from the page's own content: how much of the page is
+  /// coloured, then how dark its darkest content is.
+  ///
+  /// Colour is a share above a threshold rather than an average — a page with
+  /// one red stamp is a colour document even though 97% of it is black on
+  /// white, and an average lets the white drown the stamp.
+  ///
+  /// It never answers `.blackAndWhite`, which is honest rather than an
+  /// oversight: telling clean printed text (where a global cut is ideal) from a
+  /// page carrying a greyscale photograph (where it destroys the photograph)
+  /// needs a text-versus-continuous-tone measure, and the candidate for it —
+  /// midtone mass under a wide blur — overlapped at 0.026 against 0.031 once
+  /// the halo around a hard shadow edge fed into it. `.grayMode` is the
+  /// conservative answer: never as crisp, never destructive.
+  private func autoResolved(_ image: CIImage, extent: CGRect) -> PdfScanPreset {
+    let (small, smallExtent) = measurementScaled(image, extent: extent)
+
+    var colourShare: CGFloat = 0
+    if let chroma = chromaExtracted(small, extent: smallExtent),
+       let counts = histogram(of: chroma, extent: smallExtent) {
+      colourShare = share(counts, above: PdfScanTuning.autoChromaThreshold)
+    }
+    if colourShare > PdfScanTuning.autoColourShare {
+      logPdfEvent("scan_auto_preset", "resolved=magicColor colourShare=\(colourShare)")
+      return .magicColor
+    }
+
+    var inkLevel: CGFloat = 0
+    if let counts = histogram(of: lumaExtracted(small), extent: smallExtent),
+       let level = percentile(
+         counts,
+         share: PdfScanTuning.autoInkPercentile,
+         fromTop: false
+       ) {
+      inkLevel = level
+    }
+    let resolved: PdfScanPreset = inkLevel > PdfScanTuning.autoFaintInkLevel
+      ? .blackAndWhite2
+      : .grayMode
+    logPdfEvent(
+      "scan_auto_preset",
+      "resolved=\(resolved.storageKey) colourShare=\(colourShare) inkLevel=\(inkLevel)"
+    )
+    return resolved
+  }
+
+  /// Per-pixel chroma as `max(r,g,b) - min(r,g,b)`. The difference blend is an
+  /// absolute difference, which is the signed one here because the maximum
+  /// component is never below the minimum.
+  private func chromaExtracted(_ image: CIImage, extent: CGRect) -> CIImage? {
+    let maximum = CIFilter.maximumComponent()
+    maximum.inputImage = image
+    let minimum = CIFilter.minimumComponent()
+    minimum.inputImage = image
+    guard let high = maximum.outputImage, let low = minimum.outputImage else { return nil }
+
+    let difference = CIFilter.differenceBlendMode()
+    difference.inputImage = high
+    difference.backgroundImage = low
+    return difference.outputImage?.cropped(to: extent)
+  }
+
+  // MARK: - Measurement
+
+  /// Downscales to `measurementLongEdge`.
+  private func measurementScaled(
+    _ image: CIImage,
     extent: CGRect
-  ) -> PdfScanBackgroundEstimate? {
+  ) -> (image: CIImage, extent: CGRect) {
     let longEdge = max(extent.width, extent.height)
     let ratio = min(PdfScanTuning.measurementLongEdge / max(longEdge, 1), 1)
-    let smallExtent = CGRect(
+    let scaled = CGRect(
       x: 0,
       y: 0,
       width: max((extent.width * ratio).rounded(), 1),
       height: max((extent.height * ratio).rounded(), 1)
     )
-    let smallLongEdge = max(smallExtent.width, smallExtent.height)
-
-    let downscaled = luma
-      .transformed(by: CGAffineTransform(scaleX: ratio, y: ratio))
-      .cropped(to: smallExtent)
-
-    // Rectangle rather than circle: `CIMorphologyRectangleMaximum` is
-    // separable, so its cost is linear in the radius where the circular
-    // variant's is quadratic. The estimate is blurred to nothing sharper than a
-    // lighting field two lines later, so the shape of the structuring element
-    // does not survive to the output.
-    let radius = max(smallLongEdge * PdfScanTuning.backgroundDilationFraction, 1)
-    let side = max(Int(radius) * 2 + 1, 3)
-    let dilate = CIFilter.morphologyRectangleMaximum()
-    dilate.inputImage = downscaled.clampedToExtent()
-    dilate.width = Float(side)
-    dilate.height = Float(side)
-    guard let dilated = dilate.outputImage else { return nil }
-
-    let blur = CIFilter.boxBlur()
-    blur.inputImage = dilated.clampedToExtent()
-    blur.radius = max(Float(smallLongEdge * PdfScanTuning.backgroundBlurFraction), 1)
-    guard let blurred = blur.outputImage?.cropped(to: smallExtent) else { return nil }
-
-    return PdfScanBackgroundEstimate(small: blurred, extent: smallExtent)
+    return (
+      image.transformed(by: CGAffineTransform(scaleX: ratio, y: ratio)).cropped(to: scaled),
+      scaled
+    )
   }
 
-  /// How bright the paper is where the light reached it, as a high percentile
-  /// of the illumination field.
-  ///
-  /// A percentile rather than the maximum: one specular highlight is enough to
-  /// pull the maximum above real paper, and a reference set too high
-  /// under-corrects the entire page. One 256-bin readback per render — a
-  /// GPU-to-CPU sync, which is why it happens over a reduction rather than by
-  /// sampling pixels.
-  private func paperLevel(of estimate: PdfScanBackgroundEstimate) -> CGFloat? {
-    let histogram = CIFilter.areaHistogram()
-    histogram.inputImage = estimate.small
-    histogram.extent = estimate.extent
-    histogram.count = 256
-    histogram.scale = 1
-    guard let reduced = histogram.outputImage else { return nil }
+  /// 256-bin histogram as bin counts. One GPU-to-CPU sync per call, which is
+  /// why measurements go through a reduction rather than sampling pixels.
+  private func histogram(of image: CIImage, extent: CGRect) -> [CGFloat]? {
+    let filter = CIFilter.areaHistogram()
+    filter.inputImage = image
+    filter.extent = extent
+    filter.count = 256
+    filter.scale = 1
+    guard let reduced = filter.outputImage else { return nil }
 
     var bins = [Float](repeating: 0, count: 256 * 4)
     context.render(
@@ -449,58 +476,57 @@ final class PdfScanImageProcessor {
       colorSpace: nil
     )
 
-    // The estimate is grayscale, so any channel carries the same distribution.
+    // Callers pass grayscale images, so the green channel carries all of it.
     let counts = stride(from: 1, to: bins.count, by: 4).map { CGFloat(bins[$0]) }
-    let total = counts.reduce(0, +)
-    guard total > 0 else { return nil }
+    return counts.reduce(0, +) > 0 ? counts : nil
+  }
 
-    let glare = total * PdfScanTuning.paperLevelGlareShare
+  /// The level with `share` of the distribution's mass beyond it, from either
+  /// end.
+  private func percentile(
+    _ counts: [CGFloat],
+    share: CGFloat,
+    fromTop: Bool
+  ) -> CGFloat? {
+    let target = counts.reduce(0, +) * share
     var seen: CGFloat = 0
-    for index in stride(from: counts.count - 1, through: 0, by: -1) {
+    for step in counts.indices {
+      let index = fromTop ? counts.count - 1 - step : step
       seen += counts[index]
-      guard seen >= glare else { continue }
-      let level = CGFloat(index) / CGFloat(counts.count - 1)
-      return level > PdfScanTuning.minimumPaperLevel ? level : nil
+      guard seen >= target else { continue }
+      return CGFloat(index) / CGFloat(counts.count - 1)
     }
     return nil
   }
 
-  /// Soft mask over the regions the background estimate says are in shadow.
-  ///
-  /// Soft on purpose: a hard cut would leave a visible seam exactly where the
-  /// gain changes, which reads as a smudge around the recovered patch.
-  private func shadowMask(normalized: CIImage, extent: CGRect) -> CIImage {
-    // 1 - background/paper: how far this region falls short of lit paper.
-    let shortfall = CIFilter.colorMatrix()
-    shortfall.inputImage = normalized
-    shortfall.rVector = CIVector(x: -1, y: 0, z: 0, w: 0)
-    shortfall.gVector = CIVector(x: 0, y: -1, z: 0, w: 0)
-    shortfall.bVector = CIVector(x: 0, y: 0, z: -1, w: 0)
-    shortfall.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
-    shortfall.biasVector = CIVector(x: 1, y: 1, z: 1, w: 0)
-    guard let deficit = shortfall.outputImage?.cropped(to: extent) else { return normalized }
-
-    let onset = PdfScanTuning.shadowMaskOnset
-    let full = PdfScanTuning.shadowMaskFull
-    let curve = CIFilter.toneCurve()
-    curve.inputImage = deficit
-    curve.point0 = CGPoint(x: 0, y: 0)
-    curve.point1 = CGPoint(x: onset, y: 0.02)
-    curve.point2 = CGPoint(x: (onset + full) / 2, y: 0.5)
-    curve.point3 = CGPoint(x: full, y: 0.98)
-    curve.point4 = CGPoint(x: 1, y: 1)
-    return curve.outputImage?.cropped(to: extent) ?? deficit
+  /// The share of the distribution's mass sitting above `level`.
+  private func share(_ counts: [CGFloat], above level: CGFloat) -> CGFloat {
+    let total = counts.reduce(0, +)
+    guard total > 0 else { return 0 }
+    let first = Int((level * CGFloat(counts.count - 1)).rounded(.up))
+    guard first < counts.count else { return 0 }
+    return counts[first...].reduce(0, +) / total
   }
 
-  // MARK: - Colour and preset stages
+  // MARK: - Stages
 
-  /// Gray-world auto white balance: measure the average colour of the frame and
-  /// scale each channel until that average is neutral.
-  ///
-  /// Cheaper and steadier here than a white-patch estimate. The brightest pixel
-  /// on a document photo is as often a specular glare spot as it is paper, and
-  /// keying off it makes the correction jump between two captures of the same
-  /// page. The average moves smoothly.
+  /// Rec. 709 luma into all three channels. Doubles as the desaturation step
+  /// for the grey and two-tone tails.
+  private func lumaExtracted(_ image: CIImage) -> CIImage {
+    let weights = CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0)
+    let matrix = CIFilter.colorMatrix()
+    matrix.inputImage = image
+    matrix.rVector = weights
+    matrix.gVector = weights
+    matrix.bVector = weights
+    matrix.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+    return matrix.outputImage ?? image
+  }
+
+  /// Gray-world white balance. Cheaper and steadier than a white-patch
+  /// estimate: the brightest pixel on a document photo is as often glare as it
+  /// is paper, and keying off it makes the correction jump between two captures
+  /// of the same page.
   private func whiteBalanced(_ image: CIImage, extent: CGRect) -> CIImage {
     guard let gains = averageColourGains(image, extent: extent) else { return image }
 
@@ -513,22 +539,11 @@ final class PdfScanImageProcessor {
     return matrix.outputImage?.cropped(to: extent) ?? image
   }
 
-  /// Measured on a downscaled copy: an average is an average, and reducing six
-  /// megapixels to find three numbers is work the answer does not need.
   private func averageColourGains(_ image: CIImage, extent: CGRect) -> CIVector? {
-    let longEdge = max(extent.width, extent.height)
-    let ratio = min(PdfScanTuning.measurementLongEdge / max(longEdge, 1), 1)
-    let smallExtent = CGRect(
-      x: 0,
-      y: 0,
-      width: max((extent.width * ratio).rounded(), 1),
-      height: max((extent.height * ratio).rounded(), 1)
-    )
+    let (small, smallExtent) = measurementScaled(image, extent: extent)
 
     let average = CIFilter.areaAverage()
-    average.inputImage = image
-      .transformed(by: CGAffineTransform(scaleX: ratio, y: ratio))
-      .cropped(to: smallExtent)
+    average.inputImage = small
     average.extent = smallExtent
     guard let averaged = average.outputImage else { return nil }
 
@@ -543,8 +558,7 @@ final class PdfScanImageProcessor {
     )
 
     let r = CGFloat(pixel[0]), g = CGFloat(pixel[1]), b = CGFloat(pixel[2])
-    // A frame this dark carries no usable colour information; correcting from
-    // it would amplify whatever the sensor happened to guess.
+    // A frame this dark carries no usable colour information.
     guard r > 0.02, g > 0.02, b > 0.02 else { return nil }
 
     let target = (r + g + b) / 3
@@ -556,44 +570,70 @@ final class PdfScanImageProcessor {
     )
   }
 
-  /// Adaptive threshold: each pixel is judged against its own neighbourhood,
-  /// not against one number chosen for the whole page.
+  private func denoised(_ image: CIImage) -> CIImage {
+    let denoise = CIFilter.noiseReduction()
+    denoise.inputImage = image
+    denoise.noiseLevel = PdfScanTuning.noiseLevel
+    denoise.sharpness = PdfScanTuning.noiseSharpness
+    return denoise.outputImage ?? image
+  }
+
+  /// Linear levels with hard clipping. A matrix and a clamp rather than a
+  /// `CIToneCurve` deliberately: a spline asked to be flat and then steep
+  /// overshoots between its knots, which shows up as a grey band just inside
+  /// the white point — exactly where the eye looks for clean paper.
   ///
-  /// Same shape as Bradley's method, expressed in the filters already here —
-  /// divide by a local mean, then cut at a ratio. A global cut cannot survive a
-  /// page that is bright on one side: whatever value keeps faint pencil on the
-  /// lit half turns the dim half into a solid blot, which is the exact failure
-  /// this pipeline exists to remove. The cut is a steep curve rather than a
-  /// hard step so anti-aliased glyph edges keep some weight.
-  private func adaptiveThresholded(
+  /// This is also what removes a colour cast from paper: the cast lives at high
+  /// luminance, so clipping sends it to neutral white per channel.
+  private func levelled(
     _ image: CIImage,
-    extent: CGRect,
-    shadowLift: CGFloat
+    blackPoint: CGFloat,
+    whitePoint: CGFloat
   ) -> CIImage {
+    let scale = 1 / max(whitePoint - blackPoint, 0.01)
+    let bias = -blackPoint * scale
+
+    let matrix = CIFilter.colorMatrix()
+    matrix.inputImage = image
+    matrix.rVector = CIVector(x: scale, y: 0, z: 0, w: 0)
+    matrix.gVector = CIVector(x: 0, y: scale, z: 0, w: 0)
+    matrix.bVector = CIVector(x: 0, y: 0, z: scale, w: 0)
+    matrix.aVector = CIVector(x: 0, y: 0, z: 0, w: 1)
+    matrix.biasVector = CIVector(x: bias, y: bias, z: bias, w: 0)
+    guard let stretched = matrix.outputImage else { return image }
+
+    let clamp = CIFilter.colorClamp()
+    clamp.inputImage = stretched
+    clamp.minComponents = CIVector(x: 0, y: 0, z: 0, w: 0)
+    clamp.maxComponents = CIVector(x: 1, y: 1, z: 1, w: 1)
+    return clamp.outputImage ?? stretched
+  }
+
+  /// Bradley's adaptive threshold: divide by a local mean, then cut at a ratio,
+  /// so each pixel is judged against its own neighbourhood. The cut is a steep
+  /// curve rather than a step so anti-aliased glyph edges keep some weight.
+  private func adaptiveThresholded(_ image: CIImage, extent: CGRect) -> CIImage {
     let blur = CIFilter.boxBlur()
     blur.inputImage = image.clampedToExtent()
     blur.radius = max(
       Float(max(extent.width, extent.height) * PdfScanTuning.adaptiveMeanFraction),
       1
     )
-    guard let localMean = blur.outputImage?.cropped(to: extent) else {
-      return image
-    }
+    guard let localMean = blur.outputImage?.cropped(to: extent) else { return image }
 
-    // Floored for the same reason the correction divisor is: a fully black
-    // neighbourhood would otherwise divide into unbounded gain.
+    // Floored for the same reason the flattening divisor is: a fully black
+    // neighbourhood would divide into unbounded gain.
     let clamp = CIFilter.colorClamp()
     clamp.inputImage = localMean
     clamp.minComponents = CIVector(x: 0.05, y: 0.05, z: 0.05, w: 0)
     clamp.maxComponents = CIVector(x: 1, y: 1, z: 1, w: 1)
-    let bounded = clamp.outputImage ?? localMean
 
     let divide = CIFilter.divideBlendMode()
-    divide.inputImage = bounded
+    divide.inputImage = clamp.outputImage ?? localMean
     divide.backgroundImage = image
     guard let ratio = divide.outputImage?.cropped(to: extent) else { return image }
 
-    let threshold = PdfScanTuning.adaptiveThreshold(shadowLift: shadowLift)
+    let threshold = PdfScanTuning.adaptiveThreshold
     let curve = CIFilter.toneCurve()
     curve.inputImage = ratio
     curve.point0 = CGPoint(x: 0, y: 0)
@@ -604,42 +644,17 @@ final class PdfScanImageProcessor {
     return curve.outputImage?.cropped(to: extent) ?? ratio
   }
 
-  private func documentEnhanced(_ image: CIImage) -> CIImage {
-    let enhancer = CIFilter.documentEnhancer()
-    enhancer.inputImage = image
-    enhancer.amount = PdfScanTuning.enhancerAmount
-    return enhancer.outputImage ?? image
+  /// Unsharp mask sized to the page rather than to a pixel count, so an export
+  /// and a downscaled preview get the same apparent crispness.
+  private func sharpened(_ image: CIImage, extent: CGRect) -> CIImage {
+    let sharpen = CIFilter.unsharpMask()
+    sharpen.inputImage = image.clampedToExtent()
+    sharpen.radius = Float(
+      max(max(extent.width, extent.height) * PdfScanTuning.sharpenRadiusFraction, 0.5)
+    )
+    sharpen.intensity = PdfScanTuning.sharpenIntensity
+    return sharpen.outputImage?.cropped(to: extent) ?? image
   }
-
-  private func denoised(_ image: CIImage) -> CIImage {
-    let denoise = CIFilter.noiseReduction()
-    denoise.inputImage = image
-    denoise.noiseLevel = PdfScanTuning.noiseLevel
-    denoise.sharpness = PdfScanTuning.noiseSharpness
-    return denoise.outputImage ?? image
-  }
-
-  private func paperWhitened(_ image: CIImage) -> CIImage {
-    let curve = CIFilter.toneCurve()
-    curve.inputImage = image
-    curve.point0 = CGPoint(x: 0, y: 0)
-    curve.point1 = CGPoint(x: 0.25, y: 0.20)
-    curve.point2 = CGPoint(x: 0.55, y: 0.58)
-    curve.point3 = CGPoint(x: PdfScanTuning.paperWhitePoint, y: 0.97)
-    curve.point4 = CGPoint(x: 1, y: 1)
-    return curve.outputImage ?? image
-  }
-
-  private func desaturated(_ image: CIImage) -> CIImage {
-    let controls = CIFilter.colorControls()
-    controls.inputImage = image
-    controls.saturation = 0
-    controls.brightness = 0
-    controls.contrast = 1
-    return controls.outputImage ?? image
-  }
-
-  // MARK: - Scaling
 
   private func downscaled(_ image: CGImage) -> CGImage {
     let longEdge = CGFloat(max(image.width, image.height))
@@ -655,9 +670,8 @@ final class PdfScanImageProcessor {
     format.scale = 1
     format.opaque = true
     let renderer = UIGraphicsImageRenderer(size: size, format: format)
-    let resized = renderer.image { _ in
+    return renderer.image { _ in
       UIImage(cgImage: image).draw(in: CGRect(origin: .zero, size: size))
-    }
-    return resized.cgImage ?? image
+    }.cgImage ?? image
   }
 }
