@@ -58,6 +58,15 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Đừng co màn hình khi bàn phím lên.
+      //
+      // Co Scaffold là co `UiKitView`, tức là co cả `WKWebView` và iframe của
+      // trình soạn thảo bên trong. rhwp-studio ở khác origin nên ta không biết
+      // nó có tính lại hình học sau resize không — và nếu không, mọi cú chạm
+      // sau lần đầu sẽ ánh xạ theo toạ độ cũ, làm con trỏ như đứng yên một chỗ.
+      //
+      // Màn PDF cũng đặt như vậy, cùng một lý do.
+      resizeToAvoidBottomInset: false,
       appBar: _searching ? _buildSearchAppBar() : _buildDefaultAppBar(),
       body: Column(
         children: <Widget>[
