@@ -12,7 +12,6 @@
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		14DC033DCECEB49367896922 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D1B1C307861DB0F64455722A /* Pods_RunnerTests.framework */; };
 		15EBFF69BC6F2EF47E6A0EF1 /* PdfScanExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82786AEB61B6406D7D00CD9F /* PdfScanExporter.swift */; };
-		297B276CF0594046B17F3B57 /* PdfTextEditManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8176BB7BB221422B8AB190F7 /* PdfTextEditManager.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3552C96092D635142B2A47DB /* PdfScanSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EBEB973AAE9910C3C9B3B00 /* PdfScanSessionStore.swift */; };
 		3A3C4052C1F34B9E864263C4 /* PdfScanCameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F0C52D33DFC4ED78CD8242D /* PdfScanCameraViewController.swift */; };
@@ -41,9 +40,6 @@
 		A0000000000000000000000D /* PdfPageOperationsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001D /* PdfPageOperationsManager.swift */; };
 		A0000000000000000000000E /* PdfPageReorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001E /* PdfPageReorderView.swift */; };
 		A0000000000000000000000F /* PdfOcrManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001F /* PdfOcrManager.swift */; };
-		AA10FE0021C34D0E9B551004 /* PdfContentStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10FE0021C34D0E9B551003 /* PdfContentStreamReader.swift */; };
-		AA10FE0021C34D0E9B551006 /* PdfContentTextEraser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10FE0021C34D0E9B551005 /* PdfContentTextEraser.swift */; };
-		AA10FE0021C34D0E9B551008 /* PdfTextOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10FE0021C34D0E9B551007 /* PdfTextOverlay.swift */; };
 		A00000000000000000000030 /* PdfCompressionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000031 /* PdfCompressionManager.swift */; };
 		A00000000000000000000032 /* PdfSplitMergeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000033 /* PdfSplitMergeManager.swift */; };
 		A00000000000000000000035 /* PdfImageDocumentWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000037 /* PdfImageDocumentWriter.swift */; };
@@ -106,7 +102,6 @@
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7EBEB973AAE9910C3C9B3B00 /* PdfScanSessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanSessionStore.swift; sourceTree = "<group>"; };
 		7F0C52D33DFC4ED78CD8242D /* PdfScanCameraViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanCameraViewController.swift; sourceTree = "<group>"; };
-		8176BB7BB221422B8AB190F7 /* PdfTextEditManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfTextEditManager.swift; sourceTree = "<group>"; };
 		82786AEB61B6406D7D00CD9F /* PdfScanExporter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanExporter.swift; sourceTree = "<group>"; };
 		8EE517ADC1B1477B5F8BED24 /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
@@ -133,9 +128,6 @@
 		A0000000000000000000001D /* PdfPageOperationsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPageOperationsManager.swift; sourceTree = "<group>"; };
 		A0000000000000000000001E /* PdfPageReorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPageReorderView.swift; sourceTree = "<group>"; };
 		A0000000000000000000001F /* PdfOcrManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfOcrManager.swift; sourceTree = "<group>"; };
-		AA10FE0021C34D0E9B551003 /* PdfContentStreamReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfContentStreamReader.swift; sourceTree = "<group>"; };
-		AA10FE0021C34D0E9B551005 /* PdfContentTextEraser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfContentTextEraser.swift; sourceTree = "<group>"; };
-		AA10FE0021C34D0E9B551007 /* PdfTextOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfTextOverlay.swift; sourceTree = "<group>"; };
 		A00000000000000000000031 /* PdfCompressionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfCompressionManager.swift; sourceTree = "<group>"; };
 		A00000000000000000000033 /* PdfSplitMergeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfSplitMergeManager.swift; sourceTree = "<group>"; };
 		A00000000000000000000037 /* PdfImageDocumentWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfImageDocumentWriter.swift; sourceTree = "<group>"; };
@@ -283,14 +275,10 @@
 				A00000000000000000000019 /* PdfSearchManager.swift */,
 				A0000000000000000000001A /* PdfInkManager.swift */,
 				A0000000000000000000001B /* PdfFreeTextManager.swift */,
-				8176BB7BB221422B8AB190F7 /* PdfTextEditManager.swift */,
 				A0000000000000000000001C /* PdfSignatureManager.swift */,
 				A0000000000000000000001D /* PdfPageOperationsManager.swift */,
 				A0000000000000000000001E /* PdfPageReorderView.swift */,
 				A0000000000000000000001F /* PdfOcrManager.swift */,
-				AA10FE0021C34D0E9B551003 /* PdfContentStreamReader.swift */,
-				AA10FE0021C34D0E9B551005 /* PdfContentTextEraser.swift */,
-				AA10FE0021C34D0E9B551007 /* PdfTextOverlay.swift */,
 				A00000000000000000000031 /* PdfCompressionManager.swift */,
 				A00000000000000000000033 /* PdfSplitMergeManager.swift */,
 				A00000000000000000000037 /* PdfImageDocumentWriter.swift */,
@@ -544,14 +532,10 @@
 				A00000000000000000000009 /* PdfSearchManager.swift in Sources */,
 				A0000000000000000000000A /* PdfInkManager.swift in Sources */,
 				A0000000000000000000000B /* PdfFreeTextManager.swift in Sources */,
-				297B276CF0594046B17F3B57 /* PdfTextEditManager.swift in Sources */,
 				A0000000000000000000000C /* PdfSignatureManager.swift in Sources */,
 				A0000000000000000000000D /* PdfPageOperationsManager.swift in Sources */,
 				A0000000000000000000000E /* PdfPageReorderView.swift in Sources */,
 				A0000000000000000000000F /* PdfOcrManager.swift in Sources */,
-				AA10FE0021C34D0E9B551004 /* PdfContentStreamReader.swift in Sources */,
-				AA10FE0021C34D0E9B551006 /* PdfContentTextEraser.swift in Sources */,
-				AA10FE0021C34D0E9B551008 /* PdfTextOverlay.swift in Sources */,
 				A00000000000000000000030 /* PdfCompressionManager.swift in Sources */,
 				A00000000000000000000032 /* PdfSplitMergeManager.swift in Sources */,
 				A00000000000000000000035 /* PdfImageDocumentWriter.swift in Sources */,

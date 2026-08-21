@@ -12,8 +12,6 @@ class PdfViewerState {
     this.busy = false,
     this.openedOnce = false,
     this.inkModeEnabled = false,
-    this.textEditModeEnabled = false,
-    this.selectedTextBlock,
     this.ocrRunning = false,
     this.ocrCompletedPages = 0,
     this.ocrTotalPages = 0,
@@ -49,13 +47,6 @@ class PdfViewerState {
   final bool openedOnce;
   final bool inkModeEnabled;
 
-  /// While on, a tap on the page picks the line of text under it instead of
-  /// scrolling or selecting.
-  final bool textEditModeEnabled;
-
-  /// The run the user last tapped, or null when nothing is picked. What the
-  /// edit controls act on.
-  final PdfTextBlock? selectedTextBlock;
   final bool ocrRunning;
   final int ocrCompletedPages;
   final int ocrTotalPages;
@@ -92,8 +83,6 @@ class PdfViewerState {
     bool? busy,
     bool? openedOnce,
     bool? inkModeEnabled,
-    bool? textEditModeEnabled,
-    Object? selectedTextBlock = _unset,
     bool? ocrRunning,
     int? ocrCompletedPages,
     int? ocrTotalPages,
@@ -136,10 +125,6 @@ class PdfViewerState {
       busy: busy ?? this.busy,
       openedOnce: openedOnce ?? this.openedOnce,
       inkModeEnabled: inkModeEnabled ?? this.inkModeEnabled,
-      textEditModeEnabled: textEditModeEnabled ?? this.textEditModeEnabled,
-      selectedTextBlock: selectedTextBlock == _unset
-          ? this.selectedTextBlock
-          : selectedTextBlock as PdfTextBlock?,
       ocrRunning: ocrRunning ?? this.ocrRunning,
       ocrCompletedPages: ocrCompletedPages ?? this.ocrCompletedPages,
       ocrTotalPages: ocrTotalPages ?? this.ocrTotalPages,

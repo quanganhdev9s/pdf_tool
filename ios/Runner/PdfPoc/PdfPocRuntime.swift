@@ -274,14 +274,6 @@ extension PdfPocRuntime: PdfWorkspaceViewDelegate {
     ) { _ in }
   }
 
-  func workspaceView(_ view: PdfWorkspaceView, didSelectTextBlock block: PdfTextBlock?) {
-    logPdfEvent(
-      "callback_to_flutter_text_block_selected",
-      "pageIndex=\(block?.pageIndex.description ?? "none") length=\(block?.text.count ?? 0)"
-    )
-    flutterApi?.onTextBlockSelected(block: block) { _ in }
-  }
-
   func workspaceView(
     _ view: PdfWorkspaceView,
     didUpdatePdfConversionProgress operationId: String,

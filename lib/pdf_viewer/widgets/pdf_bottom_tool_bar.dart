@@ -5,7 +5,6 @@ enum PdfControlPanelMode {
   search,
   ink,
   freeText,
-  textEdit,
   signature,
   pageOperations,
   ocr,
@@ -82,14 +81,6 @@ class PdfBottomToolBar extends StatelessWidget {
                             label: 'Text',
                             tooltip: 'Free text',
                             icon: Icons.text_fields,
-                            onPressed: onModePressed,
-                          ),
-                          _ToolbarIcon(
-                            mode: PdfControlPanelMode.textEdit,
-                            activeMode: activeMode,
-                            label: 'Edit text',
-                            tooltip: 'Edit existing text',
-                            icon: Icons.edit_note_outlined,
                             onPressed: onModePressed,
                           ),
                           _ToolbarIcon(

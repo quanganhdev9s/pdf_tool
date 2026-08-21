@@ -162,10 +162,7 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
                     child: const NativePdfWorkspace(),
                   ),
                 ),
-                // Edit text has no panel: the page itself shows every block
-                // it will let you edit, and the typing happens up there.
-                if (_activePanelMode != null &&
-                    _activePanelMode != PdfControlPanelMode.textEdit)
+                if (_activePanelMode != null)
                   PdfControlPanel(
                     mode: _activePanelMode!,
                     state: state,
@@ -225,13 +222,6 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     setState(() {
       _activePanelMode = next;
     });
-    // Edit text has no arming step of its own: picking it in the bar arms the
-    // page, leaving it disarms it, so a tap on a line means "edit this line"
-    // exactly while the tool is the one selected.
-    final bool wantTextEdit = next == PdfControlPanelMode.textEdit;
-    if (wantTextEdit != _bloc.state.textEditModeEnabled) {
-      _bloc.add(PdfViewerTextEditModeChanged(wantTextEdit));
-    }
   }
 
   Future<void> _openDocumentViewerScreen() async {

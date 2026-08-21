@@ -61,7 +61,6 @@ protocol PdfWorkspaceViewDelegate: AnyObject {
     result: PdfMergeResult?,
     cancelled: Bool
   )
-  func workspaceView(_ view: PdfWorkspaceView, didSelectTextBlock block: PdfTextBlock?)
   func workspaceView(
     _ view: PdfWorkspaceView,
     didUpdatePdfConversionProgress operationId: String,
@@ -94,24 +93,12 @@ final class PdfWorkspaceView: UIView {
   private lazy var ocrManager = PdfOcrManager()
   private lazy var compressionManager = PdfCompressionManager()
   private lazy var splitMergeManager = PdfSplitMergeManager()
-  private lazy var textEditManager = PdfTextEditManager(pdfView: pdfView)
-
-  /// Text blocks whose original words are still in the file, waiting for the
-  /// next save to take them out.
-  ///
-  /// An edit lands in two stages. `applyTextEdit(_:)` puts a patch and the new
-  /// words on the page, which is all PDFKit can do and all that needs to happen
-  /// while the user is typing. Removing the operators that draw the original is
-  /// qpdf's job, it rewrites the whole file to do it, and it can only work on a
-  /// file PDFKit has finished with — so it waits here until `save()`.
   private lazy var fileConversionManager = PdfFileConversionManager()
   private lazy var officePreviewManager = PdfOfficePreviewManager()
   private let pageOperationsManager = PdfPageOperationsManager()
   private let ocrResultOverlayView = UIView()
   private var session: PdfDocumentSession?
 
-  /// Bản chụp file ngay trước lần giấu gần nhất, để Huỷ còn lùi lại được.
-  private var beforeHideSnapshot: URL?
   private var pageChangedObserver: NSObjectProtocol?
   private var selectionChangedObserver: NSObjectProtocol?
   private var selectionToolbarTargetRect: CGRect?
@@ -170,7 +157,6 @@ final class PdfWorkspaceView: UIView {
     let document = try openDocument(at: workingURL)
     detachObservers()
     searchManager.clear()
-    textEditManager.reset()
 
     session = PdfDocumentSession(assetKey: assetKey, workingURL: workingURL, document: document)
     pdfView.document = document
@@ -202,7 +188,6 @@ final class PdfWorkspaceView: UIView {
     fileConversionManager.cancel()
     hideOcrResultOverlay()
     inkManager.close()
-    textEditManager.reset()
     annotationTapGesture.isEnabled = true
     signatureManager.close()
     pdfView.document = nil
@@ -417,44 +402,12 @@ final class PdfWorkspaceView: UIView {
     freeTextManager.beginSelection(in: self)
   }
 
-  func setTextEditModeEnabled(_ enabled: Bool) throws {
-    try ensureMainThread()
-    _ = try requireDocument()
-    if enabled {
-      // Every other editing surface owns the same taps; only one of them can be
-      // listening at a time.
-      freeTextManager.cancelSelection()
-      inkManager.setModeEnabled(false)
-      hideSelectionToolbar()
-      hideSystemSelectionMenu()
-    }
-    textEditManager.setEnabled(enabled)
-    annotationTapGesture.isEnabled = !enabled
-  }
-
-  func applyTextEdit(_ commit: PdfTextEditManager.PdfTextEditCommit) throws {
-    try ensureMainThread()
-    let document = try requireDocument()
-    let pageIndex = commit.request.pageIndex
-    guard pageIndex >= 0, pageIndex < document.pageCount,
-          let page = document.page(at: Int(pageIndex)) else {
-      throw PdfPocError.pageOutOfRange(pageIndex)
-    }
-    try textEditManager.apply(commit, to: page)
-
-
-    textEditManager.clearHighlight()
-    markDirty()
-    delegate?.workspaceView(self, didSelectTextBlock: nil)
-  }
-
   func setInkModeEnabled(_ enabled: Bool) throws {
     try ensureMainThread()
     _ = try requireDocument()
     logPdfEvent("set_ink_mode", "enabled=\(enabled)")
     if enabled {
       freeTextManager.cancelSelection()
-      try? setTextEditModeEnabled(false)
       hideSelectionToolbar()
       hideSystemSelectionMenu()
     }
@@ -671,7 +624,6 @@ final class PdfWorkspaceView: UIView {
     )
     // The pages may have been reordered or dropped, so a page index recorded
     // against the old document no longer names the block it was recorded for.
-    textEditManager.reset()
     pdfView.document = reopened
     pdfView.autoScales = true
     pdfView.goToFirstPage(nil)
@@ -1036,187 +988,6 @@ final class PdfWorkspaceView: UIView {
     return pageOperationsManager.reorderPreviews(in: document, maxPixelSize: maxPixelSize)
   }
 
-  /// Làm chữ gốc của một block vô hình ngay, trả về trang thay thế.
-  ///
-  /// Đây là cái giá của việc không phải che: tài liệu ghi ra đĩa, qpdf bọc mấy
-  /// operator đó bằng `3 Tr`, PDFKit mở lại từ đầu. Cả chuỗi, cho mỗi cú chạm
-  /// vào một block chưa sửa.
-  ///
-  /// Chụp file lại trước. Chạm vào block là thao tác thăm dò — bấm Huỷ thì
-  /// `restoreBeforeHide()` chép ngược, rẻ hơn chạy qpdf lần nữa để gỡ và chắc
-  /// chắn đúng.
-  ///
-  /// Trả nil khi bất cứ bước nào hỏng: caller quay về dùng miếng vá như cũ.
-  private func hideOriginalText(pageIndex: Int, rect: CGRect) -> PDFPage? {
-    guard let session else {
-      logPdfEvent("text_hide_skipped", "reason=no_session")
-      return nil
-    }
-    let started = CFAbsoluteTimeGetCurrent()
-
-    let snapshot = FileManager.default.temporaryDirectory
-      .appendingPathComponent("pdf-before-hide-\(UUID().uuidString).pdf")
-
-    do {
-      guard session.document.write(to: session.workingURL) else {
-        logPdfEvent("text_hide_skipped", "reason=write_failed")
-        return nil
-      }
-      try FileManager.default.copyItem(at: session.workingURL, to: snapshot)
-
-      let hidden = try PdfContentTextEraser.hide(
-        [PdfContentTextEraser.Request(pageIndex: pageIndex, rect: rect)],
-        at: session.workingURL
-      )
-      guard hidden > 0 else {
-        // Không operator nào trúng hình chữ nhật đó. Cùng lý do khiến `save()`
-        // sau này cũng sẽ không xoá được gì — đáng xem, không phải chuyện nhỏ.
-        try? FileManager.default.removeItem(at: snapshot)
-        logPdfEvent(
-          "text_hide_skipped",
-          "reason=no_operators pageIndex=\(pageIndex) rect=\(rect.integral.debugDescription)"
-        )
-        return nil
-      }
-
-      // Vị trí cuộn giữ lại bằng tay: gán `pdfView.document` kéo nó về đầu tài
-      // liệu, mà người dùng đang nhìn đúng chỗ vừa chạm.
-      let destination = pdfView.currentDestination
-      let reopened = try openDocument(at: session.workingURL)
-      let previous = session.document
-      self.session = PdfDocumentSession(
-        assetKey: session.assetKey, workingURL: session.workingURL, document: reopened
-      )
-      textEditManager.remapPages(to: reopened, from: previous)
-      pdfView.document = reopened
-      if let destination { pdfView.go(to: destination) }
-
-      beforeHideSnapshot = snapshot
-      markDirty()
-      logPdfEvent(
-        "text_hidden_for_edit",
-        "pageIndex=\(pageIndex) operators=\(hidden) in=\(String(format: "%.0f", (CFAbsoluteTimeGetCurrent() - started) * 1000))ms"
-      )
-      return reopened.page(at: pageIndex)
-    } catch {
-      try? FileManager.default.removeItem(at: snapshot)
-      logPdfEvent("text_hide_failed", "pageIndex=\(pageIndex) error=\(error)")
-      return nil
-    }
-  }
-
-  /// Trả tài liệu về đúng trạng thái trước lần giấu gần nhất.
-  private func restoreBeforeHide() {
-    guard let session, let snapshot = beforeHideSnapshot else { return }
-    beforeHideSnapshot = nil
-
-    do {
-      _ = try FileManager.default.replaceItemAt(session.workingURL, withItemAt: snapshot)
-      let destination = pdfView.currentDestination
-      let reopened = try openDocument(at: session.workingURL)
-      let previous = session.document
-      self.session = PdfDocumentSession(
-        assetKey: session.assetKey, workingURL: session.workingURL, document: reopened
-      )
-      textEditManager.remapPages(to: reopened, from: previous)
-      pdfView.document = reopened
-      if let destination { pdfView.go(to: destination) }
-      logPdfEvent("text_hide_restored", "")
-    } catch {
-      logPdfEvent("text_hide_restore_failed", "error=\(error)")
-    }
-  }
-
-  /// Ghi chỉnh sửa vào file: operator cũ ra, chữ mới vào.
-  ///
-  /// Không bao giờ throw. Save đã thành công trước khi hàm này chạy; làm hỏng
-  /// save của người dùng vì không dọn thêm được là đánh đổi tồi.
-  ///
-  /// Thứ tự quan trọng: quyết định xoá được gì **trước** khi vẽ overlay, vì
-  /// block bị từ chối phải được sơn vá bên dưới chữ mới. Block bình thường
-  /// không có miếng vá nào — chữ cũ đã biến mất thì chẳng có gì để che.
-  private func writeCommittedText(at url: URL) {
-    let edits = textEditManager.committedEdits
-    guard !edits.isEmpty else { return }
-
-    // Đo tách pha: dời việc này từ lúc Lưu sang lúc bấm Xong hay không hoàn
-    // toàn phụ thuộc nó tốn bao lâu.
-    let started = CFAbsoluteTimeGetCurrent()
-    var mark = started
-    var timings: [String] = []
-    func phase(_ name: String) {
-      timings.append("\(name)=\(String(format: "%.0f", (CFAbsoluteTimeGetCurrent() - mark) * 1000))")
-      mark = CFAbsoluteTimeGetCurrent()
-    }
-
-    // File tạm, xoá trong mọi trường hợp: overlay là thứ trung gian.
-    let overlayURL = FileManager.default.temporaryDirectory
-      .appendingPathComponent("pdf-text-overlay-\(UUID().uuidString).pdf")
-    defer { try? FileManager.default.removeItem(at: overlayURL) }
-
-    do {
-      // Trang của mỗi edit giờ nằm ở chỉ số nào. Hỏi document của session vì
-      // nó sở hữu các đối tượng trang này. Trang đã bị xoá → `NSNotFound` →
-      // bỏ qua, thay vì rơi vào một trang tuỳ tiện.
-      let placed: [(index: Int, edit: PdfTextEditManager.CommittedEdit)] =
-        edits.compactMap { edit in
-          guard let index = session?.document.index(for: edit.page),
-                index != NSNotFound else { return nil }
-          return (index, edit)
-        }
-      guard !placed.isEmpty else { return }
-
-      let plan = try PdfContentTextEraser.plan(
-        for: placed.map {
-          PdfContentTextEraser.Request(pageIndex: $0.index, rect: $0.edit.cover)
-        },
-        at: url
-      )
-      phase("plan")
-
-      // Dựng theo file vừa ghi, không theo document trong bộ nhớ: qpdf sắp mở
-      // đúng path đó, nên khổ trang phải là khổ nó sẽ thấy.
-      var overlayPages: [Int] = []
-      if let saved = PDFDocument(url: url) {
-        overlayPages = try PdfTextOverlay.write(
-          placed.map { entry in
-            PdfTextOverlay.Request(
-              pageIndex: entry.index,
-              bounds: entry.edit.bounds,
-              text: entry.edit.text,
-              font: entry.edit.font,
-              colour: entry.edit.ink,
-              kern: entry.edit.kern,
-              maxHeight: entry.edit.maxHeight
-            )
-          },
-          for: saved,
-          to: overlayURL
-        )
-      }
-      phase("overlay")
-
-      try PdfContentTextEraser.write(
-        plan,
-        at: url,
-        overlay: overlayURL,
-        overlayPages: overlayPages
-      )
-      phase("qpdf")
-      logPdfEvent(
-        "text_written",
-        "edits=\(placed.count) erased=\(plan.erased.count) refused=\(plan.refused.count) "
-          + "operators=\(plan.operatorsDropped) hidden=\(plan.operatorsHidden) "
-          + "overlayPages=\(overlayPages.count) "
-          + "| total=\(String(format: "%.0f", (CFAbsoluteTimeGetCurrent() - started) * 1000))ms "
-          + timings.joined(separator: " ")
-      )
-    } catch {
-      logPdfEvent("text_write_failed", "edits=\(edits.count) error=\(error)")
-    }
-  }
-
-
   func save() throws -> PdfDocumentInfo {
     try ensureMainThread()
     guard let session else {
@@ -1231,21 +1002,12 @@ final class PdfWorkspaceView: UIView {
       )
     }
 
-    // PDFKit đã buông file nên chỉnh sửa mới được ghi vào. Chỉ lúc này: qpdf
-    // viết lại toàn bộ cấu trúc, hai engine cùng cầm một path là hỏng file.
-    //
-    // Cả hai nửa làm trong một pass: xoá operator cũ, ghép chữ mới vào nội dung
-    // trang. Không còn annotation nào sót lại sau đó.
-    writeCommittedText(at: session.workingURL)
-
     let reopened = try openDocument(at: session.workingURL)
     self.session = PdfDocumentSession(
       assetKey: session.assetKey,
       workingURL: session.workingURL,
       document: reopened
     )
-    // Cùng file, cùng trang, khác đối tượng: cache selection cũ không dùng được.
-    textEditManager.invalidateBlocks()
     pdfView.document = reopened
     pdfView.autoScales = true
     notifyPageChanged()
@@ -1268,7 +1030,6 @@ final class PdfWorkspaceView: UIView {
     configureOcr()
     configureCompression()
     configureSplitMerge()
-    configureTextEdit()
     configureFileConversion()
     officePreviewManager.onPicked = { [weak self] document in
       guard let self else { return }
@@ -1405,37 +1166,6 @@ final class PdfWorkspaceView: UIView {
     splitMergeManager.onError = { [weak self] operationId, error in
       guard let self else { return }
       self.delegate?.workspaceView(self, didFailOperation: operationId, error: error)
-    }
-  }
-
-  private func configureTextEdit() {
-    textEditManager.onSelection = { [weak self] block in
-      guard let self else { return }
-      self.delegate?.workspaceView(self, didSelectTextBlock: block)
-    }
-    textEditManager.onHideOriginal = { [weak self] pageIndex, rect in
-      self?.hideOriginalText(pageIndex: pageIndex, rect: rect)
-    }
-    textEditManager.onRestoreOriginal = { [weak self] in
-      self?.restoreBeforeHide()
-    }
-    textEditManager.onCommit = { [weak self] commit in
-      guard let self else { return }
-      do {
-        try self.applyTextEdit(commit)
-      } catch let error as PdfPocError {
-        self.delegate?.workspaceView(self, didFailOperation: "edit text", error: error)
-      } catch {
-        self.delegate?.workspaceView(
-          self,
-          didFailOperation: "edit text",
-          error: PdfPocError(
-            code: "text_edit_failed",
-            message: "The edit could not be written to the page.",
-            details: error.localizedDescription
-          )
-        )
-      }
     }
   }
 
@@ -1624,16 +1354,6 @@ final class PdfWorkspaceView: UIView {
   }
 
   private func finishPageOperation(_ operation: String) {
-    // Edit đang chờ là một trang kèm hình chữ nhật, và hình đó vừa thành phỏng
-    // đoán: xoay/cắt trang làm đổi ý nghĩa toạ độ, mà thao tác này còn thay cả
-    // document. Bỏ chứ không cố chuyển — xoá nhầm chỗ là xoá chữ người dùng
-    // không hề đụng tới.
-    let waiting = textEditManager.committedEdits.count
-    if waiting > 0 {
-      logPdfEvent("text_edits_discarded", "operation=\(operation) pending=\(waiting)")
-    }
-    textEditManager.reset()
-
     searchManager.clear()
     delegate?.workspaceView(self, didChangeSearchState: searchManager.state())
     hideSelectionToolbar()

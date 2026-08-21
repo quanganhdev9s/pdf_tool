@@ -1,1 +1,0 @@
-qpdf 12.4.0 / libjpeg-turbo 3.2.0

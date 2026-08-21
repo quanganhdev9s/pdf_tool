@@ -89,73 +89,6 @@ class PdfFreeTextRequest {
   PdfColor textColor;
 }
 
-/// The paragraph the user tapped, with the styling read back off the page.
-///
-/// A paragraph, not the single line under the finger: the lines around the tap
-/// that read as the same block are gathered in with it and `text` carries them
-/// joined into flowing text.
-///
-/// `bounds` is in visible page coordinates, like every other rect crossing this
-/// bridge. The style fields are measured, not assumed — see
-/// `PdfTextEditManager` for how each one is obtained and how far it can be
-/// trusted.
-class PdfTextBlock {
-  PdfTextBlock({
-    required this.pageIndex,
-    required this.bounds,
-    required this.text,
-    required this.fontSize,
-    required this.textColor,
-    required this.backgroundColor,
-    this.fontName,
-  });
-
-  int pageIndex;
-  PdfRect bounds;
-  String text;
-
-  /// Point size taken from the run's own font when PDFKit reports one, and
-  /// derived from the line height when it does not.
-  double fontSize;
-
-  /// Sampled from the darkest pixels of the run.
-  PdfColor textColor;
-
-  /// Sampled from the lightest pixels around the run. What the cover is painted
-  /// with, so an edit on tinted paper does not leave a white patch.
-  PdfColor backgroundColor;
-
-  /// PostScript name of the run's font, e.g. `Helvetica-Bold`. Null when PDFKit
-  /// could not resolve one, or when the resolved font is not installed.
-  String? fontName;
-}
-
-/// Replaces the text of a block with `text`, or removes it when `text` is
-/// empty.
-///
-/// Native-only now: the paragraph on the page is the input field, so this never
-/// crosses the bridge. It stays a Pigeon type because the native side is
-/// generated from this file and passes it between its own layers.
-class PdfTextEditRequest {
-  PdfTextEditRequest({
-    required this.pageIndex,
-    required this.bounds,
-    required this.text,
-    required this.fontSize,
-    required this.textColor,
-    required this.backgroundColor,
-    this.fontName,
-  });
-
-  int pageIndex;
-  PdfRect bounds;
-  String text;
-  double fontSize;
-  PdfColor textColor;
-  PdfColor backgroundColor;
-  String? fontName;
-}
-
 class PdfFreeTextAreaSelection {
   PdfFreeTextAreaSelection({required this.pageIndex, required this.bounds});
 
@@ -406,12 +339,6 @@ abstract class PdfPocHostApi {
 
   void beginFreeTextAreaSelection();
 
-  /// Turns the page into a tap target for editing text runs. A tap turns the
-  /// line under it into the input field, so nothing else about the edit crosses
-  /// this bridge — the text, the keyboard and the commit all stay native, and
-  /// only the resulting page state comes back.
-  void setTextEditModeEnabled(bool enabled);
-
   void setInkModeEnabled(bool enabled);
 
   void clearCurrentInkInput();
@@ -530,9 +457,6 @@ abstract class PdfPocFlutterApi {
   void onSelectionChanged(String? selectedText);
 
   void onFreeTextAreaSelected(PdfFreeTextAreaSelection selection);
-
-  /// The text run under the last tap, or null when the tap landed on no text.
-  void onTextBlockSelected(PdfTextBlock? block);
 
   void onOcrProgress(String operationId, int completedPages, int totalPages);
 
