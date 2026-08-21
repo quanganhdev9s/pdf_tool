@@ -275,6 +275,22 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     }
   }
 
+  func setDocumentEditingEnabled(enabled: Bool) throws {
+    do {
+      try runtime.requireDocumentViewer().setEditing(enabled)
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func saveDocumentEdits() throws {
+    do {
+      try runtime.requireDocumentViewer().saveEdits()
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
   func closeDocumentViewer() throws {
     do {
       try runtime.requireDocumentViewer().close()

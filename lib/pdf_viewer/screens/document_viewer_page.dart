@@ -8,6 +8,9 @@ import '../bloc/pdf_viewer_bloc.dart';
 
 enum _ViewerMenuAction { search, details, share }
 
+/// Đuôi tệp mà trình soạn thảo HWP nhận. Khớp với `HwpFileType` bên native.
+const Set<String> _editableExtensions = <String>{'hwp', 'hwpx'};
+
 /// Hosts the native document viewer inside a normal Flutter route, so the whole
 /// screen around the document is ours to style: app bar, menu, search bar.
 ///
@@ -30,6 +33,13 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   bool _showDetails = false;
   bool _searching = false;
   bool? _lastSearchFound;
+  bool _editing = false;
+  bool _busy = false;
+
+  /// Tệp này có sửa được không. Chỉ HWP — mọi định dạng khác chỉ xem.
+  bool get _editable => _editableExtensions.contains(
+    widget.document.fileName.split('.').last.toLowerCase(),
+  );
 
   @override
   void didChangeDependencies() {
@@ -62,6 +72,22 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
     return AppBar(
       title: Text(widget.document.fileName, overflow: TextOverflow.ellipsis),
       actions: <Widget>[
+        if (_editable && _editing) ...<Widget>[
+          IconButton(
+            tooltip: 'Lưu',
+            onPressed: _busy ? null : _saveEdits,
+            icon: const Icon(Icons.save_outlined),
+          ),
+          TextButton(
+            onPressed: _busy ? null : () => _setEditing(false),
+            child: const Text('Xong'),
+          ),
+        ] else if (_editable)
+          IconButton(
+            tooltip: 'Sửa',
+            onPressed: _busy ? null : () => _setEditing(true),
+            icon: const Icon(Icons.edit_outlined),
+          ),
         PopupMenuButton<_ViewerMenuAction>(
           tooltip: 'Options',
           icon: const Icon(Icons.more_vert),
@@ -143,6 +169,36 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
         setState(() => _showDetails = !_showDetails);
       case _ViewerMenuAction.share:
         _bloc?.shareViewerDocument();
+    }
+  }
+
+  Future<void> _setEditing(bool editing) async {
+    setState(() => _busy = true);
+    try {
+      await _bloc?.setViewerEditing(editing);
+      if (mounted) setState(() => _editing = editing);
+    } on Object catch (_) {
+      // Lỗi đã vào log ở bloc; giữ nguyên trạng thái trước đó.
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _saveEdits() async {
+    setState(() => _busy = true);
+    try {
+      await _bloc?.saveViewerEdits();
+      if (mounted) {
+        // Việc xuất chạy bất đồng bộ bên trình soạn thảo, nên đây chỉ là "đã
+        // gửi yêu cầu" — không phải "đã lưu xong".
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đang lưu…')),
+        );
+      }
+    } on Object catch (_) {
+      // Đã vào log.
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

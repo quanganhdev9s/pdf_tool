@@ -45,6 +45,10 @@ final class PdfDocumentViewerView: UIView {
   /// Phục vụ trang xem HWP. Phải gắn vào `WKWebViewConfiguration` **trước** khi
   /// dựng web view — đăng ký scheme sau đó là không được.
   private let hwpHandler = HwpViewerSchemeHandler()
+  private let relay = HwpViewerLogRelay()
+
+  /// Tài liệu đang mở trong trình soạn thảo, nếu có. `nil` là đang chỉ xem.
+  private var editingURL: URL?
 
   override init(frame: CGRect) {
     let configuration = WKWebViewConfiguration()
@@ -53,11 +57,10 @@ final class PdfDocumentViewerView: UIView {
     // Mọi thứ phải xong **trước** dòng dưới: `WKWebView` copy configuration lúc
     // dựng, nên sửa bản gốc sau đó không tới được web view — log của trang vỏ
     // sẽ im lặng biến mất, mà đó lại là thứ duy nhất cho biết rhwp đang làm gì.
-    configuration.userContentController.add(
-      HwpViewerLogRelay(), name: HwpViewerLogRelay.name
-    )
+    configuration.userContentController.add(relay, name: HwpViewerLogRelay.name)
     webView = WKWebView(frame: frame, configuration: configuration)
     super.init(frame: frame)
+    configureRelay()
     configureSubviews()
   }
 
@@ -155,6 +158,95 @@ final class PdfDocumentViewerView: UIView {
         logPdfEvent("document_viewer_find", "query=\(trimmed) forward=\(forward) found=\(found)")
       }
       completion(found)
+    }
+  }
+
+  // MARK: - Soạn thảo HWP
+
+  /// Bật hoặc tắt chế độ sửa cho tệp HWP đang mở.
+  ///
+  /// Bật là nạp hẳn một trang khác — trình xem vẽ SVG tĩnh, còn trình soạn thảo
+  /// là ứng dụng riêng chạy trong iframe. Tắt là quay về trang xem, và **bỏ mọi
+  /// thay đổi chưa lưu**: chúng chỉ tồn tại bên trong iframe.
+  func setEditing(_ editing: Bool) throws {
+    guard let loadedURL else {
+      throw PdfPocError(
+        code: "document_not_open",
+        message: "No document is open in the viewer.",
+        details: nil
+      )
+    }
+    guard HwpFileType.handles(loadedURL) else {
+      throw PdfPocError(
+        code: "unsupported_source_format",
+        message: "Only HWP documents can be edited here.",
+        details: loadedURL.lastPathComponent
+      )
+    }
+
+    if editing {
+      guard let origin = HwpEditorPage.origin else {
+        throw PdfPocError(
+          code: "internal_error",
+          message: "Could not build the HWP editor origin.",
+          details: nil
+        )
+      }
+      editingURL = loadedURL
+      activityIndicator.startAnimating()
+      logPdfEvent("hwp_editor_open", "file=\(loadedURL.lastPathComponent)")
+      webView.loadHTMLString(try HwpEditorPage.html(), baseURL: origin)
+    } else {
+      editingURL = nil
+      logPdfEvent("hwp_editor_close", "file=\(loadedURL.lastPathComponent)")
+      try load(path: loadedURL.path)
+    }
+  }
+
+  /// Yêu cầu trang soạn thảo xuất tài liệu. Kết quả về bất đồng bộ qua relay.
+  func saveEdits() throws {
+    guard editingURL != nil else {
+      throw PdfPocError(
+        code: "document_not_open",
+        message: "The HWP editor is not open.",
+        details: nil
+      )
+    }
+    logPdfEvent("hwp_editor_save_request")
+    webView.evaluateJavaScript("window.__rhwpExport()", completionHandler: nil)
+  }
+
+  private func configureRelay() {
+    relay.onEditorReady = { [weak self] in
+      guard let self, let url = self.editingURL else { return }
+      do {
+        let base64 = try Data(contentsOf: url).base64EncodedString()
+        let name = url.lastPathComponent
+          .replacingOccurrences(of: "\\", with: "\\\\")
+          .replacingOccurrences(of: "'", with: "\\'")
+        // Bơm qua `evaluateJavaScript` thay vì để trang tự `fetch`: origin của
+        // trang là https giả, nó không hỏi được scheme handler của app.
+        self.webView.evaluateJavaScript(
+          "window.__rhwpLoad('\(base64)', '\(name)')", completionHandler: nil
+        )
+      } catch {
+        logPdfEvent("hwp_editor_read_failed", "error=\(error)")
+      }
+      self.activityIndicator.stopAnimating()
+    }
+
+    relay.onExported = { [weak self] data in
+      guard let self, let url = self.editingURL else { return }
+      do {
+        // Ghi qua tệp tạm rồi thay chỗ: hỏng giữa chừng thì bản cũ vẫn nguyên.
+        let scratch = url.deletingLastPathComponent()
+          .appendingPathComponent("hwp-save-\(UUID().uuidString).tmp")
+        try data.write(to: scratch, options: .atomic)
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: scratch)
+        logPdfEvent("hwp_editor_saved", "file=\(url.lastPathComponent) bytes=\(data.count)")
+      } catch {
+        logPdfEvent("hwp_editor_save_failed", "error=\(error)")
+      }
     }
   }
 

@@ -1552,6 +1552,16 @@ protocol PdfPocHostApi {
   func pickDocumentForViewing() throws
   /// Loads a picked document into the embedded viewer platform view.
   func loadDocumentIntoViewer(path: String) throws
+  /// Chuyển trình xem tài liệu sang chế độ sửa, hoặc quay lại chế độ xem.
+  ///
+  /// Chỉ áp dụng cho HWP. Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm
+  /// trong trình soạn thảo, không nằm trong tệp.
+  func setDocumentEditingEnabled(enabled: Bool) throws
+  /// Ghi tài liệu đang sửa đè lên tệp đang mở.
+  ///
+  /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
+  /// hiện trong log.
+  func saveDocumentEdits() throws
   /// Releases the embedded viewer and deletes the local copy.
   func closeDocumentViewer() throws
   /// Finds the next or previous match in the embedded viewer. Returns whether
@@ -2281,6 +2291,42 @@ class PdfPocHostApiSetup {
       }
     } else {
       loadDocumentIntoViewerChannel.setMessageHandler(nil)
+    }
+    /// Chuyển trình xem tài liệu sang chế độ sửa, hoặc quay lại chế độ xem.
+    ///
+    /// Chỉ áp dụng cho HWP. Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm
+    /// trong trình soạn thảo, không nằm trong tệp.
+    let setDocumentEditingEnabledChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setDocumentEditingEnabled\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setDocumentEditingEnabledChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let enabledArg = args[0] as! Bool
+        do {
+          try api.setDocumentEditingEnabled(enabled: enabledArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setDocumentEditingEnabledChannel.setMessageHandler(nil)
+    }
+    /// Ghi tài liệu đang sửa đè lên tệp đang mở.
+    ///
+    /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
+    /// hiện trong log.
+    let saveDocumentEditsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.saveDocumentEdits\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      saveDocumentEditsChannel.setMessageHandler { _, reply in
+        do {
+          try api.saveDocumentEdits()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      saveDocumentEditsChannel.setMessageHandler(nil)
     }
     /// Releases the embedded viewer and deletes the local copy.
     let closeDocumentViewerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocumentViewer\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)

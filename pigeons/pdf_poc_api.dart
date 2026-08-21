@@ -413,6 +413,18 @@ abstract class PdfPocHostApi {
   /// Loads a picked document into the embedded viewer platform view.
   void loadDocumentIntoViewer(String path);
 
+  /// Chuyển trình xem tài liệu sang chế độ sửa, hoặc quay lại chế độ xem.
+  ///
+  /// Chỉ áp dụng cho HWP. Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm
+  /// trong trình soạn thảo, không nằm trong tệp.
+  void setDocumentEditingEnabled(bool enabled);
+
+  /// Ghi tài liệu đang sửa đè lên tệp đang mở.
+  ///
+  /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
+  /// hiện trong log.
+  void saveDocumentEdits();
+
   /// Releases the embedded viewer and deletes the local copy.
   void closeDocumentViewer();
 

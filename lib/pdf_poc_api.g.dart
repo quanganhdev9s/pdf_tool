@@ -2546,6 +2546,50 @@ class PdfPocHostApi {
     ;
   }
 
+  /// Chuyển trình xem tài liệu sang chế độ sửa, hoặc quay lại chế độ xem.
+  ///
+  /// Chỉ áp dụng cho HWP. Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm
+  /// trong trình soạn thảo, không nằm trong tệp.
+  Future<void> setDocumentEditingEnabled(bool enabled) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setDocumentEditingEnabled$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[enabled]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Ghi tài liệu đang sửa đè lên tệp đang mở.
+  ///
+  /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
+  /// hiện trong log.
+  Future<void> saveDocumentEdits() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.saveDocumentEdits$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
   /// Releases the embedded viewer and deletes the local copy.
   Future<void> closeDocumentViewer() async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocumentViewer$pigeonVar_messageChannelSuffix';

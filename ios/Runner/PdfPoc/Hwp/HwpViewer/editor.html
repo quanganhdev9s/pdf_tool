@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HWP</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1c1c1e; }
+  #editor { width: 100%; height: 100%; }
+  #status {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; padding: 24px; text-align: center;
+    font: 15px -apple-system, sans-serif; color: #ffd8d6;
+  }
+  #status:empty { display: none; }
+</style>
+</head>
+<body>
+<div id="editor"></div>
+<div id="status"></div>
+
+<!-- SDK được `HwpEditorPage.html()` chèn thẳng vào đây. Trang này chạy với
+     origin https giả nên không nạp được tệp cục bộ nào — kể cả script. -->
+<!--__RHWP_EDITOR_SDK__-->
+
+<script>
+(function () {
+  var statusEl = document.getElementById('status');
+
+  function report(event, detail) {
+    try {
+      window.webkit.messageHandlers.hwpViewer.postMessage({
+        event: event,
+        detail: String(detail == null ? '' : detail),
+      });
+    } catch (_) {}
+  }
+
+  function fail(event, error) {
+    statusEl.textContent = 'Không mở được trình soạn thảo HWP.';
+    report(event, (error && error.stack) || error);
+  }
+
+  /// Chia nhỏ khi mã hoá: `String.fromCharCode.apply` với cả tệp một lần sẽ
+  /// tràn stack ở tài liệu lớn.
+  function toBase64(bytes) {
+    var binary = '';
+    for (var i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+  }
+
+  function fromBase64(base64) {
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  var editor = null;
+  var documentName = '';
+
+  // Swift bơm tài liệu vào qua đây thay vì để trang tự `fetch`: origin https
+  // giả không hỏi được scheme handler của app.
+  window.__rhwpLoad = function (base64, name) {
+    if (!editor) {
+      report('hwp_editor_load_failed', 'editor not ready');
+      return;
+    }
+    documentName = name || '';
+    var bytes;
+    try {
+      bytes = fromBase64(base64);
+    } catch (error) {
+      report('hwp_editor_load_failed', 'bad base64');
+      return;
+    }
+    editor.loadFile(bytes.buffer, documentName).then(function (result) {
+      report('hwp_editor_loaded',
+        'pages=' + ((result && result.pageCount) || '?') + ' bytes=' + bytes.length);
+    }, function (error) {
+      fail('hwp_editor_load_failed', error);
+    });
+  };
+
+  // Swift gọi khi người dùng bấm Lưu. Kết quả về bất đồng bộ qua relay.
+  window.__rhwpExport = function () {
+    if (!editor) {
+      report('hwp_editor_export_failed', 'editor not ready');
+      return;
+    }
+    // Xuất đúng định dạng đã mở. Đổi hwp thành hwpx sau lưng người dùng là đổi
+    // tệp của họ sang định dạng khác mà không ai yêu cầu.
+    var isHwpx = /\.hwpx$/i.test(documentName);
+    var promise = isHwpx ? editor.exportHwpx() : editor.exportHwp();
+    promise.then(function (bytes) {
+      var payload = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      report('hwp_editor_export_ready', 'format=' + (isHwpx ? 'hwpx' : 'hwp') +
+        ' bytes=' + payload.length);
+      window.webkit.messageHandlers.hwpViewer.postMessage({
+        event: 'hwp_editor_export_data',
+        detail: toBase64(payload),
+      });
+    }, function (error) {
+      fail('hwp_editor_export_failed', error);
+    });
+  };
+
+  if (typeof createEditor !== 'function') {
+    fail('hwp_editor_failed', 'createEditor missing — SDK was not inlined');
+    return;
+  }
+
+  createEditor('#editor').then(function (created) {
+    editor = created;
+    report('hwp_editor_ready');
+    // Báo Swift bơm tài liệu vào. Đây là bước cuối, sau khi `__rhwpLoad` đã tồn
+    // tại — báo sớm hơn là Swift gọi vào một hàm chưa có.
+    report('hwp_editor_awaiting_document');
+  }, function (error) {
+    fail('hwp_editor_failed', error);
+  });
+})();
+</script>
+</body>
+</html>

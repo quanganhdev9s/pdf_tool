@@ -1140,6 +1140,38 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
+  /// Bật/tắt chế độ sửa của trình xem tài liệu. Chỉ HWP dùng tới.
+  ///
+  /// Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm trong trình soạn thảo.
+  Future<void> setViewerEditing(bool enabled) async {
+    logPdfEvent('set_document_editing', <String, Object?>{'enabled': enabled});
+    try {
+      await _api.setDocumentEditingEnabled(enabled);
+    } on PlatformException catch (error) {
+      logPdfEvent('set_document_editing_failed', <String, Object?>{
+        'code': error.code,
+        'message': error.message,
+      });
+      rethrow;
+    }
+  }
+
+  /// Yêu cầu ghi bản đang sửa đè lên tệp đang mở.
+  ///
+  /// Trả về ngay: việc xuất chạy bất đồng bộ trong trình soạn thảo, kết quả
+  /// hiện trong log native (`hwp_editor_saved` / `hwp_editor_save_failed`).
+  Future<void> saveViewerEdits() async {
+    try {
+      await _api.saveDocumentEdits();
+    } on PlatformException catch (error) {
+      logPdfEvent('save_document_edits_failed', <String, Object?>{
+        'code': error.code,
+        'message': error.message,
+      });
+      rethrow;
+    }
+  }
+
   /// Called by the viewer route once its platform view is on screen.
   Future<void> loadPickedDocumentIntoViewer(String path) async {
     logPdfEvent('load_document_into_viewer', <String, Object?>{'path': path});
