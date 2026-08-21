@@ -128,6 +128,11 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
         title: Text(assetName(widget.assetKey)),
         actions: <Widget>[
           IconButton(
+            tooltip: 'Convert to PDF',
+            onPressed: state.busy ? null : () => _openConvertSheet(context),
+            icon: const Icon(Icons.file_present_outlined),
+          ),
+          IconButton(
             tooltip: 'Reset writable copy',
             onPressed: state.busy
                 ? null
@@ -222,6 +227,39 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     setState(() {
       _activePanelMode = next;
     });
+  }
+
+  /// Opens the convert controls in a sheet.
+  ///
+  /// `BlocProvider.value` is not optional here: a modal route is built from the
+  /// navigator's context, not this one, so `ConvertControls` would find no
+  /// `PdfViewerBloc` above it. And the sheet needs its own `BlocBuilder` —
+  /// conversion progress arrives while it is open, and nothing outside would
+  /// rebuild it.
+  Future<void> _openConvertSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => BlocProvider<PdfViewerBloc>.value(
+        value: _bloc,
+        child: BlocBuilder<PdfViewerBloc, PdfViewerState>(
+          bloc: _bloc,
+          builder: (sheetContext, state) => SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 16,
+              ),
+              child: SingleChildScrollView(
+                child: ConvertControls(state: state),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openDocumentViewerScreen() async {

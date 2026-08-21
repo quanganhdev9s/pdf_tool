@@ -122,8 +122,6 @@ class PdfControlPanel extends StatelessWidget {
         return _CompressionControls(state: state);
       case PdfControlPanelMode.splitMerge:
         return _SplitMergeControls(state: state);
-      case PdfControlPanelMode.convert:
-        return _ConvertControls(state: state);
       case PdfControlPanelMode.documentViewer:
         return _DocumentViewerControls(
           state: state,
@@ -980,16 +978,21 @@ class _MergeResultView extends StatelessWidget {
   }
 }
 
-class _ConvertControls extends StatefulWidget {
-  const _ConvertControls({required this.state});
+/// Convert-to-PDF controls.
+///
+/// Public because it is no longer a case of the control panel: the viewer's
+/// app bar opens it in a sheet instead. Everything it needs still comes from
+/// `PdfViewerBloc`, so the sheet has to be given the same provider.
+class ConvertControls extends StatefulWidget {
+  const ConvertControls({super.key, required this.state});
 
   final PdfViewerState state;
 
   @override
-  State<_ConvertControls> createState() => _ConvertControlsState();
+  State<ConvertControls> createState() => _ConvertControlsState();
 }
 
-class _ConvertControlsState extends State<_ConvertControls> {
+class _ConvertControlsState extends State<ConvertControls> {
   PdfConvertPageSize _pageSize = PdfConvertPageSize.a4;
   PdfScanQuality _imageQuality = PdfScanQuality.standard;
   final TextEditingController _urlController = TextEditingController();

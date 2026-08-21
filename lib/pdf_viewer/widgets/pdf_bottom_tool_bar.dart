@@ -10,7 +10,6 @@ enum PdfControlPanelMode {
   ocr,
   compression,
   splitMerge,
-  convert,
   documentViewer,
   status,
 }
@@ -121,14 +120,6 @@ class PdfBottomToolBar extends StatelessWidget {
                             label: 'Split',
                             tooltip: 'Split/Merge',
                             icon: Icons.call_split,
-                            onPressed: onModePressed,
-                          ),
-                          _ToolbarIcon(
-                            mode: PdfControlPanelMode.convert,
-                            activeMode: activeMode,
-                            label: 'Convert',
-                            tooltip: 'Convert to PDF',
-                            icon: Icons.file_present_outlined,
                             onPressed: onModePressed,
                           ),
                           _ToolbarIcon(
