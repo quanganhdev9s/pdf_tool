@@ -165,9 +165,9 @@ final class PdfDocumentViewerView: UIView {
 
   /// Bật hoặc tắt chế độ sửa cho tệp HWP đang mở.
   ///
-  /// Bật là nạp hẳn một trang khác — trình xem vẽ SVG tĩnh, còn trình soạn thảo
-  /// là ứng dụng riêng chạy trong iframe. Tắt là quay về trang xem, và **bỏ mọi
-  /// thay đổi chưa lưu**: chúng chỉ tồn tại bên trong iframe.
+  /// Không nạp trang khác. Xem và sửa dùng chung một trang và **chung một
+  /// instance WASM** — chạm, đặt con trỏ và ghi đều là code của ta, nên không
+  /// phụ thuộc hành vi chạm của một ứng dụng bên ngoài.
   func setEditing(_ editing: Bool) throws {
     guard let loadedURL else {
       throw PdfPocError(
@@ -183,24 +183,14 @@ final class PdfDocumentViewerView: UIView {
         details: loadedURL.lastPathComponent
       )
     }
-
-    if editing {
-      guard let origin = HwpEditorPage.origin else {
-        throw PdfPocError(
-          code: "internal_error",
-          message: "Could not build the HWP editor origin.",
-          details: nil
-        )
-      }
-      editingURL = loadedURL
-      activityIndicator.startAnimating()
-      logPdfEvent("hwp_editor_open", "file=\(loadedURL.lastPathComponent)")
-      webView.loadHTMLString(try HwpEditorPage.html(), baseURL: origin)
-    } else {
-      editingURL = nil
-      logPdfEvent("hwp_editor_close", "file=\(loadedURL.lastPathComponent)")
-      try load(path: loadedURL.path)
-    }
+    editingURL = editing ? loadedURL : nil
+    logPdfEvent(
+      editing ? "hwp_editor_open" : "hwp_editor_close",
+      "file=\(loadedURL.lastPathComponent)"
+    )
+    webView.evaluateJavaScript(
+      "window.__rhwpSetEditing(\(editing))", completionHandler: nil
+    )
   }
 
   /// Yêu cầu trang soạn thảo xuất tài liệu. Kết quả về bất đồng bộ qua relay.
@@ -217,24 +207,6 @@ final class PdfDocumentViewerView: UIView {
   }
 
   private func configureRelay() {
-    relay.onEditorReady = { [weak self] in
-      guard let self, let url = self.editingURL else { return }
-      do {
-        let base64 = try Data(contentsOf: url).base64EncodedString()
-        let name = url.lastPathComponent
-          .replacingOccurrences(of: "\\", with: "\\\\")
-          .replacingOccurrences(of: "'", with: "\\'")
-        // Bơm qua `evaluateJavaScript` thay vì để trang tự `fetch`: origin của
-        // trang là https giả, nó không hỏi được scheme handler của app.
-        self.webView.evaluateJavaScript(
-          "window.__rhwpLoad('\(base64)', '\(name)')", completionHandler: nil
-        )
-      } catch {
-        logPdfEvent("hwp_editor_read_failed", "error=\(error)")
-      }
-      self.activityIndicator.stopAnimating()
-    }
-
     relay.onExported = { [weak self] data in
       guard let self, let url = self.editingURL else { return }
       do {

@@ -153,53 +153,12 @@ enum HwpFileType {
   }
 }
 
-/// Dựng trang chủ cho trình soạn thảo HWP.
-///
-/// Không phục vụ qua `HwpViewerSchemeHandler` được. SDK của `@rhwp/editor` từ
-/// chối mọi origin **không phải HTTP(S)** — ở cả phía nó lẫn phía studio — và
-/// scheme riêng của app là opaque origin. `loadHTMLString(_:baseURL:)` là lối
-/// ra: `WKWebView` lấy origin của trang từ `baseURL`, nên đưa một URL https vào
-/// là trang có origin hợp lệ mà không cần máy chủ nào.
-///
-/// Cái giá của lối đó là trang mất khả năng nạp tài nguyên cục bộ — nó không
-/// còn origin để hỏi. Nên SDK được **nhúng thẳng** vào chuỗi HTML.
-enum HwpEditorPage {
-  /// Origin gán cho trang. Chỉ cần là một origin https hợp lệ; không có gì
-  /// được tải từ đây.
-  static let origin = URL(string: "https://hwp-editor.localhost/")
-
-  private static let sdkPlaceholder = "<!--__RHWP_EDITOR_SDK__-->"
-
-  static func html() throws -> String {
-    guard let directory = Bundle.main.url(forResource: "HwpViewer", withExtension: nil) else {
-      throw PdfPocError(
-        code: "internal_error",
-        message: "The HWP editor assets are missing from the app bundle.",
-        details: nil
-      )
-    }
-    let template = try String(
-      contentsOf: directory.appendingPathComponent("editor.html"), encoding: .utf8
-    )
-    let sdk = try String(
-      contentsOf: directory.appendingPathComponent("rhwp_editor_bundle.js"), encoding: .utf8
-    )
-    return template.replacingOccurrences(
-      of: sdkPlaceholder,
-      with: "<script>\n" + sdk + "\n</script>"
-    )
-  }
-}
-
 /// Đưa log của trang vỏ về cùng dòng log với phần còn lại của app.
 ///
 /// Trang vỏ chạy trong `WKWebView` nên `console.log` của nó không đi đâu cả.
 /// Nó `postMessage` sang đây, và mọi thứ hiện chung một chỗ với `logPdfEvent`.
 final class HwpViewerLogRelay: NSObject, WKScriptMessageHandler {
   static let name = "hwpViewer"
-
-  /// Trang soạn thảo báo đã sẵn sàng nhận tài liệu.
-  var onEditorReady: (() -> Void)?
 
   /// Bytes của tài liệu sau khi sửa, đã giải base64.
   var onExported: ((Data) -> Void)?
@@ -213,9 +172,6 @@ final class HwpViewerLogRelay: NSObject, WKScriptMessageHandler {
     let detail = body["detail"] as? String
 
     switch event {
-    case "hwp_editor_awaiting_document":
-      logPdfEvent(event, nil)
-      onEditorReady?()
     case "hwp_editor_export_data":
       // Không log payload: đây là cả tệp dưới dạng base64.
       guard let detail, let data = Data(base64Encoded: detail) else {

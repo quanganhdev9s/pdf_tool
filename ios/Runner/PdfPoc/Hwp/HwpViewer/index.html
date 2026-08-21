@@ -6,84 +6,214 @@
 <title>HWP</title>
 <style>
   :root { color-scheme: light dark; }
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: #8e8e93;
-    -webkit-text-size-adjust: 100%;
-  }
-  #pages {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-  }
-  /* Mỗi trang là một SVG khổ giấy. Ép nó co theo bề ngang màn hình chứ không
-     tràn ra ngoài — SVG do rhwp sinh mang kích thước thật của trang. */
+  html, body { margin: 0; padding: 0; background: #8e8e93; -webkit-text-size-adjust: 100%; }
+  #pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; }
   #pages svg {
-    display: block;
-    width: 100%;
-    height: auto;
-    max-width: 900px;
-    background: #fff;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    display: block; width: 100%; height: auto; max-width: 900px;
+    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3);
   }
-  #status {
-    font: 15px -apple-system, sans-serif;
-    color: #fff;
-    text-align: center;
-    padding: 24px 16px;
-  }
+  /* Chế độ sửa: cho thấy trang đang nhận chạm. */
+  body.editing #pages svg { outline: 2px solid #0a84ff; outline-offset: -2px; }
+  #status { font: 15px -apple-system, sans-serif; color: #fff; text-align: center; padding: 24px 16px; }
   #status.error { color: #ffd8d6; }
+
+  #sheet {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    background: #1c1c1e; display: none; flex-direction: column; gap: 8px;
+  }
+  #sheet.open { display: flex; }
+  #sheet textarea {
+    font: 16px -apple-system, sans-serif; color: #fff; background: #2c2c2e;
+    border: 0; border-radius: 9px; padding: 10px; min-height: 96px; resize: none;
+  }
+  #sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
+  #sheet button {
+    font: 15px -apple-system, sans-serif; color: #fff; background: #3a3a3c;
+    border: 0; border-radius: 9px; padding: 9px 18px;
+  }
+  #sheet button.primary { background: #0a84ff; }
 </style>
 </head>
 <body>
 <div id="status">Đang tải…</div>
 <div id="pages"></div>
 
+<div id="sheet">
+  <textarea id="draft" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+  <div class="row">
+    <button id="cancel">Huỷ</button>
+    <button id="apply" class="primary">Xong</button>
+  </div>
+</div>
+
 <script type="module">
 const statusEl = document.getElementById('status');
 const pagesEl = document.getElementById('pages');
+const sheet = document.getElementById('sheet');
+const draft = document.getElementById('draft');
 
-/** Báo về Swift qua `WKScriptMessageHandler`, để log chảy vào cùng một chỗ. */
 function report(event, detail) {
   try {
     window.webkit?.messageHandlers?.hwpViewer?.postMessage({ event, detail: String(detail ?? '') });
-  } catch (_) { /* không có host thì thôi */ }
+  } catch (_) {}
 }
 
 function fail(message, error) {
+  statusEl.hidden = false;
   statusEl.className = 'error';
   statusEl.textContent = message;
   report('hwp_viewer_failed', error?.stack || error || message);
 }
 
-// Đo chữ bằng Canvas — **bắt buộc, và phải đăng ký trước khi init**.
+// Đo chữ bằng Canvas — bắt buộc, và phải đăng ký **trước** khi init.
 //
-// rhwp dàn trang bên trong WASM nhưng không với tới được font của trình duyệt,
-// nên nó gọi ngược ra đây để hỏi bề rộng thật của từng đoạn chữ. Không có hàm
-// này thì ngắt dòng và canh đều sai hết.
-//
-// Giữ lại context và font gần nhất: hàm này bị gọi rất nhiều lần cho mỗi trang,
-// và gán `ctx.font` là thao tác đắt.
+// rhwp dàn trang bên trong WASM nhưng không với tới font của trình duyệt, nên
+// nó gọi ngược ra đây để hỏi bề rộng thật của từng đoạn chữ. Không có hàm này
+// thì ngắt dòng và canh đều sai hết.
 let measureCtx = null;
 let lastFont = '';
 globalThis.measureTextWidth = (font, text) => {
   if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
-  if (font !== lastFont) {
-    measureCtx.font = font;
-    lastFont = font;
-  }
+  if (font !== lastFont) { measureCtx.font = font; lastFont = font; }
   return measureCtx.measureText(text).width;
+};
+
+let doc = null;
+let editing = false;
+/** Đoạn đang mở ô nhập: {sectionIndex, paragraphIndex, length}. */
+let target = null;
+
+function paintPage(index) {
+  const holder = document.createElement('div');
+  holder.innerHTML = doc.renderPageSvg(index);
+  const svg = holder.firstElementChild;
+  svg.dataset.page = String(index);
+  const existing = pagesEl.children[index];
+  if (existing) pagesEl.replaceChild(svg, existing);
+  else pagesEl.appendChild(svg);
+}
+
+function repaintAll() {
+  const total = doc.pageCount();
+  for (let i = 0; i < total; i += 1) paintPage(i);
+  while (pagesEl.children.length > total) pagesEl.lastElementChild.remove();
+  return total;
+}
+
+/// Đổi toạ độ chạm trên màn hình sang toạ độ trang mà `hitTest` hiểu.
+///
+/// SVG bị ép co theo bề ngang màn hình nên tỉ lệ hiển thị khác tỉ lệ thật.
+/// `viewBox` giữ kích thước thật của trang; không có nó thì lùi về width/height.
+///
+/// Tính lại mỗi lần chạm, không nhớ: bàn phím lên xuống và xoay máy đều đổi
+/// `getBoundingClientRect`, mà nhớ lại giá trị cũ chính là cách con trỏ đứng
+/// yên một chỗ.
+function pagePoint(svg, event) {
+  const rect = svg.getBoundingClientRect();
+  const box = svg.viewBox?.baseVal;
+  const width = box?.width || svg.width?.baseVal?.value || rect.width;
+  const height = box?.height || svg.height?.baseVal?.value || rect.height;
+  return {
+    x: (event.clientX - rect.left) / rect.width * width + (box?.x || 0),
+    y: (event.clientY - rect.top) / rect.height * height + (box?.y || 0),
+  };
+}
+
+pagesEl.addEventListener('click', (event) => {
+  if (!editing || !doc) return;
+  const svg = event.target.closest('svg[data-page]');
+  if (!svg) return;
+
+  const page = Number(svg.dataset.page);
+  const point = pagePoint(svg, event);
+  let hit;
+  try {
+    hit = JSON.parse(doc.hitTest(page, point.x, point.y));
+  } catch (error) {
+    report('hwp_hit_test_failed', error);
+    return;
+  }
+  if (!hit || hit.paragraphIndex == null) {
+    report('hwp_hit_test_empty', `page=${page} x=${Math.round(point.x)} y=${Math.round(point.y)}`);
+    return;
+  }
+
+  // Đơn vị sửa là **đoạn văn**, không phải chỗ chạm — giống cách phần sửa chữ
+  // PDF đang làm, và tránh phải tự dựng con trỏ trên SVG.
+  const length = doc.getParagraphLength(hit.sectionIndex, hit.paragraphIndex);
+  const text = length > 0 ? doc.getTextRange(hit.sectionIndex, hit.paragraphIndex, 0, length) : '';
+  target = { sectionIndex: hit.sectionIndex, paragraphIndex: hit.paragraphIndex, length };
+  draft.value = text;
+  sheet.classList.add('open');
+  draft.focus();
+  report('hwp_paragraph_picked',
+    `page=${page} section=${hit.sectionIndex} para=${hit.paragraphIndex} length=${length}`);
+});
+
+function closeSheet() {
+  sheet.classList.remove('open');
+  target = null;
+}
+
+document.getElementById('cancel').addEventListener('click', closeSheet);
+
+document.getElementById('apply').addEventListener('click', () => {
+  if (!target || !doc) return;
+  const { sectionIndex, paragraphIndex, length } = target;
+  const text = draft.value;
+  closeSheet();
+  try {
+    doc.replaceText(sectionIndex, paragraphIndex, 0, length, text);
+    // Sửa một đoạn có thể đẩy nội dung sang trang khác, nên vẽ lại tất cả.
+    const total = repaintAll();
+    report('hwp_paragraph_edited',
+      `section=${sectionIndex} para=${paragraphIndex} from=${length} to=${text.length} pages=${total}`);
+  } catch (error) {
+    fail('Không áp dụng được thay đổi.', error);
+  }
+});
+
+// Flutter bật/tắt qua `setDocumentEditingEnabled`, Swift gọi xuống đây.
+window.__rhwpSetEditing = (enabled) => {
+  editing = !!enabled;
+  document.body.classList.toggle('editing', editing);
+  if (!editing) closeSheet();
+  report('hwp_edit_mode', `enabled=${editing}`);
+};
+
+// Swift gọi khi người dùng bấm Lưu. Bytes về qua `hwp_editor_export_data`.
+window.__rhwpExport = () => {
+  if (!doc) {
+    report('hwp_editor_export_failed', 'document not ready');
+    return;
+  }
+  try {
+    // Bản `WithReport`, không phải `exportHwp()` trần: nó kèm báo cáo phần nội
+    // dung bị mất khi ghi. Đó là thứ duy nhất cho biết ta có đang âm thầm làm
+    // hỏng tài liệu của người dùng không.
+    const result = doc.exportHwpWithReport();
+    const loss = result.contentLoss();
+    const bytes = result.takeBytes();
+    // Chia nhỏ khi mã hoá: `fromCharCode.apply` với cả tệp một lần tràn stack.
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    report('hwp_content_loss', loss);
+    report('hwp_editor_export_ready', `bytes=${bytes.length}`);
+    window.webkit?.messageHandlers?.hwpViewer?.postMessage({
+      event: 'hwp_editor_export_data',
+      detail: btoa(binary),
+    });
+  } catch (error) {
+    fail('Không lưu được tệp.', error);
+    report('hwp_editor_export_failed', error?.stack || error);
+  }
 };
 
 try {
   const started = performance.now();
-
-  // Cùng scheme với trang này nên là same-origin: `fetch` chạy được, và
-  // handler bên Swift trả đúng `application/wasm` để `instantiateStreaming`
-  // chấp nhận.
   const { default: init, HwpDocument } = await import('./rhwp.js');
   await init({ module_or_path: './rhwp_bg.wasm' });
   const ready = performance.now();
@@ -93,20 +223,11 @@ try {
   if (!response.ok) throw new Error(`document fetch ${response.status}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
 
-  const doc = new HwpDocument(bytes);
-  const total = doc.pageCount();
-  report('hwp_document_parsed', `pages=${total} bytes=${bytes.length}`);
+  doc = new HwpDocument(bytes);
+  report('hwp_document_parsed', `pages=${doc.pageCount()} bytes=${bytes.length}`);
 
-  // Vẽ trang đầu trước rồi nhường một frame, để có gì đó trên màn hình ngay
-  // thay vì đứng hình cho tới khi trang cuối xong.
   statusEl.hidden = true;
-  for (let i = 0; i < total; i += 1) {
-    const holder = document.createElement('div');
-    holder.innerHTML = doc.renderPageSvg(i);
-    pagesEl.appendChild(holder.firstElementChild ?? holder);
-    if (i === 0) await new Promise(requestAnimationFrame);
-  }
-
+  const total = repaintAll();
   report('hwp_render_done', `pages=${total} in=${Math.round(performance.now() - ready)}ms`);
 } catch (error) {
   fail('Không mở được tệp HWP này.', error);
