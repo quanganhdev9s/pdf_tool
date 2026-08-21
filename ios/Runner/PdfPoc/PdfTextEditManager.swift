@@ -251,7 +251,13 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
   /// Side of the grip dragged to resize the block, in points. Sized for a
   /// fingertip, not for the hairline it sits on.
+  ///
+  /// Vùng chạm, không phải chấm nhìn thấy. Hai thứ tách nhau vì chúng phục vụ
+  /// hai bên khác nhau: ngón tay cần chỗ, còn mắt cần thấy chữ dưới nút.
   static let resizeHandleSize: CGFloat = 26
+
+  /// Đường kính chấm tròn vẽ ở mỗi góc, in points.
+  static let resizeHandleDotSize: CGFloat = 13
 
   /// Clearance kept between a resized block and the next one, in points.
   static let blockGutter: CGFloat = 2
@@ -279,6 +285,10 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// Counts requests to read a page's blocks, so only the newest survives a
   /// burst of them.
   private var readRequest = 0
+
+  /// Lần yêu cầu tắt bàn phím gần nhất. Mở ô nhập lại sẽ tăng số này và lần
+  /// tắt đang chờ tự bỏ đi.
+  private var keyboardDismissRequest = 0
 
   /// Các chỉnh sửa đã commit, chưa ghi vào file. `invalidateBlocks()` dọn sạch
   /// sau khi save đã tiêu thụ chúng.
@@ -440,12 +450,36 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   }
 
   private func configureResizeHandle() {
+    let grip = CGRect(
+      origin: .zero,
+      size: CGSize(width: Self.resizeHandleSize, height: Self.resizeHandleSize)
+    )
+    let dotSize = Self.resizeHandleDotSize
+    let inset = (Self.resizeHandleSize - dotSize) / 2
+
     for handle in resizeHandles.values {
       handle.isHidden = true
-      handle.backgroundColor = .systemBlue
-      handle.layer.cornerRadius = Self.resizeHandleSize / 2
-      handle.layer.borderWidth = 2
-      handle.layer.borderColor = UIColor.white.cgColor
+      // Bản thân nút không vẽ gì — nó chỉ là chỗ bắt ngón tay. Chấm nhìn thấy
+      // là view con ở giữa, nên thu nhỏ chấm không thu nhỏ vùng chạm.
+      handle.backgroundColor = .clear
+      handle.frame = grip
+
+      let dot = UIView(
+        frame: CGRect(x: inset, y: inset, width: dotSize, height: dotSize)
+      )
+      dot.backgroundColor = .systemBlue
+      dot.layer.cornerRadius = dotSize / 2
+      dot.layer.borderWidth = 1.5
+      dot.layer.borderColor = UIColor.white.cgColor
+      // Chạm rơi xuống nút cha, không dừng ở chấm.
+      dot.isUserInteractionEnabled = false
+      // Giữ chấm ở giữa nếu vùng chạm đổi cỡ.
+      dot.autoresizingMask = [
+        .flexibleTopMargin, .flexibleBottomMargin,
+        .flexibleLeftMargin, .flexibleRightMargin,
+      ]
+      handle.addSubview(dot)
+
       // One recogniser each. Which corner is being dragged is read back off
       // `gesture.view`, so the four share a single handler.
       handle.addGestureRecognizer(
@@ -497,7 +531,21 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// `CommittedEdit` giữ chính đối tượng trang, mà mở lại tài liệu làm mọi đối
   /// tượng cũ thành rác. Chỉ số trang thì không đổi — cùng file, cùng thứ tự —
   /// nên nó là cầu nối duy nhất còn dùng được.
-  func remapPages(to document: PDFDocument, from previous: PDFDocument) {
+  ///
+  /// `changedPage` là trang mà nội dung thật sự đổi. Chỉ nó bị xoá khỏi cache.
+  ///
+  /// Cách cũ xoá sạch cả hai cache ở đây, và đó là lý do cú chạm thứ hai đắt y
+  /// như cú đầu: mỗi lần giấu chữ là một lần đọc lại mọi trang đã đọc. Nhưng
+  /// giấu chỉ đụng vào **một** trang, và cache đánh khoá bằng chỉ số trang chứ
+  /// không phải bằng đối tượng trang.
+  ///
+  /// `PDFSelection` trong `blockCache` thì vẫn trỏ vào trang của tài liệu cũ —
+  /// và vẫn dùng được, vì từ lúc được cache trở đi chúng chỉ còn bị hỏi chữ và
+  /// font (`select` đọc `.string` và `.attributedString`). Hình học đã được
+  /// chốt thành `CGRect` ngay lúc đọc, nên không có toạ độ nào phải quy chiếu
+  /// về tài liệu mới. Cái giá là trang cũ sống thêm chừng nào cache còn giữ —
+  /// bị chặn trên bởi số trang đã đọc, và `reset()` buông hết.
+  func remapPages(to document: PDFDocument, from previous: PDFDocument, changedPage: Int?) {
     committedEdits = committedEdits.compactMap { edit in
       let index = previous.index(for: edit.page)
       guard index != NSNotFound, let page = document.page(at: index) else { return nil }
@@ -505,8 +553,16 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       moved.page = page
       return moved
     }
-    blockCache.removeAll()
-    runCache.removeAll()
+    guard let changedPage else { return }
+    // Chỉ `runCache`. `runs()` lọc bỏ render mode 3, nên giấu chữ đổi hẳn kết
+    // quả của nó.
+    //
+    // `blockCache` thì không: giấu không dời và không bỏ ký tự nào, PDFKit vẫn
+    // trích được chữ đang ở `3 Tr`, nên đọc lại trang cho ra đúng những block
+    // vừa xoá đi. Và có người hỏi nó ngay trong cùng cú chạm — `beginEditing`
+    // gọi `typingFloor` để biết trần của block dưới — nên xoá ở đây là mua một
+    // lượt `selectionsByLine` nữa, đổi lấy đúng cái đã có.
+    runCache[changedPage] = nil
   }
 
   func invalidateBlocks() {
@@ -1166,7 +1222,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       // Không cắt, nhưng vẫn ghi lại khe lớn nhất: nếu bảng bị gộp thì con số
       // này với ngưỡng đứng cạnh nhau nói ngay phải chỉnh bao nhiêu.
       if let widest = gaps.max(), widest > 1 {
-        logPdfEvent(
+        logPdfVerbose(
           "text_line_intact",
           "widest=\(String(format: "%.1f", widest)) threshold=\(String(format: "%.1f", threshold)) "
             + "space=\(String(format: "%.1f", space)) height=\(Int(line.bounds.height))"
@@ -1175,7 +1231,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       return [line]
     }
 
-    logPdfEvent(
+    logPdfVerbose(
       "text_line_split",
       "pieces=\(pieces.count) threshold=\(String(format: "%.1f", threshold)) "
         + "space=\(String(format: "%.1f", space)) width=\(Int(line.bounds.width))"
@@ -1261,6 +1317,11 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   ) {
     guard let pdfView else { return }
 
+    // Ô nhập mở lại: lần tắt bàn phím đang chờ không còn nghĩa lý gì. Cùng một
+    // text view, nên nó vẫn đang là first responder và bàn phím vẫn đang lên —
+    // không có gì phải làm, và đó chính là chỗ tiết kiệm được 2717ms.
+    keyboardDismissRequest += 1
+
     editingPage = page
     editingBounds = bounds
     editingOriginalBounds = bounds
@@ -1278,8 +1339,14 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       fontName: block.fontName
     )
 
-    // Kéo lên nửa trên trước: bàn phím sắp che nửa dưới.
+    // Kéo lên nửa trên trước: bàn phím sắp che nửa dưới. Đây là lần dịch trang
+    // **duy nhất** của một cú chạm — lần đổi document lúc giấu chữ gốc đã đặt
+    // lại đúng chỗ cũ rồi, nên nó không tính.
     pdfView.go(to: bounds.insetBy(dx: 0, dy: -min(bounds.height * 2, 240)), on: page)
+    // Ép cuộn xong ngay tại đây. `go(to:on:)` mới chỉ đặt offset; chưa layout
+    // thì `pdfView.convert` ở `showEditor` còn đọc toạ độ của chỗ trang vừa
+    // rời đi, và ô nhập mở ra lệch đúng bằng quãng vừa cuộn.
+    pdfView.layoutIfNeeded()
 
     // Sau khi cuộn xong, để đổi toạ độ theo chỗ trang thật sự dừng lại.
     DispatchQueue.main.async { [weak self] in
@@ -1432,6 +1499,24 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       )
       if handle.center != centre { handle.center = centre }
     }
+
+    // Viền: đúng hình chữ nhật bốn nút vừa đứng vào bốn góc.
+    //
+    // Không phải `editor.frame` — trần ô nhập cao hơn cạnh trên block một khoảng
+    // headroom chừa cho dấu thanh, mà khoảng đó trống. Vẽ theo nó thì viền
+    // không đi qua hai nút trên.
+    //
+    // Nét liền, khác nét đứt của `blockLayer`: đứt là "chỗ này sửa được", liền
+    // là "chỗ này đang sửa".
+    let frame = CGRect(
+      x: box.minX,
+      y: rect.minY,
+      width: box.width,
+      height: max(box.maxY - rect.minY, 1)
+    )
+    fieldBorder.frame = pdfView.bounds
+    fieldBorder.path = UIBezierPath(roundedRect: frame, cornerRadius: 3).cgPath
+    fieldBorder.isHidden = false
   }
 
   /// Đặt style cho ô nhập, và đặt lại khi zoom làm đổi cỡ chữ.
@@ -1648,14 +1733,32 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
   @objc private func commitEditing() {
     guard var request = editingStyle, let cover = editingCover else { return }
+    // Đo tách pha. `apply` tự đo và ra 3ms, nên chỗ chậm — nếu có — nằm ở một
+    // trong ba pha còn lại, và cả ba đều nằm ngoài nó.
+    let started = CFAbsoluteTimeGetCurrent()
+    var mark = started
+    var timings: [String] = []
+    func phase(_ name: String) {
+      timings.append("\(name)=\(Self.since(mark))")
+      mark = CFAbsoluteTimeGetCurrent()
+    }
+
     request.text = editor.text ?? ""
     // Đọc trước khi `dismissEditor` xoá.
     let kern = editingKern
     // Lần giấu này được giữ: chữ mới sắp thế chỗ chữ cũ.
     editingHidOriginal = false
     dismissEditor()
+    phase("dismiss")
     onCommit?(PdfTextEditCommit(request: request, cover: cover, kern: kern))
+    phase("commit")
     onSelection?(nil)
+    phase("notify")
+
+    logPdfEvent(
+      "text_edit_commit_phases",
+      timings.joined(separator: " ") + " total=\(Self.since(started))ms"
+    )
   }
 
   @objc private func deleteEditing() {
@@ -1685,7 +1788,30 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       editingHidOriginal = false
       onRestoreOriginal?()
     }
-    editor.resignFirstResponder()
+    // Bàn phím tắt ở lượt runloop sau, không phải ngay đây.
+    //
+    // `resignFirstResponder` đo được **2717ms** trên máy thật. Nó chặn main
+    // thread: UIKit trả first responder về cho tầng nhập liệu của Flutter, và
+    // phiên nhập từ xa bị dựng lại — cùng thứ đẻ ra `RTIInputSystemClient ...
+    // requires a valid sessionID` rải khắp log. Gọi đồng bộ ở đây nghĩa là bấm
+    // Xong xong phải chờ gần ba giây mới thấy chữ mới, dù việc ghi chữ chỉ tốn
+    // 6ms.
+    //
+    // Hoãn không làm nó nhanh hơn. Nhưng nó đổi thứ tự: chữ mới, viền, và bốn
+    // nút xong hết trước, rồi bàn phím mới trượt xuống.
+    //
+    // Và nó bỏ hẳn được một lần, ở đường tốn nhất: chạm từ block này sang block
+    // khác. `editor` là **một** text view dùng lại, nên ở đó buông first
+    // responder rồi giành lại ngay là trả giá cho đúng cái mình vừa có.
+    // `beginEditing` tăng token, và lần tắt đang chờ tự huỷ.
+    keyboardDismissRequest += 1
+    let dismissRequest = keyboardDismissRequest
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.keyboardDismissRequest == dismissRequest else { return }
+      let resignStarted = CFAbsoluteTimeGetCurrent()
+      self.editor.resignFirstResponder()
+      logPdfEvent("text_edit_keyboard_dismissed", "in=\(Self.since(resignStarted))ms")
+    }
     editor.isHidden = true
     // Trả về mặc định: ô nhập sau mở ra chưa chạm trần nào.
     editor.isScrollEnabled = false
@@ -2486,14 +2612,60 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
         self?.drawCommittedEdits(into: context, bounds: bounds)
       }
     }
-    editPreview.frame = pdfView.bounds
-    editPreview.isHidden = committedEdits.isEmpty
+    // Khung bằng đúng chỗ các chỉnh sửa đang chiếm trên màn hình, không phải cả
+    // màn hình.
+    //
+    // `refreshBlockOutlines` gọi hàm này qua KVO trên `contentOffset`, tức là
+    // **mỗi frame cuộn**. Trước lần commit đầu tiên thì lớp này ẩn nên không tốn
+    // gì; ngay sau đó nó hiện, và một khung cỡ màn hình nghĩa là mỗi frame cấp
+    // phát rồi sơn lại một bitmap cả màn hình để vẽ vài dòng chữ. Đó là lý do
+    // tài liệu chỉ bắt đầu ì sau khi sửa xong block đầu tiên.
+    let area = previewArea()
+    editPreview.isHidden = area == nil
+    guard let area else {
+      editPreview.frame = .zero
+      return
+    }
+    editPreview.frame = area
     editPreview.setNeedsDisplay()
+  }
+
+  /// Vùng màn hình mà các chỉnh sửa đã commit đang chiếm. Nil khi không có gì
+  /// để vẽ.
+  private func previewArea() -> CGRect? {
+    guard let pdfView, let document = pdfView.document, !committedEdits.isEmpty else {
+      return nil
+    }
+
+    var area: CGRect?
+    for page in pdfView.visiblePages {
+      let index = document.index(for: page)
+      for edit in committedEdits where edit.page === page {
+        guard !edit.text.isEmpty, !isUnderField(edit.occupied, pageIndex: index) else { continue }
+        let box = pdfView.convert(edit.bounds, from: page)
+        guard Self.isDrawable(box) else { continue }
+        // Nới ra một chút: chữ có thể tràn khỏi hộp bố cục của nó — dấu thanh ở
+        // trên, phần đuôi chữ ở dưới — và `draw` chỉ kẹp theo `maxHeight`.
+        let padded = box.insetBy(dx: -4, dy: -4)
+        area = area.map { $0.union(padded) } ?? padded
+      }
+    }
+
+    guard let area else { return nil }
+    let visible = area.intersection(pdfView.bounds)
+    return Self.isDrawable(visible) ? visible : nil
   }
 
   /// Vẽ từng chỉnh sửa đang chờ: miếng vá trước, chữ sau.
   private func drawCommittedEdits(into context: CGContext, bounds: CGRect) {
     guard let pdfView, let document = pdfView.document else { return }
+
+    // Mọi toạ độ dưới đây là toạ độ của `pdfView`, còn context này gốc ở góc
+    // trên-trái của `editPreview`. Dời một lần cho cả lượt vẽ.
+    let origin = editPreview.frame.origin
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.translateBy(x: -origin.x, y: -origin.y)
 
     for page in pdfView.visiblePages {
       let index = document.index(for: page)

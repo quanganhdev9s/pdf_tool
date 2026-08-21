@@ -189,7 +189,16 @@ enum PdfContentStreamReader {
   ///
   /// Trả nil khi không tìm thấy operator nào trong `rect`.
   static func removalPlan(for rect: CGRect, on page: PDFPage) -> Removal? {
-    let ops = showTextOps(on: page)
+    removalPlan(for: rect, among: showTextOps(on: page))
+  }
+
+  /// Cùng việc, nhưng dùng lại một lượt quét đã có.
+  ///
+  /// Caller nào hỏi nhiều block trên cùng một trang thì chỉ được quét trang một
+  /// lần. Bản `on:` ở trên quét lại mỗi lần gọi, nên n block hoá thành n lượt đi
+  /// hết content stream — trên trang dày đó là phần lớn thời gian của một cú
+  /// chạm.
+  static func removalPlan(for rect: CGRect, among ops: [ShowTextOp]) -> Removal? {
     guard !ops.isEmpty else { return nil }
 
     let doomed = Set(

@@ -54,6 +54,61 @@ final class PocPdfView: PDFView {
     }
     return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
+
+  // MARK: - Giữ chỗ đang nhìn qua một lần đổi document
+
+  /// Chỗ trang đang đứng, đủ để đặt lại y nguyên sau khi thay `document`.
+  ///
+  /// `PDFDestination` không đủ. Nó mang trang và một điểm, **không** mang zoom,
+  /// và điểm đó bị căn vào góc trên-trái của view — nên `go(to:)` đưa về *gần*
+  /// chỗ cũ chứ không về đúng chỗ cũ. Ngay dưới ngón tay vừa chạm, cái sai vài
+  /// chục point đó đọc ra thành trang nhảy.
+  ///
+  /// Offset của scroll view thì mang đúng cả hai: nó là toạ độ tuyệt đối trong
+  /// content, và content chỉ đúng khi scale đúng.
+  struct Viewport {
+    var autoScales: Bool
+    var scaleFactor: CGFloat
+    var offset: CGPoint?
+  }
+
+  /// Scroll view mà `PDFView` cuộn nội dung bằng. Không có API công khai, nên
+  /// tìm bằng cách đi xuống cây view.
+  var contentScrollView: UIScrollView? {
+    func find(_ view: UIView) -> UIScrollView? {
+      if let scrollView = view as? UIScrollView { return scrollView }
+      for subview in view.subviews {
+        if let found = find(subview) { return found }
+      }
+      return nil
+    }
+    return find(self)
+  }
+
+  func captureViewport() -> Viewport {
+    Viewport(
+      autoScales: autoScales,
+      scaleFactor: scaleFactor,
+      offset: contentScrollView?.contentOffset
+    )
+  }
+
+  /// Đặt lại đúng chỗ đã chụp.
+  ///
+  /// Thứ tự bắt buộc, mỗi bước dọn đường cho bước sau: `autoScales` trước, vì
+  /// bật nó lại sẽ tính lại scale và ghi đè bất cứ giá trị nào đặt trước đó;
+  /// `layoutIfNeeded` giữa, vì `contentSize` chưa đúng thì offset bị kẹp về 0;
+  /// offset cuối, để không có gì còn dịch nó nữa.
+  func restoreViewport(_ viewport: Viewport) {
+    autoScales = viewport.autoScales
+    // Chỉ đặt tay khi `autoScales` tắt — bật thì PDFKit tự quyết, và ghi đè lên
+    // quyết định của nó chỉ tạo ra một lần nhảy nữa.
+    if !viewport.autoScales { scaleFactor = viewport.scaleFactor }
+    layoutIfNeeded()
+    if let offset = viewport.offset, let scrollView = contentScrollView {
+      scrollView.setContentOffset(offset, animated: false)
+    }
+  }
 }
 
 final class PdfSelectionToolbar: UIView {

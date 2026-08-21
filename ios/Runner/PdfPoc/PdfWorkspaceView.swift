@@ -9,6 +9,18 @@ func logPdfEvent(_ event: String, _ details: String? = nil) {
   print("\(pdfEventTag) | native | \(event)\(suffix)")
 }
 
+/// Bật những dòng log chạy mỗi phần tử thay vì mỗi thao tác.
+///
+/// Tắt mặc định vì `print` ghi stdout đồng bộ: `split()` ghi một dòng cho **mỗi
+/// dòng chữ**, nên đọc một trang dày là vài chục lần ghi, nằm ngay trong đường
+/// người dùng đang chờ. Bật tay khi cần chỉnh ngưỡng cắt cột.
+var pdfVerboseLogging = false
+
+func logPdfVerbose(_ event: String, _ details: String? = nil) {
+  guard pdfVerboseLogging else { return }
+  logPdfEvent(event, details)
+}
+
 protocol PdfWorkspaceViewDelegate: AnyObject {
   func workspaceView(_ view: PdfWorkspaceView, didOpen info: PdfDocumentInfo)
   func workspaceViewDidClose(_ view: PdfWorkspaceView)
@@ -111,7 +123,22 @@ final class PdfWorkspaceView: UIView {
   private var session: PdfDocumentSession?
 
   /// Bản chụp file ngay trước lần giấu gần nhất, để Huỷ còn lùi lại được.
-  private var beforeHideSnapshot: URL?
+  ///
+  /// Mang theo trang đã giấu: lùi lại làm chữ trang đó hiện lên trở lại, nên
+  /// đúng trang đó là thứ duy nhất phải đọc lại.
+  private var beforeHideSnapshot: (url: URL, pageIndex: Int)?
+
+  /// `session.document` trong bộ nhớ và file ở `workingURL` đang giống hệt nhau.
+  ///
+  /// Chỉ đúng ngay sau khi vừa mở tài liệu **từ** file đó. `markDirty()` là chỗ
+  /// duy nhất tắt nó, và nó là chỗ mọi thay đổi trong bộ nhớ đều đi qua — chú
+  /// thích, ink, chữ ký, thao tác trang. Nếu có thay đổi nào không gọi
+  /// `markDirty()` thì hôm nay người dùng đã mất nó lúc đóng tài liệu rồi, nên
+  /// dựa vào nó ở đây không mở ra kiểu hỏng nào mới.
+  ///
+  /// Dùng để bỏ hẳn một lần `document.write(to:)` — serialize cả tài liệu — ở
+  /// mỗi cú chạm vào block chữ.
+  private var documentMatchesDisk = false
   private var pageChangedObserver: NSObjectProtocol?
   private var selectionChangedObserver: NSObjectProtocol?
   private var selectionToolbarTargetRect: CGRect?
@@ -173,6 +200,9 @@ final class PdfWorkspaceView: UIView {
     textEditManager.reset()
 
     session = PdfDocumentSession(assetKey: assetKey, workingURL: workingURL, document: document)
+    // Vừa parse thẳng từ chính file này ra, chưa ai đụng vào.
+    documentMatchesDisk = true
+    PdfContentTextEraser.forgetVerifiedCounts()
     pdfView.document = document
     pdfView.autoScales = true
     pdfView.goToFirstPage(nil)
@@ -444,7 +474,9 @@ final class PdfWorkspaceView: UIView {
 
 
     textEditManager.clearHighlight()
-    markDirty()
+    // Không đụng vào `PDFDocument`: chỉnh sửa nằm trong `committedEdits` và
+    // được vẽ lên lớp xem trước, tới lúc Lưu mới thành nội dung trang.
+    markDirty(touchesDocument: false)
     delegate?.workspaceView(self, didSelectTextBlock: nil)
   }
 
@@ -669,8 +701,11 @@ final class PdfWorkspaceView: UIView {
       workingURL: outputURL,
       document: reopened
     )
+    documentMatchesDisk = true
     // The pages may have been reordered or dropped, so a page index recorded
     // against the old document no longer names the block it was recorded for.
+    // Cùng lý do với ordinal: chỉ số trang không còn chỉ vào trang cũ.
+    PdfContentTextEraser.forgetVerifiedCounts()
     textEditManager.reset()
     pdfView.document = reopened
     pdfView.autoScales = true
@@ -1058,11 +1093,27 @@ final class PdfWorkspaceView: UIView {
       .appendingPathComponent("pdf-before-hide-\(UUID().uuidString).pdf")
 
     do {
-      guard session.document.write(to: session.workingURL) else {
-        logPdfEvent("text_hide_skipped", "reason=write_failed")
-        return nil
+      // Chỉ ghi khi trong bộ nhớ thật sự có thứ file chưa có. Cách cũ ghi vô
+      // điều kiện, và trên file nặng thì serialize cả tài liệu là khoản đắt
+      // nhất của cú chạm — trả cho một lần chép byte-về-byte y hệt.
+      if !documentMatchesDisk {
+        guard session.document.write(to: session.workingURL) else {
+          logPdfEvent("text_hide_skipped", "reason=write_failed")
+          return nil
+        }
       }
-      try FileManager.default.copyItem(at: session.workingURL, to: snapshot)
+
+      // Hard link, không phải copy: qpdf ghi ra file scratch rồi `replaceItemAt`
+      // đổi chỗ, nên inode hiện tại sống sót nguyên vẹn dưới tên này. Bản chụp
+      // thành O(1) thay vì chép cả file.
+      //
+      // Chép là đường lui, cho trường hợp tmp và thư mục làm việc không cùng
+      // một volume — link không bắc qua volume được.
+      do {
+        try FileManager.default.linkItem(at: session.workingURL, to: snapshot)
+      } catch {
+        try FileManager.default.copyItem(at: session.workingURL, to: snapshot)
+      }
 
       let hidden = try PdfContentTextEraser.hide(
         [PdfContentTextEraser.Request(pageIndex: pageIndex, rect: rect)],
@@ -1079,20 +1130,21 @@ final class PdfWorkspaceView: UIView {
         return nil
       }
 
-      // Vị trí cuộn giữ lại bằng tay: gán `pdfView.document` kéo nó về đầu tài
-      // liệu, mà người dùng đang nhìn đúng chỗ vừa chạm.
-      let destination = pdfView.currentDestination
+      // Trang chỉ được phép dịch một lần cho mỗi cú chạm, và lần đó là lần
+      // `beginEditing` nhường chỗ cho bàn phím. Lần đổi document này không tính.
       let reopened = try openDocument(at: session.workingURL)
       let previous = session.document
       self.session = PdfDocumentSession(
         assetKey: session.assetKey, workingURL: session.workingURL, document: reopened
       )
-      textEditManager.remapPages(to: reopened, from: previous)
-      pdfView.document = reopened
-      if let destination { pdfView.go(to: destination) }
+      textEditManager.remapPages(to: reopened, from: previous, changedPage: pageIndex)
+      swapDocument(to: reopened)
 
-      beforeHideSnapshot = snapshot
+      beforeHideSnapshot = (url: snapshot, pageIndex: pageIndex)
       markDirty()
+      // Sau `markDirty()`: nó tắt cờ, mà `reopened` vừa được parse ra từ đúng
+      // file này nên hai bên đang giống hệt nhau. Cú chạm sau không phải ghi.
+      documentMatchesDisk = true
       logPdfEvent(
         "text_hidden_for_edit",
         "pageIndex=\(pageIndex) operators=\(hidden) in=\(String(format: "%.0f", (CFAbsoluteTimeGetCurrent() - started) * 1000))ms"
@@ -1111,16 +1163,15 @@ final class PdfWorkspaceView: UIView {
     beforeHideSnapshot = nil
 
     do {
-      _ = try FileManager.default.replaceItemAt(session.workingURL, withItemAt: snapshot)
-      let destination = pdfView.currentDestination
+      _ = try FileManager.default.replaceItemAt(session.workingURL, withItemAt: snapshot.url)
       let reopened = try openDocument(at: session.workingURL)
       let previous = session.document
       self.session = PdfDocumentSession(
         assetKey: session.assetKey, workingURL: session.workingURL, document: reopened
       )
-      textEditManager.remapPages(to: reopened, from: previous)
-      pdfView.document = reopened
-      if let destination { pdfView.go(to: destination) }
+      textEditManager.remapPages(to: reopened, from: previous, changedPage: snapshot.pageIndex)
+      swapDocument(to: reopened)
+      documentMatchesDisk = true
       logPdfEvent("text_hide_restored", "")
     } catch {
       logPdfEvent("text_hide_restore_failed", "error=\(error)")
@@ -1244,6 +1295,7 @@ final class PdfWorkspaceView: UIView {
       workingURL: session.workingURL,
       document: reopened
     )
+    documentMatchesDisk = true
     // Cùng file, cùng trang, khác đối tượng: cache selection cũ không dùng được.
     textEditManager.invalidateBlocks()
     pdfView.document = reopened
@@ -1558,6 +1610,8 @@ final class PdfWorkspaceView: UIView {
     hideOcrResultOverlay()
     let assetKey = "\(assetKeyPrefix):\(outputURL.lastPathComponent)"
     session = PdfDocumentSession(assetKey: assetKey, workingURL: outputURL, document: document)
+    documentMatchesDisk = true
+    PdfContentTextEraser.forgetVerifiedCounts()
     pdfView.document = document
     pdfView.autoScales = true
     pdfView.goToFirstPage(nil)
@@ -1791,15 +1845,49 @@ final class PdfWorkspaceView: UIView {
     )
   }
 
-  private func markDirty() {
+  /// Bật nút Lưu, và ghi nhận rằng file trên đĩa đã lạc hậu.
+  ///
+  /// - Parameter touchesDocument: thao tác này có sửa `PDFDocument` trong bộ
+  ///   nhớ không. Gần như luôn có — chú thích, ink, chữ ký, thao tác trang đều
+  ///   sửa. **Sửa chữ thì không**: `PdfTextEditManager.apply` chỉ ghi vào
+  ///   `committedEdits` và vẽ lên lớp xem trước; tài liệu trong bộ nhớ vẫn
+  ///   giống hệt file, và chữ mới chỉ đi vào file lúc Lưu, qua qpdf.
+  ///
+  ///   Truyền `false` ở đó bỏ được một lần `document.write` cho **mỗi cú chạm
+  ///   sau lần sửa đầu tiên**. Đo trên tài liệu 711 trang: 200ms so với 6600ms.
+  private func markDirty(touchesDocument: Bool = true) {
+    if touchesDocument { documentMatchesDisk = false }
     session?.isDirty = true
     logPdfEvent("dirty_state_changed", "isDirty=true")
     delegate?.workspaceView(self, didChangeDirtyState: true)
   }
 
+  /// Đang thay `pdfView.document` — mọi thông báo đổi trang lúc này là rác.
+  ///
+  /// PDFKit đưa document mới về trang 0 rồi `restoreViewport` kéo lại chỗ cũ,
+  /// và mỗi bước phát một `PDFViewPageChanged`. Để chúng đi tiếp là Flutter
+  /// nhận 11 → 0 → 0 → 11 cho một cú chạm, và ô số trang nhấp nháy đúng lúc
+  /// người dùng đang nhìn vào chữ mình vừa chạm.
+  private var isSwappingDocument = false
+
   private func logPageChangedFromObserver() {
+    guard !isSwappingDocument else { return }
     logPdfEvent("page_changed_notification")
     notifyPageChanged()
+  }
+
+  /// Thay document rồi đặt lại đúng chỗ đang nhìn, không phát thông báo nào.
+  ///
+  /// Trang thật sự đứng yên, nên thứ duy nhất cần báo là: không có gì đổi.
+  private func swapDocument(to reopened: PDFDocument) {
+    let viewport = pdfView.captureViewport()
+    isSwappingDocument = true
+    defer { isSwappingDocument = false }
+    // Tắt trước khi gán: bật thì PDFKit fit lại ngay lúc document về, và cú fit
+    // đó tự nó là một lần cuộn.
+    pdfView.autoScales = false
+    pdfView.document = reopened
+    pdfView.restoreViewport(viewport)
   }
 
   private func configureSelectionToolbar() {
