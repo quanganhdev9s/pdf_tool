@@ -119,10 +119,25 @@ enum HwpFileType {
     extensions.contains(url.pathExtension.lowercased())
   }
 
-  /// Kiểu UTI khai trong `Info.plist`. Không khai thì picker chỉ thấy kiểu động
-  /// `dyn.xxxx` và không lọc được theo đuôi.
+  /// Kiểu cho document picker, theo hai đường và cố ý thừa.
+  ///
+  /// `UTType(_:)` là failable: UTI khai trong `Info.plist` mà hệ thống chưa nạp
+  /// thì nó trả nil, và picker sẽ không cho chọn tệp `.hwp` nào — hỏng lặng lẽ,
+  /// không có lỗi nào để lần theo.
+  ///
+  /// Nên hỏi thêm theo **đuôi tệp**. Đường đó luôn trả về một kiểu, kể cả khi
+  /// phải bịa ra một kiểu động `dyn.xxxx`. Trùng nhau cũng không sao — nhiều
+  /// nhất là picker nhận cùng một kiểu hai lần.
   static var contentTypes: [UTType] {
-    ["com.hancom.hwp", "com.hancom.hwpx"].compactMap(UTType.init)
+    let declared = ["com.hancom.hwp", "com.hancom.hwpx"].compactMap(UTType.init)
+    let byExtension = extensions.sorted().compactMap { UTType(filenameExtension: $0) }
+    var seen: Set<UTType> = []
+    let types = (declared + byExtension).filter { seen.insert($0).inserted }
+    logPdfEvent(
+      "hwp_content_types",
+      "declared=\(declared.count) resolved=[\(types.map(\.identifier).joined(separator: ","))]"
+    )
+    return types
   }
 }
 
