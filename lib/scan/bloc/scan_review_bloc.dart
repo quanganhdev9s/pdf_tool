@@ -22,7 +22,6 @@ class ScanReviewBloc extends Bloc<ScanReviewEvent, ScanReviewState>
     PdfScanFlutterApi.setUp(this);
 
     on<ScanCaptureRequested>(_onCaptureRequested);
-    on<ScanImagesPickRequested>(_onImagesPickRequested);
     on<ScanPageRotateRequested>(_onRotateRequested);
     on<ScanPageDeleteRequested>(_onDeleteRequested);
     on<ScanPresetSelected>(_onPresetSelected);
@@ -51,14 +50,6 @@ class ScanReviewBloc extends Bloc<ScanReviewEvent, ScanReviewState>
   ) async {
     emit(_startingCapture());
     await _guard(emit, () => _hostApi.startDocumentCapture());
-  }
-
-  Future<void> _onImagesPickRequested(
-    ScanImagesPickRequested event,
-    Emitter<ScanReviewState> emit,
-  ) async {
-    emit(_startingCapture());
-    await _guard(emit, () => _hostApi.pickScanImages());
   }
 
   /// Clears everything the previous session left behind.

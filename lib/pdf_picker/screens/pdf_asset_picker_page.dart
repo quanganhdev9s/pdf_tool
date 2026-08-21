@@ -56,12 +56,7 @@ class _PdfAssetPickerView extends StatelessWidget {
               IconButton(
                 tooltip: 'Quét tài liệu',
                 icon: const Icon(Icons.document_scanner_outlined),
-                onPressed: () => startScanFlow(context, fromPhotoLibrary: false),
-              ),
-              IconButton(
-                tooltip: 'Chọn ảnh',
-                icon: const Icon(Icons.photo_library_outlined),
-                onPressed: () => startScanFlow(context, fromPhotoLibrary: true),
+                onPressed: () => startScanFlow(context),
               ),
             ],
           ),
@@ -72,14 +67,7 @@ class _PdfAssetPickerView extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 children: <Widget>[
                   if (state.importing) const LinearProgressIndicator(),
-                  _SectionHeader(
-                    title: 'PDF của bạn',
-                    trailing: TextButton.icon(
-                      onPressed: state.importing ? null : () => _import(context),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Thêm từ tệp'),
-                    ),
-                  ),
+                  const _SectionHeader(title: 'PDF của bạn'),
                   if (state.imported.isEmpty)
                     const _EmptyImports()
                   else
@@ -124,21 +112,13 @@ class _PdfAssetPickerView extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title, this.trailing});
+  const _SectionHeader({required this.title});
 
   final String title;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleSmall),
-        ),
-        ?trailing,
-      ],
-    );
+    return Text(title, style: Theme.of(context).textTheme.titleSmall);
   }
 }
 

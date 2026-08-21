@@ -562,9 +562,6 @@ protocol PdfScanHostApi {
   /// and perspective correction, but no colour processing, which the pipeline
   /// does instead. Pages land in a new session; no PDF is produced here.
   func startDocumentCapture() throws
-  /// Presents `PHPickerViewController`. Selected images are copied into a new
-  /// session in the order they were picked.
-  func pickScanImages() throws
   func getScanPages(sessionId: String) throws -> [PdfScanPageInfo]
   func rotateScanPage(sessionId: String, pageId: String, degrees: Int64) throws
   func deleteScanPage(sessionId: String, pageId: String) throws
@@ -612,21 +609,6 @@ class PdfScanHostApiSetup {
       }
     } else {
       startDocumentCaptureChannel.setMessageHandler(nil)
-    }
-    /// Presents `PHPickerViewController`. Selected images are copied into a new
-    /// session in the order they were picked.
-    let pickScanImagesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfScanHostApi.pickScanImages\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
-    if let api = api {
-      pickScanImagesChannel.setMessageHandler { _, reply in
-        do {
-          try api.pickScanImages()
-          reply(wrapResult(nil))
-        } catch {
-          reply(wrapError(error))
-        }
-      }
-    } else {
-      pickScanImagesChannel.setMessageHandler(nil)
     }
     let getScanPagesChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfScanHostApi.getScanPages\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

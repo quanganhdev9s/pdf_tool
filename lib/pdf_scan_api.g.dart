@@ -558,26 +558,6 @@ class PdfScanHostApi {
     ;
   }
 
-  /// Presents `PHPickerViewController`. Selected images are copied into a new
-  /// session in the order they were picked.
-  Future<void> pickScanImages() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfScanHostApi.pickScanImages$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
   Future<List<PdfScanPageInfo>> getScanPages(String sessionId) async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfScanHostApi.getScanPages$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(

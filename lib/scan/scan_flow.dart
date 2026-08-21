@@ -11,18 +11,11 @@ import 'screens/scan_review_page.dart';
 /// whatever is on screen, so pushing first means the review page is already
 /// mounted — and its platform view already attached — when the first page
 /// lands. `ScanReviewPage` pops itself if the user backs out of capture.
-Future<void> startScanFlow(
-  BuildContext context, {
-  required bool fromPhotoLibrary,
-}) async {
+Future<void> startScanFlow(BuildContext context) async {
   final ScanReviewBloc bloc = context.read<ScanReviewBloc>();
   final NavigatorState navigator = Navigator.of(context);
 
-  bloc.add(
-    fromPhotoLibrary
-        ? const ScanImagesPickRequested()
-        : const ScanCaptureRequested(),
-  );
+  bloc.add(const ScanCaptureRequested());
 
   await navigator.push(
     MaterialPageRoute<void>(

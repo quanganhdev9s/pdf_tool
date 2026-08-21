@@ -55,7 +55,7 @@ class _ScanLibraryPageState extends State<ScanLibraryPage> {
             tooltip: 'Quét tài liệu',
             icon: const Icon(Icons.document_scanner_outlined),
             onPressed: () async {
-              await startScanFlow(context, fromPhotoLibrary: false);
+              await startScanFlow(context);
               await _reload();
             },
           ),

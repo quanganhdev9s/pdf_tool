@@ -12,10 +12,6 @@ class ScanCaptureRequested extends ScanReviewEvent {
   const ScanCaptureRequested();
 }
 
-class ScanImagesPickRequested extends ScanReviewEvent {
-  const ScanImagesPickRequested();
-}
-
 class ScanPageRotateRequested extends ScanReviewEvent {
   const ScanPageRotateRequested(this.pageId, {this.degrees = 90});
 

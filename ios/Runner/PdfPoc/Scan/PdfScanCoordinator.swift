@@ -72,12 +72,6 @@ final class PdfScanCoordinator: NSObject {
     try captureManager.startDocumentCapture(presenter: try requirePresenter())
   }
 
-  func pickScanImages() throws {
-    try captureManager.pickScanImages(presenter: try requirePresenter())
-  }
-
-  // MARK: - Page operations
-
   func pages(inSession sessionId: String) throws -> [PdfScanPageInfo] {
     try store.requireSession(withId: sessionId).pageInfos
   }

@@ -137,10 +137,6 @@ abstract class PdfScanHostApi {
   /// does instead. Pages land in a new session; no PDF is produced here.
   void startDocumentCapture();
 
-  /// Presents `PHPickerViewController`. Selected images are copied into a new
-  /// session in the order they were picked.
-  void pickScanImages();
-
   List<PdfScanPageInfo> getScanPages(String sessionId);
 
   void rotateScanPage(String sessionId, String pageId, int degrees);

@@ -14,10 +14,6 @@ final class PdfScanHostApiImpl: PdfScanHostApi {
     try call { try $0.startDocumentCapture() }
   }
 
-  func pickScanImages() throws {
-    try call { try $0.pickScanImages() }
-  }
-
   func getScanPages(sessionId: String) throws -> [PdfScanPageInfo] {
     do {
       return try coordinator.pages(inSession: sessionId)
