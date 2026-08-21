@@ -203,6 +203,8 @@ final class PdfWorkspaceView: UIView {
     // Vừa parse thẳng từ chính file này ra, chưa ai đụng vào.
     documentMatchesDisk = true
     PdfContentTextEraser.forgetVerifiedCounts()
+    // Tên `/BaseFont` do máy sinh là duy nhất trong phạm vi **một** file.
+    PdfEmbeddedFont.forgetAll()
     pdfView.document = document
     pdfView.autoScales = true
     pdfView.goToFirstPage(nil)
@@ -1234,10 +1236,14 @@ final class PdfWorkspaceView: UIView {
             PdfTextOverlay.Request(
               pageIndex: entry.index,
               bounds: entry.edit.bounds,
-              text: entry.edit.text,
-              font: entry.edit.font,
-              colour: entry.edit.ink,
-              kern: entry.edit.kern,
+              // Đã ở đơn vị trang từ lúc commit, nên `zoom: 1` — chỉ còn việc
+              // dán màu và tracking của block lên các run.
+              attributed: PdfTextOverlay.restyled(
+                entry.edit.attributed,
+                zoom: 1,
+                colour: entry.edit.ink,
+                kern: entry.edit.kern
+              ),
               maxHeight: entry.edit.maxHeight
             )
           },
@@ -1612,6 +1618,8 @@ final class PdfWorkspaceView: UIView {
     session = PdfDocumentSession(assetKey: assetKey, workingURL: outputURL, document: document)
     documentMatchesDisk = true
     PdfContentTextEraser.forgetVerifiedCounts()
+    // Tên `/BaseFont` do máy sinh là duy nhất trong phạm vi **một** file.
+    PdfEmbeddedFont.forgetAll()
     pdfView.document = document
     pdfView.autoScales = true
     pdfView.goToFirstPage(nil)

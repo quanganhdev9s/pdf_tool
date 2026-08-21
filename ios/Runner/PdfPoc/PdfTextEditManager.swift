@@ -40,6 +40,11 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   struct PdfTextEditCommit {
     var request: PdfTextEditRequest
     var cover: CGRect
+    /// Chữ đã gõ, **đơn vị trang**, mang run font của chính nó.
+    ///
+    /// `request.text` vẫn là cùng chuỗi ký tự đó — nó đi tiếp sang Flutter và
+    /// vào log, hai chỗ không quan tâm tới style. Cái đem đi vẽ là cái này.
+    var attributed: NSAttributedString
     /// Tracking của trang. Mang theo vì `dismissEditor` đã xoá nó trước khi
     /// commit được chuyển đi.
     var kern: CGFloat
@@ -59,10 +64,16 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     var cover: CGRect
     /// Hộp bố cục chữ mới, toạ độ trang.
     var bounds: CGRect
-    var text: String
+    /// Chữ thay thế, đơn vị trang, mang run font. Nguồn duy nhất để vẽ.
+    var attributed: NSAttributedString
+    /// Font của run đầu. Không dùng để vẽ — chỉ để trả lời khi có người hỏi
+    /// block này "font gì" bằng **một** con số: báo về Flutter, và dựng lại
+    /// style lúc chọn lại chính block này.
     var font: UIFont
     var ink: UIColor
     var kern: CGFloat
+
+    var text: String { attributed.string }
 
     /// Chiều cao tối đa chữ được chiếm, tính từ đỉnh `bounds` xuống. Bằng
     /// khoảng cách tới block kế tiếp phía dưới, đo lúc commit.
@@ -259,6 +270,21 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// Đường kính chấm tròn vẽ ở mỗi góc, in points.
   static let resizeHandleDotSize: CGFloat = 13
 
+  /// Có kẹp block vào các block hàng xóm không.
+  ///
+  /// Tắt mặc định: kéo nút góc thì khung nở tự do, và gõ dài ra thì khung cứ
+  /// cao lên. Bật thì khung dừng lại khi chạm block kế bên, chừa `blockGutter`.
+  ///
+  /// Cờ này chi phối **cả hai** đường nở — kéo nút (`allowedBounds`) và gõ chữ
+  /// (`typingFloor`) — vì cả hai đọc chung một danh sách hàng xóm. Tách ra là để
+  /// hai bên lệch định nghĩa "chạm", và một khung kéo được tới đâu đó rồi gõ
+  /// vào lại bị đẩy về là thứ khó hiểu hơn hẳn cả hai lựa chọn.
+  ///
+  /// Không chi phối: khổ giấy và kích thước tối thiểu. Hai cái đó không phải
+  /// chính sách bố cục — ngoài `cropBox` thì không có gì được vẽ, và dưới sàn
+  /// thì không còn nhắm trúng nút để kéo ngược lại.
+  static var clampsBlockToNeighbours = false
+
   /// Clearance kept between a resized block and the next one, in points.
   static let blockGutter: CGFloat = 2
 
@@ -330,7 +356,10 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   private var editingKern: CGFloat = 0
   /// What the field's text is currently styled with, so the attributes are
   /// rebuilt on a zoom change and not on every frame of a scroll.
-  private var editingTypography: (name: String?, size: CGFloat, kern: CGFloat)?
+  /// Tỉ lệ và tracking mà ô nhập đang được đặt style theo. Khoá của phép bỏ qua
+  /// trong `restyleEditor`: font thì đi theo run nên không còn là một con số,
+  /// còn hai cái này vẫn chung cho cả block.
+  private var editingTypography: (zoom: CGFloat, kern: CGFloat)?
 
   /// Trần cho chiều cao ô nhập, toạ độ trang. Tính lúc mở ô nhập và mỗi lần
   /// kéo nút — không tính khi gõ, vì hỏi nó là đọc lại block cả trang.
@@ -410,6 +439,14 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     editor.autocorrectionType = .no
     editor.autocapitalizationType = .none
     editor.spellCheckingType = .no
+    // Bật, để `UITextView` chắc chắn giữ thuộc tính theo run.
+    //
+    // Tắt là "plain text mode", ở đó text view coi `font`/`textColor` của chính
+    // nó là style của mọi ký tự — đúng thứ đang phải tránh. Chữ dán từ nơi khác
+    // đem theo font lạ ở **cỡ màn hình** là cái giá, và `pageSpaceRuns` bên dưới
+    // dọn nó: run nào không mang `pdfPageFont` thì cỡ trang của nó là cỡ hiện
+    // tại chia cho zoom.
+    editor.allowsEditingTextAttributes = true
     // Không viền trên chính ô nhập: frame của nó vươn lên trên block một khoảng
     // headroom cho dấu thanh và thò xuống theo độ dài chữ. `fieldBorder` vẽ thay.
     fieldBorder.fillColor = nil
@@ -739,6 +776,41 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       fontName: styleName
     )
 
+    // Run font của block. **Trước** khi giấu chữ gốc, cùng lý do với mọi phép đo
+    // khác ở trên: `3 Tr` làm `runs()` bỏ qua đúng mấy operator này, và tài liệu
+    // bị mở lại nên `page` sau đó là trang khác.
+    let fallbackFont = styleName.flatMap { UIFont(name: $0, size: CGFloat(style.size)) }
+      ?? UIFont.systemFont(ofSize: CGFloat(style.size))
+    let attributed = attributedText(
+      of: block, on: page, pageIndex: pageIndex, fallback: fallbackFont
+    )
+
+    // Hai nguồn style, và chỉ cần **một** trong hai có run là làm được.
+    //
+    // PDFKit dựng attributed string từ chữ nó trích được; content stream khai
+    // thẳng tên font của từng operator. Hai bên không nhất thiết biết như nhau —
+    // PDFKit có thể gộp hết về một font mà file thì không.
+    if block.edit == nil {
+      let fromPdfKit = Self.fontNames(in: attributed)
+      // `belongs`, không phải `contains`: `origin` là điểm baseline, và hộp dòng
+      // của PDFKit không có quan hệ cố định với nó.
+      let pageRuns = runs(on: page, pageIndex: pageIndex).filter {
+        PdfContentStreamReader.belongs(
+          $0.origin,
+          to: block.bounds,
+          fontSize: $0.attributes.fontSize ?? block.bounds.height
+        )
+      }
+      let fromStream = Set(pageRuns.compactMap { $0.attributes.fontName })
+      logPdfEvent(
+        "text_block_fonts",
+        "pageIndex=\(pageIndex) runs=\(Self.runCount(of: attributed) ?? 0) "
+          + "hits=\(pageRuns.count) "
+          + "using=[\(fromPdfKit.sorted().joined(separator: ","))] "
+          + "stream=[\(fromStream.sorted().joined(separator: ","))]"
+      )
+    }
+
     // Đo một lần ở đây rồi mang theo suốt: hộp dòng của PDFKit là font metrics,
     // mà dấu thanh chồng trên dấu mũ vươn cao hơn nó.
     let cover = block.cover ?? raisedOverMarks(
@@ -769,7 +841,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
     beginEditing(
       selected,
-      text: block.text,
+      attributed: attributed,
       on: page,
       bounds: block.bounds,
       // A block edited before keeps the cover it already has.
@@ -978,34 +1050,80 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   /// The font's PostScript name when it will round-trip through
   /// `UIFont(name:size:)`, and nil when it will not — the system font reports a
   /// name that cannot be used to ask for it back.
-  /// 14 font dựng sẵn của PDF, theo tên PostScript.
+  /// Font thay thế theo họ, khi font của trang không vẽ nổi chữ. Chọn face gần
+  /// nhất máy có.
   ///
-  /// Không ai nhúng chúng, nên chúng bị khoá vào WinAnsiEncoding = Latin-1.
-  /// `à é ô` có, `ắ ế ộ ư đ` không — không có mã nào trong bảng để đặt. Chữ sẽ
-  /// rụng lặng lẽ. TextKit thì tự tìm font khác có glyph; PDF không có cơ chế đó.
-  private static let standardFourteen: Set<String> = [
-    "Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique",
-    "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
-    "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
-    "Symbol", "ZapfDingbats",
-  ]
-
-  /// Font thay thế theo họ. Chọn face gần nhất máy có mà **không** thuộc bộ 14,
-  /// để buộc PDFKit phải nhúng — nhúng là thứ mang encoding đi theo.
+  /// Ba họ này là ba trong 14 font dựng sẵn của PDF — chúng không được nhúng
+  /// trong file, nên chúng là nhóm hay thiếu glyph nhất.
   private static let embeddableSubstitutes: [String: String] = [
     "Helvetica": "Helvetica Neue",
     "Courier": "Courier New",
     "Times": "Times New Roman",
   ]
 
+  /// Có dùng font nhúng trong file thay cho phỏng đoán của PDFKit không.
+  ///
+  /// Tắt để quay về hành vi cũ: PDFKit đọc `/FontDescriptor` rồi chọn face gần
+  /// nhất máy có, và cả block đổi mặt chữ ngay lúc chạm.
+  static var usesEmbeddedFonts = true
+
+  /// Có được phép đổi face khi font không vẽ nổi chữ không.
+  ///
+  /// Tắt để kiểm chứng: nếu `CGPDFContext` nhúng font và encoding như doc
+  /// comment đầu `PdfTextOverlay` nói, thì chữ tiếng Việt vẫn ra đúng khi vẽ
+  /// bằng chính font của trang, và phép đổi face này là thừa.
+  static var substitutesUnrenderableFonts = true
+
+  /// Font này vẽ được hết chữ này không.
+  ///
+  /// Hỏi thẳng bảng glyph, không đoán theo bảng mã.
+  ///
+  /// Luật cũ — "thuộc bộ 14 **và** chuỗi có ký tự trên U+00FF thì đổi" — được
+  /// viết cho đường annotation freeText, nơi font không được nhúng nên bị khoá
+  /// vào WinAnsiEncoding và mọi thứ trên U+00FF rụng hết. Đường hiện tại vẽ bằng
+  /// `CGPDFContext`, mà nó nhúng font kèm encoding, nên câu hỏi đúng không còn
+  /// là "bảng mã có chỗ cho ký tự này không" mà là "font có glyph cho nó không".
+  ///
+  /// Khác biệt nhìn thấy được: Helvetica trên iOS **có** glyph tiếng Việt thì
+  /// block giữ nguyên Helvetica, thay vì bị đổi sang Helvetica Neue ở mọi cú
+  /// chạm chỉ vì trang là tiếng Việt.
+  private static func covers(_ font: UIFont, _ text: String) -> Bool {
+    coverage(of: font, for: text).missing.isEmpty
+  }
+
+  /// Ký tự nào font vẽ được, ký tự nào không.
+  ///
+  /// Tách khỏi `covers` để chỗ gọi còn biết **thiếu bao nhiêu**. Hai trường hợp
+  /// trông giống nhau ở đầu ra boolean nhưng khác hẳn nhau ở cách xử lý: thiếu
+  /// vài ký tự là subset không đủ, còn thiếu **sạch** là font không có bảng cmap
+  /// Unicode nào cả — thường gặp ở font CID nhúng, nơi glyph được đánh địa chỉ
+  /// bằng CID và bảng tra Unicode nằm ở `/ToUnicode` bên ngoài font.
+  private static func coverage(
+    of font: UIFont,
+    for text: String
+  ) -> (total: Int, missing: [Unicode.Scalar]) {
+    let scalars = Array(
+      Set(text.unicodeScalars).filter { !CharacterSet.whitespacesAndNewlines.contains($0) }
+    )
+    guard !scalars.isEmpty else { return (0, []) }
+
+    let ct = font as CTFont
+    var missing: [Unicode.Scalar] = []
+    for scalar in scalars {
+      let utf16 = Array(String(scalar).utf16)
+      var glyphs = [CGGlyph](repeating: 0, count: utf16.count)
+      let mapped = CTFontGetGlyphsForCharacters(ct, utf16, &glyphs, utf16.count)
+      if !mapped || glyphs.contains(0) { missing.append(scalar) }
+    }
+    return (scalars.count, missing)
+  }
+
   /// Font thật sự ghi được chuỗi này.
   ///
-  /// Chỉ đổi khi font thuộc bộ 14 **và** chuỗi có ký tự trên U+00FF — đổi face
-  /// mà trang đã chọn là thay đổi nhìn thấy được, chỉ đáng khi không đổi thì mất
-  /// ký tự. WinAnsi dừng ở U+00FF, mọi chữ riêng của tiếng Việt nằm phía trên.
+  /// Chỉ đổi khi font hiện tại **không vẽ nổi** chữ — đổi face mà trang đã chọn
+  /// là thay đổi nhìn thấy được, chỉ đáng khi không đổi thì mất ký tự.
   private func embeddable(_ font: UIFont, for text: String) -> UIFont {
-    guard Self.standardFourteen.contains(font.fontName),
-          text.unicodeScalars.contains(where: { $0.value > 0xFF }) else { return font }
+    guard Self.substitutesUnrenderableFonts, !Self.covers(font, text) else { return font }
 
     let family = font.fontName.split(separator: "-").first.map(String.init) ?? font.fontName
     let substitute = Self.embeddableSubstitutes[family]
@@ -1021,7 +1139,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     let replacement = UIFont(descriptor: descriptor, size: font.pointSize)
     logPdfEvent(
       "font_substituted",
-      "from=\(font.fontName) to=\(replacement.fontName) reason=win_ansi_cannot_encode"
+      "from=\(font.fontName) to=\(replacement.fontName) reason=missing_glyphs"
     )
     return replacement
   }
@@ -1304,12 +1422,153 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     return result
   }
 
+  /// Chữ của block kèm run font, đơn vị trang.
+  ///
+  /// Dựng lúc **chạm**, không phải lúc đọc trang. `attributedString` của PDFKit
+  /// đắt hơn `string`, mà đường đọc trang chạy cho mọi trang đi qua màn hình
+  /// còn đường này chỉ chạy cho đúng block người dùng chọn.
+  ///
+  /// `fallback` dùng cho dòng PDFKit không trả về style nào — cùng font mà
+  /// `select` đã đo được cho block.
+  private func attributedText(
+    of block: TextBlock,
+    on page: PDFPage,
+    pageIndex: Int,
+    fallback: UIFont
+  ) -> NSAttributedString {
+    // Block đã sửa thì run của nó là thứ người dùng để lại, không phải thứ đọc
+    // được từ trang — dưới đó vẫn là chữ gốc đang bị giấu.
+    if let edit = block.edit { return edit.attributed }
+
+    let pageRuns = runs(on: page, pageIndex: pageIndex)
+
+    let pieces = block.lines.map { line -> NSAttributedString in
+      // Resource font mà trang thật sự dùng cho dòng này. Đây là chìa duy nhất
+      // mở tới stream font nhúng.
+      let resource = PdfContentStreamReader
+        .attributes(in: line.bounds, among: pageRuns)?.fontResource
+
+      guard let attributed = line.selection.attributedString, attributed.length > 0 else {
+        let font = embeddedFont(resource, on: page, like: fallback, for: block.text) ?? fallback
+        return NSAttributedString(
+          string: line.selection.string ?? "",
+          attributes: [.pdfPageFont: font, .font: font]
+        )
+      }
+
+      let stamped = NSMutableAttributedString(attributedString: attributed)
+      let whole = NSRange(location: 0, length: stamped.length)
+
+      // Gom trước, sửa sau. Đây là `.font` đang bị vừa duyệt vừa ghi đè — kiểu
+      // sửa-trong-lúc-duyệt tệ nhất, vì nó đổi chính khoá đang phân run.
+      var runs: [(range: NSRange, font: UIFont)] = []
+      stamped.enumerateAttribute(.font, in: whole) { value, range, _ in
+        let guessed = (value as? UIFont) ?? fallback
+        // Con chữ thật của trang thắng phỏng đoán của PDFKit. Cỡ thì lấy của
+        // PDFKit: nó đã tính cả ma trận chữ, còn font nhúng không nói gì về cỡ.
+        //
+        // Không lấy được thì mới tới lượt phỏng đoán, và lúc đó vẫn phải kiểm
+        // face có vẽ nổi chữ không — chốt ở đây chứ không ở commit, để ô nhập gõ
+        // đúng face sẽ ghi vào file.
+        let font = embeddedFont(resource, on: page, like: guessed, for: block.text)
+          ?? embeddable(guessed, for: block.text)
+        runs.append((range, font))
+      }
+      for run in runs {
+        stamped.addAttributes([.pdfPageFont: run.font, .font: run.font], range: run.range)
+      }
+      return stamped
+    }
+    return joinedAttributed(pieces)
+  }
+
+  /// Font nhúng của resource, ở cỡ của `like`, nếu nó vẽ được `text`.
+  ///
+  /// Phép kiểm phủ không phải để cho chắc — font nhúng trong PDF gần như luôn là
+  /// **subset**, chỉ mang glyph mà trang đó dùng tới. Không đủ cho chính chữ
+  /// đang có trên trang thì không dùng: ô vuông tệ hơn sai mặt chữ.
+  ///
+  /// Nó cũng là lưới an toàn cho một chuyện khác: đăng ký font là toàn tiến
+  /// trình, nên hai tài liệu nhúng hai font subset khác nhau dưới cùng một tên
+  /// PostScript sẽ giẫm lên nhau. Font trả về sai thì gần như chắc chắn trượt
+  /// phép kiểm này.
+  private func embeddedFont(
+    _ resource: String?,
+    on page: PDFPage,
+    like guessed: UIFont,
+    for text: String
+  ) -> UIFont? {
+    guard Self.usesEmbeddedFonts, let resource else { return nil }
+    guard let font = PdfEmbeddedFont.font(
+      forResource: resource, on: page, size: guessed.pointSize
+    ) else { return nil }
+    let coverage = Self.coverage(of: font, for: text)
+    guard coverage.missing.isEmpty else {
+      let sample = coverage.missing.prefix(6)
+        .map { "U+" + String(format: "%04X", $0.value) }
+        .joined(separator: ",")
+      logPdfEvent(
+        "embedded_font_incomplete",
+        "font=\(font.fontName) missing=\(coverage.missing.count)/\(coverage.total) "
+          + "sample=[\(sample)] falling_back_to=\(guessed.fontName)"
+      )
+      return nil
+    }
+    return font
+  }
+
+  /// Nối các dòng thành chữ liền, giữ run của từng dòng.
+  ///
+  /// Cùng luật với `joined(_:)` — ngắt dòng là của người dàn trang, từ bị gạch
+  /// nối cắt ngang được ghép lại — nhưng làm trên attributed string, nên một
+  /// cụm nghiêng nằm giữa đoạn vẫn còn nghiêng sau khi gộp.
+  private func joinedAttributed(_ lines: [NSAttributedString]) -> NSAttributedString {
+    let result = NSMutableAttributedString()
+    for raw in lines {
+      let piece = Self.trimmed(raw)
+      guard piece.length > 0 else { continue }
+      if result.length == 0 {
+        result.append(piece)
+        continue
+      }
+      if result.string.hasSuffix("-") {
+        result.deleteCharacters(in: NSRange(location: result.length - 1, length: 1))
+      } else {
+        // Khoảng trắng lấy thuộc tính của ký tự đứng trước: nó khép lại dòng
+        // vừa xong, không mở ra dòng sắp tới.
+        result.append(
+          NSAttributedString(
+            string: " ",
+            attributes: result.attributes(at: result.length - 1, effectiveRange: nil)
+          )
+        )
+      }
+      result.append(piece)
+    }
+    return result
+  }
+
+  /// Bỏ khoảng trắng hai đầu, giữ nguyên thuộc tính phần còn lại.
+  private static func trimmed(_ attributed: NSAttributedString) -> NSAttributedString {
+    let text = attributed.string as NSString
+    var start = 0
+    var end = text.length
+    func isSpace(_ index: Int) -> Bool {
+      guard let scalar = Unicode.Scalar(text.character(at: index)) else { return false }
+      return CharacterSet.whitespacesAndNewlines.contains(scalar)
+    }
+    while start < end, isSpace(start) { start += 1 }
+    while end > start, isSpace(end - 1) { end -= 1 }
+    guard start < end else { return NSAttributedString() }
+    return attributed.attributedSubstring(from: NSRange(location: start, length: end - start))
+  }
+
   // MARK: - Editing in place
 
   /// Puts the field over the block and opens the keyboard.
   private func beginEditing(
     _ block: PdfTextBlock,
-    text: String,
+    attributed: NSAttributedString,
     on page: PDFPage,
     bounds: CGRect,
     cover: CGRect,
@@ -1332,7 +1591,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     editingStyle = PdfTextEditRequest(
       pageIndex: block.pageIndex,
       bounds: block.bounds,
-      text: text,
+      text: attributed.string,
       fontSize: block.fontSize,
       textColor: block.textColor,
       backgroundColor: block.backgroundColor,
@@ -1350,14 +1609,17 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
     // Sau khi cuộn xong, để đổi toạ độ theo chỗ trang thật sự dừng lại.
     DispatchQueue.main.async { [weak self] in
-      self?.showEditor(text: text, block: block)
+      self?.showEditor(attributed: attributed, block: block)
     }
   }
 
-  private func showEditor(text: String, block: PdfTextBlock) {
+  private func showEditor(attributed: NSAttributedString, block: PdfTextBlock) {
     guard let pdfView, editingPage != nil, editingBounds != nil else { return }
 
-    editor.text = text
+    // Đơn vị trang. `restyleEditor` ngay dưới sẽ nhân zoom lên cỡ màn hình, và
+    // nó đọc `pdfPageFont` chứ không đọc `.font`, nên gán bản chưa nhân ở đây
+    // là đúng chỗ.
+    editor.attributedText = attributed
     editor.backgroundColor = .clear
     editor.tintColor = .systemBlue
     editingTypography = nil
@@ -1385,7 +1647,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     clearHighlight()
     // Trước khi vẽ viền: con trỏ mới là thứ cú chạm cần.
     editor.becomeFirstResponder()
-    editor.selectedRange = NSRange(location: text.count, length: 0)
+    editor.selectedRange = NSRange(location: (editor.text ?? "").count, length: 0)
     refreshBlockOutlines()
   }
 
@@ -1405,14 +1667,15 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
 
     // Cỡ chữ đo được là đơn vị trang; nhân với zoom để ra đúng cỡ trên màn hình.
     let zoom = rect.height / max(bounds.height, 0.01)
-    let size = max(CGFloat(style.fontSize) * zoom, 1)
-    let font = style.fontName.flatMap { UIFont(name: $0, size: size) }
-      ?? UIFont.systemFont(ofSize: size)
     restyleEditor(
-      font: font,
+      zoom: zoom,
       kern: editingKern * zoom,
       colour: UIColor(argb: style.textColor.argb)
     )
+    // Vẫn cần một font đơn cho phần đo bên dưới — headroom cho dấu thanh tính
+    // theo cỡ chữ, và cỡ của run đầu là câu trả lời gần nhất khi block có nhiều
+    // run.
+    let size = max(CGFloat(style.fontSize) * zoom, 1)
 
     // Chừa chỗ phía trên dòng đầu cho dấu thanh chồng.
     //
@@ -1523,27 +1786,136 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   ///
   /// Phải set cả `typingAttributes`: text view giữ riêng thuộc tính cho ký tự sẽ
   /// gõ, chỉ set chuỗi thì phím sau đó quay về font hệ thống.
-  private func restyleEditor(font: UIFont, kern: CGFloat, colour: UIColor) {
-    let typography = (name: font.fontName, size: font.pointSize, kern: kern)
+  private func restyleEditor(zoom: CGFloat, kern: CGFloat, colour: UIColor) {
+    guard zoom.isFinite, zoom > 0 else { return }
+    let typography = (zoom: zoom, kern: kern)
     if let current = editingTypography,
-       current.name == typography.name,
-       abs(current.size - typography.size) < 0.01,
+       abs(current.zoom - typography.zoom) < 0.0001,
        abs(current.kern - typography.kern) < 0.01 {
       return
     }
     editingTypography = typography
 
-    // Cùng dictionary với lớp xem trước và trang giấy — dựng một chỗ để ba nơi
-    // không lệch nhau.
-    let attributes = PdfTextOverlay.attributes(font: font, colour: colour, kern: kern)
-    editor.typingAttributes = attributes
+    // Đặt lại theo run, không dựng lại bằng một font.
+    //
+    // Cách cũ gán `NSAttributedString(string:attributes:)` cho cả chuỗi, tức là
+    // mỗi lần zoom đổi là mọi run bị san phẳng về một font — chữ đậm giữa câu
+    // biến mất chỉ vì người dùng vừa phóng to. `restyled` đọc `pdfPageFont` của
+    // từng run, thứ chưa bao giờ đi qua phép nhân zoom.
+    let current = editor.attributedText ?? NSAttributedString()
+    let restyled = PdfTextOverlay.restyled(current, zoom: zoom, colour: colour, kern: kern)
 
-    let text = editor.text ?? ""
-    guard !text.isEmpty else { return }
+    // Ô nhập rỗng: không còn run nào để kế thừa, nên dựng từ style của block.
+    guard restyled.length > 0 else {
+      editor.typingAttributes = typingAttributes(zoom: zoom, colour: colour, kern: kern)
+      return
+    }
+
     // Trả con trỏ về chỗ cũ: gán lại `attributedText` đẩy nó về đầu.
     let selected = editor.selectedRange
-    editor.attributedText = NSAttributedString(string: text, attributes: attributes)
+    editor.attributedText = restyled
     editor.selectedRange = selected
+
+    // Bước cuối, bắt buộc: gán `attributedText` đặt lại `typingAttributes`, nên
+    // seed nó trước đó là vứt đi.
+    //
+    // Lấy của ký tự **đứng trước** con trỏ, không phải ký tự dưới con trỏ. Đó là
+    // luật của mọi trình soạn thảo, và là thứ làm cho gõ tiếp vào cuối một cụm
+    // đậm ra chữ đậm chứ không ra chữ thường của cụm sau.
+    let caret = min(max(selected.location - 1, 0), restyled.length - 1)
+    editor.typingAttributes = restyled.attributes(at: caret, effectiveRange: nil)
+  }
+
+  /// Thuộc tính cho ký tự sắp gõ khi không có run nào để kế thừa.
+  private func typingAttributes(
+    zoom: CGFloat,
+    colour: UIColor,
+    kern: CGFloat
+  ) -> [NSAttributedString.Key: Any] {
+    let size = max(CGFloat(editingStyle?.fontSize ?? 12), 1)
+    let pageFont = editingStyle?.fontName.flatMap { UIFont(name: $0, size: size) }
+      ?? UIFont.systemFont(ofSize: size)
+    var attributes = PdfTextOverlay.attributes(font: pageFont, colour: colour, kern: kern)
+    // `attributes` đặt cả hai bằng font trang; chỉ `.font` được nhân zoom.
+    attributes[.font] = pageFont.withSize(max(pageFont.pointSize * zoom, 1))
+    return attributes
+  }
+
+  /// Chuỗi với **mọi** run mang `pdfPageFont`, đơn vị trang.
+  ///
+  /// Run do người dùng gõ hoặc dán vào có thể không mang nó — `typingAttributes`
+  /// bị đặt lại, hoặc chữ đến từ nơi khác. Run như vậy chỉ có `.font`, mà `.font`
+  /// đang ở **cỡ màn hình**; đọc thẳng nó thành cỡ trang là ghi vào file một cỡ
+  /// chữ to gấp `zoom` lần — chữ vừa gõ ra khác hẳn chữ xung quanh.
+  ///
+  /// Chia lại cho đúng zoom mà ô nhập đang chạy, thứ `editingTypography` giữ.
+  private func pageSpaceRuns(of attributed: NSAttributedString) -> NSAttributedString {
+    guard attributed.length > 0 else { return attributed }
+    let zoom = max(editingTypography?.zoom ?? 1, 0.01)
+    let whole = NSRange(location: 0, length: attributed.length)
+
+    var missing: [(range: NSRange, font: UIFont)] = []
+    attributed.enumerateAttribute(.pdfPageFont, in: whole) { value, range, _ in
+      guard value == nil else { return }
+      guard let font = attributed.attribute(.font, at: range.location, effectiveRange: nil)
+        as? UIFont else { return }
+      missing.append((range, font.withSize(max(font.pointSize / zoom, 1))))
+    }
+    guard !missing.isEmpty else { return attributed }
+
+    logPdfEvent(
+      "text_edit_runs_normalised",
+      "runs=\(missing.count) zoom=\(String(format: "%.2f", zoom))"
+    )
+    let result = NSMutableAttributedString(attributedString: attributed)
+    for run in missing {
+      result.addAttributes([.pdfPageFont: run.font, .font: run.font], range: run.range)
+    }
+    return result
+  }
+
+  /// Đổ từng run ra log: tên font và cỡ, theo thứ tự.
+  private static func logRuns(_ event: String, _ attributed: NSAttributedString) {
+    guard attributed.length > 0 else {
+      logPdfEvent(event, "empty")
+      return
+    }
+    var parts: [String] = []
+    attributed.enumerateAttribute(
+      .pdfPageFont,
+      in: NSRange(location: 0, length: attributed.length)
+    ) { value, range, _ in
+      let font = value as? UIFont
+      parts.append(
+        "\(range.location)+\(range.length):"
+          + "\(font?.fontName ?? "nil")@\(String(format: "%.1f", font?.pointSize ?? 0))"
+      )
+    }
+    logPdfEvent(event, parts.joined(separator: " "))
+  }
+
+  /// Tên mọi font trang xuất hiện trong chuỗi.
+  private static func fontNames(in attributed: NSAttributedString) -> Set<String> {
+    var names: Set<String> = []
+    guard attributed.length > 0 else { return names }
+    attributed.enumerateAttribute(
+      .pdfPageFont,
+      in: NSRange(location: 0, length: attributed.length)
+    ) { value, _, _ in
+      if let font = value as? UIFont { names.insert(font.fontName) }
+    }
+    return names
+  }
+
+  /// Số run font khác nhau trong chuỗi. Nil khi chuỗi rỗng.
+  private static func runCount(of attributed: NSAttributedString) -> Int? {
+    guard attributed.length > 0 else { return nil }
+    var count = 0
+    attributed.enumerateAttribute(
+      .pdfPageFont,
+      in: NSRange(location: 0, length: attributed.length)
+    ) { _, _, _ in count += 1 }
+    return count
   }
 
   // MARK: - Resizing the block
@@ -1686,7 +2058,13 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
   }
 
   /// Các block khác trên trang, trừ chính block đang sửa và chữ gốc dưới miếng vá.
+  ///
+  /// Rỗng khi `clampsBlockToNeighbours` tắt. Chặn ở đây chứ không ở hai nơi gọi:
+  /// đó là cách duy nhất chắc chắn `allowedBounds` và `typingFloor` không thể
+  /// lệch nhau, và cả hai đều diễn giải "không có hàng xóm" thành "không chặn"
+  /// mà không phải sửa gì.
   private func neighbours(of own: CGRect, on page: PDFPage) -> [CGRect] {
+    guard Self.clampsBlockToNeighbours else { return [] }
     guard let pdfView, let document = pdfView.document else { return [] }
     return blocks(on: page, pageIndex: document.index(for: page))
       .map { $0.occupied }
@@ -1744,13 +2122,23 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     }
 
     request.text = editor.text ?? ""
-    // Đọc trước khi `dismissEditor` xoá.
+    // Đọc trước khi `dismissEditor` xoá. Về đơn vị trang ngay tại đây: cỡ chữ
+    // đang trên màn hình là cỡ trang nhân zoom, mà zoom là chuyện của lúc xem.
+    let attributed = PdfTextOverlay.restyled(
+      pageSpaceRuns(of: editor.attributedText ?? NSAttributedString()),
+      zoom: 1,
+      colour: UIColor(argb: request.textColor.argb),
+      kern: editingKern
+    )
+    Self.logRuns("text_edit_commit_runs", attributed)
     let kern = editingKern
     // Lần giấu này được giữ: chữ mới sắp thế chỗ chữ cũ.
     editingHidOriginal = false
     dismissEditor()
     phase("dismiss")
-    onCommit?(PdfTextEditCommit(request: request, cover: cover, kern: kern))
+    onCommit?(
+      PdfTextEditCommit(request: request, cover: cover, attributed: attributed, kern: kern)
+    )
     phase("commit")
     onSelection?(nil)
     phase("notify")
@@ -1768,7 +2156,11 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     // Xoá chữ: chữ gốc phải ở nguyên trạng thái bị giấu.
     editingHidOriginal = false
     dismissEditor()
-    onCommit?(PdfTextEditCommit(request: request, cover: cover, kern: kern))
+    onCommit?(
+      PdfTextEditCommit(
+        request: request, cover: cover, attributed: NSAttributedString(), kern: kern
+      )
+    )
     onSelection?(nil)
   }
 
@@ -2509,16 +2901,38 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       )
     }
 
-    let text = request.text.trimmingCharacters(in: .whitespacesAndNewlines)
-    let size = CGFloat(request.fontSize)
-    // Kiểm lại theo chữ thật sự gõ: block toàn ASCII giữ font dựng sẵn lúc chọn,
-    // mà chữ thay thế có thể là tiếng Việt đầu tiên trên trang.
-    let font = embeddable(
-      request.fontName.flatMap { UIFont(name: $0, size: size) }
-        ?? UIFont.systemFont(ofSize: size),
-      for: text
-    )
     let ink = UIColor(argb: request.textColor.argb)
+    let size = CGFloat(request.fontSize)
+
+    // Chữ đã gõ, đơn vị trang, còn nguyên run. Cắt khoảng trắng hai đầu ở đây
+    // chứ không cắt trên `request.text`: hai bên phải là **cùng** một chuỗi, và
+    // cái đem đi vẽ là cái này.
+    let attributed = Self.trimmed(commit.attributed)
+    let text = attributed.string
+
+    // Kiểm lại theo chữ thật sự gõ: run toàn ASCII giữ font dựng sẵn lúc chọn,
+    // mà chữ thay thế có thể là tiếng Việt đầu tiên trên trang. Theo từng run,
+    // vì chỉ run bị chạm mới đáng đổi face.
+    let embedded = NSMutableAttributedString(attributedString: attributed)
+    if embedded.length > 0 {
+      let whole = NSRange(location: 0, length: embedded.length)
+      embedded.enumerateAttribute(.pdfPageFont, in: whole) { value, range, _ in
+        guard let runFont = value as? UIFont else { return }
+        let replacement = embeddable(
+          runFont, for: embedded.attributedSubstring(from: range).string
+        )
+        guard replacement != runFont else { return }
+        embedded.addAttributes([.pdfPageFont: replacement, .font: replacement], range: range)
+      }
+    }
+
+    // Font đại diện: run đầu. Chỉ để báo cáo và để dựng lại style lúc chọn lại.
+    let font = PdfTextOverlay.leadingFont(of: embedded)
+      ?? embeddable(
+        request.fontName.flatMap { UIFont(name: $0, size: size) }
+          ?? UIFont.systemFont(ofSize: size),
+        for: text
+      )
 
     // Khung nở ra bằng đúng chỗ chữ chiếm.
     //
@@ -2527,10 +2941,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
     // tới đáy chữ, và hai cái lệch nhau. Đo bằng đúng bộ thuộc tính sẽ dùng để
     // vẽ, ở đơn vị trang, rồi kẹp ở trần hàng xóm y như lúc gõ.
     let floor = typingFloor(for: bounds, on: page)
-    let textHeight = text.isEmpty ? 0 : NSAttributedString(
-      string: text,
-      attributes: PdfTextOverlay.attributes(font: font, colour: ink, kern: commit.kern)
-    ).boundingRect(
+    let textHeight = embedded.length == 0 ? 0 : embedded.boundingRect(
       with: CGSize(width: bounds.width, height: PdfTextOverlay.unboundedHeight),
       options: [.usesLineFragmentOrigin, .usesFontLeading],
       context: nil
@@ -2551,7 +2962,7 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
       page: page,
       cover: cover,
       bounds: occupied,
-      text: text,
+      attributed: embedded,
       font: font,
       ink: ink,
       kern: commit.kern,
@@ -2688,10 +3099,11 @@ final class PdfTextEditManager: NSObject, UITextViewDelegate, UIGestureRecognize
           PdfTextOverlay.Request(
             pageIndex: index,
             bounds: box,
-            text: edit.text,
-            font: edit.font.withSize(max(edit.font.pointSize * zoom, 1)),
-            colour: edit.ink,
-            kern: edit.kern * zoom,
+            // Cùng hàm ô nhập dùng, ở cùng tỉ lệ — nên chữ xem trước và chữ
+            // đang gõ không thể bố cục khác nhau.
+            attributed: PdfTextOverlay.restyled(
+              edit.attributed, zoom: zoom, colour: edit.ink, kern: edit.kern * zoom
+            ),
             maxHeight: edit.maxHeight * zoom
           ),
           into: context

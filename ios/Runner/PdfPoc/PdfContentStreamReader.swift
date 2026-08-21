@@ -29,6 +29,11 @@ enum PdfContentStreamReader {
     /// `/BaseFont` of the font resource, e.g. `Helvetica-Bold`. Subset prefixes
     /// (`ABCDEF+`) are stripped.
     var fontName: String?
+    /// Tên resource của font trong `/Resources /Font`, ví dụ `F1`.
+    ///
+    /// Khác `fontName`: cái kia gọi tên con chữ, cái này là chìa mở từ điển
+    /// font — thứ duy nhất đi tới được stream font nhúng.
+    var fontResource: String?
     /// Point size in page space: the `Tf` size scaled by the text matrix, so a
     /// document that sizes its type through the matrix reports honestly.
     var fontSize: CGFloat?
@@ -107,6 +112,7 @@ enum PdfContentStreamReader {
         origin: finite(hit.origin) ? hit.origin.applying(toPageSpace) : .zero,
         attributes: Attributes(
           fontName: font?.baseFont,
+          fontResource: resource,
           fontSize: hit.fontSize.isFinite && hit.fontSize > 0.01 ? hit.fontSize : nil,
           fill: hit.fill.flatMap { components in
             components.red.isFinite && components.green.isFinite && components.blue.isFinite
@@ -629,7 +635,7 @@ private func fontDictionary(
 /// `/Resources` is inheritable: a page that does not carry its own uses its
 /// parent's, and a document that sets the resources once on the page tree is
 /// perfectly ordinary.
-private func resources(in dictionary: CGPDFDictionaryRef, key: String) -> CGPDFDictionaryRef? {
+func resources(in dictionary: CGPDFDictionaryRef, key: String) -> CGPDFDictionaryRef? {
   var node: CGPDFDictionaryRef? = dictionary
   var depth = 0
   while let current = node, depth < 8 {

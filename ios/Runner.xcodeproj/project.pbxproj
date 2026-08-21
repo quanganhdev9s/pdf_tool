@@ -44,6 +44,7 @@
 		AA10FE0021C34D0E9B551004 /* PdfContentStreamReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10FE0021C34D0E9B551003 /* PdfContentStreamReader.swift */; };
 		AA10FE0021C34D0E9B551006 /* PdfContentTextEraser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10FE0021C34D0E9B551005 /* PdfContentTextEraser.swift */; };
 		AA10FE0021C34D0E9B551008 /* PdfTextOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10FE0021C34D0E9B551007 /* PdfTextOverlay.swift */; };
+		AA10FE0021C34D0E9B551108 /* PdfEmbeddedFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA10FE0021C34D0E9B551107 /* PdfEmbeddedFont.swift */; };
 		A00000000000000000000030 /* PdfCompressionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000031 /* PdfCompressionManager.swift */; };
 		A00000000000000000000032 /* PdfSplitMergeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000033 /* PdfSplitMergeManager.swift */; };
 		A00000000000000000000035 /* PdfImageDocumentWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000037 /* PdfImageDocumentWriter.swift */; };
@@ -136,6 +137,7 @@
 		AA10FE0021C34D0E9B551003 /* PdfContentStreamReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfContentStreamReader.swift; sourceTree = "<group>"; };
 		AA10FE0021C34D0E9B551005 /* PdfContentTextEraser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfContentTextEraser.swift; sourceTree = "<group>"; };
 		AA10FE0021C34D0E9B551007 /* PdfTextOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfTextOverlay.swift; sourceTree = "<group>"; };
+		AA10FE0021C34D0E9B551107 /* PdfEmbeddedFont.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfEmbeddedFont.swift; sourceTree = "<group>"; };
 		A00000000000000000000031 /* PdfCompressionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfCompressionManager.swift; sourceTree = "<group>"; };
 		A00000000000000000000033 /* PdfSplitMergeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfSplitMergeManager.swift; sourceTree = "<group>"; };
 		A00000000000000000000037 /* PdfImageDocumentWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfImageDocumentWriter.swift; sourceTree = "<group>"; };
@@ -291,6 +293,7 @@
 				AA10FE0021C34D0E9B551003 /* PdfContentStreamReader.swift */,
 				AA10FE0021C34D0E9B551005 /* PdfContentTextEraser.swift */,
 				AA10FE0021C34D0E9B551007 /* PdfTextOverlay.swift */,
+				AA10FE0021C34D0E9B551107 /* PdfEmbeddedFont.swift */,
 				A00000000000000000000031 /* PdfCompressionManager.swift */,
 				A00000000000000000000033 /* PdfSplitMergeManager.swift */,
 				A00000000000000000000037 /* PdfImageDocumentWriter.swift */,
@@ -552,6 +555,7 @@
 				AA10FE0021C34D0E9B551004 /* PdfContentStreamReader.swift in Sources */,
 				AA10FE0021C34D0E9B551006 /* PdfContentTextEraser.swift in Sources */,
 				AA10FE0021C34D0E9B551008 /* PdfTextOverlay.swift in Sources */,
+				AA10FE0021C34D0E9B551108 /* PdfEmbeddedFont.swift in Sources */,
 				A00000000000000000000030 /* PdfCompressionManager.swift in Sources */,
 				A00000000000000000000032 /* PdfSplitMergeManager.swift in Sources */,
 				A00000000000000000000035 /* PdfImageDocumentWriter.swift in Sources */,
