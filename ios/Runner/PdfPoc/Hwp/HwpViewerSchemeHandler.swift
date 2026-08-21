@@ -49,12 +49,24 @@ final class HwpViewerSchemeHandler: NSObject, WKURLSchemeHandler {
     // Nhảy sang luồng khác rồi gọi `didReceive` là cách chắc chắn để crash.
     do {
       let (data, mimeType) = try payload(for: url)
-      let response = URLResponse(
+      // `HTTPURLResponse` chứ không phải `URLResponse`.
+      //
+      // `URLResponse(url:mimeType:...)` đặt được thuộc tính `mimeType`, nhưng
+      // không sinh ra **header** `Content-Type` — mà
+      // `WebAssembly.instantiateStreaming` đọc header. Dùng nó thì nạp WASM hỏng
+      // với đúng một dòng: "Unexpected response MIME type. Expected
+      // 'application/wasm'".
+      guard let response = HTTPURLResponse(
         url: url,
-        mimeType: mimeType,
-        expectedContentLength: data.count,
-        textEncodingName: nil
-      )
+        statusCode: 200,
+        httpVersion: "HTTP/1.1",
+        headerFields: [
+          "Content-Type": mimeType,
+          "Content-Length": String(data.count),
+        ]
+      ) else {
+        throw Self.notFound(url)
+      }
       task.didReceive(response)
       task.didReceive(data)
       task.didFinish()
