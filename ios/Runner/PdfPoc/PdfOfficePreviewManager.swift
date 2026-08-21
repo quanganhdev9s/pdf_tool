@@ -11,9 +11,12 @@ final class PdfOfficePreviewManager: NSObject {
   var onError: ((PdfPocError) -> Void)?
 
   /// Everything the conversion picker accepts, plus PDFs, which conversion
-  /// deliberately excludes.
+  /// deliberately excludes — and HWP, which only the viewer handles.
+  ///
+  /// HWP không nằm trong danh sách của convert vì đường convert render bằng
+  /// WebKit, mà WebKit không biết định dạng này. Trình xem thì có đường riêng.
   private static var viewableContentTypes: [UTType] {
-    PdfFileConversionManager.supportedContentTypes + [.pdf]
+    PdfFileConversionManager.supportedContentTypes + [.pdf] + HwpFileType.contentTypes
   }
 
   func pickDocument(presenter: UIViewController) throws {

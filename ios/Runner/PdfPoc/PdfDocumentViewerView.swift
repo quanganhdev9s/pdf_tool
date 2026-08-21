@@ -42,9 +42,20 @@ final class PdfDocumentViewerView: UIView {
   private let messageLabel = UILabel()
   private var loadedURL: URL?
 
+  /// Phục vụ trang xem HWP. Phải gắn vào `WKWebViewConfiguration` **trước** khi
+  /// dựng web view — đăng ký scheme sau đó là không được.
+  private let hwpHandler = HwpViewerSchemeHandler()
+
   override init(frame: CGRect) {
     let configuration = WKWebViewConfiguration()
     configuration.userContentController.addUserScript(Self.searchHighlightScript())
+    configuration.setURLSchemeHandler(hwpHandler, forURLScheme: HwpViewerSchemeHandler.scheme)
+    // Mọi thứ phải xong **trước** dòng dưới: `WKWebView` copy configuration lúc
+    // dựng, nên sửa bản gốc sau đó không tới được web view — log của trang vỏ
+    // sẽ im lặng biến mất, mà đó lại là thứ duy nhất cho biết rhwp đang làm gì.
+    configuration.userContentController.add(
+      HwpViewerLogRelay(), name: HwpViewerLogRelay.name
+    )
     webView = WKWebView(frame: frame, configuration: configuration)
     super.init(frame: frame)
     configureSubviews()
@@ -74,6 +85,24 @@ final class PdfDocumentViewerView: UIView {
     showMessage(nil)
     activityIndicator.startAnimating()
     logPdfEvent("document_viewer_load", "file=\(sourceURL.lastPathComponent)")
+
+    // HWP đi đường riêng. WebKit không hiểu định dạng này — không như Office và
+    // iWork, nơi iOS có sẵn bộ chuyển đổi — nên thay vì nạp thẳng tệp, ta nạp
+    // một trang vỏ và để rhwp (Rust/WASM) dàn trang rồi vẽ ra SVG.
+    if HwpFileType.handles(sourceURL) {
+      hwpHandler.documentURL = sourceURL
+      guard let pageURL = HwpViewerSchemeHandler.pageURL() else {
+        throw PdfPocError(
+          code: "internal_error",
+          message: "Could not build the HWP viewer URL.",
+          details: nil
+        )
+      }
+      logPdfEvent("hwp_viewer_load", "file=\(sourceURL.lastPathComponent)")
+      webView.load(URLRequest(url: pageURL))
+      return
+    }
+
     webView.loadFileURL(
       sourceURL,
       allowingReadAccessTo: sourceURL.deletingLastPathComponent()

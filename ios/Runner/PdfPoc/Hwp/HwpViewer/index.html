@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+<title>HWP</title>
+<style>
+  :root { color-scheme: light dark; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #8e8e93;
+    -webkit-text-size-adjust: 100%;
+  }
+  #pages {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+  }
+  /* Mỗi trang là một SVG khổ giấy. Ép nó co theo bề ngang màn hình chứ không
+     tràn ra ngoài — SVG do rhwp sinh mang kích thước thật của trang. */
+  #pages svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 900px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+  #status {
+    font: 15px -apple-system, sans-serif;
+    color: #fff;
+    text-align: center;
+    padding: 24px 16px;
+  }
+  #status.error { color: #ffd8d6; }
+</style>
+</head>
+<body>
+<div id="status">Đang tải…</div>
+<div id="pages"></div>
+
+<script type="module">
+const statusEl = document.getElementById('status');
+const pagesEl = document.getElementById('pages');
+
+/** Báo về Swift qua `WKScriptMessageHandler`, để log chảy vào cùng một chỗ. */
+function report(event, detail) {
+  try {
+    window.webkit?.messageHandlers?.hwpViewer?.postMessage({ event, detail: String(detail ?? '') });
+  } catch (_) { /* không có host thì thôi */ }
+}
+
+function fail(message, error) {
+  statusEl.className = 'error';
+  statusEl.textContent = message;
+  report('hwp_viewer_failed', error?.stack || error || message);
+}
+
+// Đo chữ bằng Canvas — **bắt buộc, và phải đăng ký trước khi init**.
+//
+// rhwp dàn trang bên trong WASM nhưng không với tới được font của trình duyệt,
+// nên nó gọi ngược ra đây để hỏi bề rộng thật của từng đoạn chữ. Không có hàm
+// này thì ngắt dòng và canh đều sai hết.
+//
+// Giữ lại context và font gần nhất: hàm này bị gọi rất nhiều lần cho mỗi trang,
+// và gán `ctx.font` là thao tác đắt.
+let measureCtx = null;
+let lastFont = '';
+globalThis.measureTextWidth = (font, text) => {
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  if (font !== lastFont) {
+    measureCtx.font = font;
+    lastFont = font;
+  }
+  return measureCtx.measureText(text).width;
+};
+
+try {
+  const started = performance.now();
+
+  // Cùng scheme với trang này nên là same-origin: `fetch` chạy được, và
+  // handler bên Swift trả đúng `application/wasm` để `instantiateStreaming`
+  // chấp nhận.
+  const { default: init, HwpDocument } = await import('./rhwp.js');
+  await init({ module_or_path: './rhwp_bg.wasm' });
+  const ready = performance.now();
+  report('hwp_wasm_ready', `in=${Math.round(ready - started)}ms`);
+
+  const response = await fetch('./document');
+  if (!response.ok) throw new Error(`document fetch ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+
+  const doc = new HwpDocument(bytes);
+  const total = doc.pageCount();
+  report('hwp_document_parsed', `pages=${total} bytes=${bytes.length}`);
+
+  // Vẽ trang đầu trước rồi nhường một frame, để có gì đó trên màn hình ngay
+  // thay vì đứng hình cho tới khi trang cuối xong.
+  statusEl.hidden = true;
+  for (let i = 0; i < total; i += 1) {
+    const holder = document.createElement('div');
+    holder.innerHTML = doc.renderPageSvg(i);
+    pagesEl.appendChild(holder.firstElementChild ?? holder);
+    if (i === 0) await new Promise(requestAnimationFrame);
+  }
+
+  report('hwp_render_done', `pages=${total} in=${Math.round(performance.now() - ready)}ms`);
+} catch (error) {
+  fail('Không mở được tệp HWP này.', error);
+}
+</script>
+</body>
+</html>
