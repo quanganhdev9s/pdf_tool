@@ -32,3 +32,12 @@ Runner/GeneratedPluginRegistrant.*
 !default.mode2v3
 !default.pbxuser
 !default.perspectivev3
+
+# Theo dõi Podfile và Podfile.lock, bất chấp gitignore toàn cục của máy.
+#
+# Nhiều máy có `Podfile` trong ~/.gitignore_global. Với repo Flutter thì Podfile
+# mặc định tự sinh được nên chặn nó không sao — cho tới khi có pod thêm tay,
+# lúc đó nó lặng lẽ biến mất trên CI và trên máy người khác. Podfile.lock ghim
+# đúng phiên bản pod, và đó mới là thứ giữ mọi máy build ra cùng một thứ.
+!Podfile
+!Podfile.lock
