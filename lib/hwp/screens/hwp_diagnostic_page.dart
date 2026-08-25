@@ -80,11 +80,13 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
       assetKey: widget.assetKey,
       filePath: widget.filePath,
     );
+    _scheduleScrollToCurrentPage(_cubit.state.activePageIndex());
   }
 
   Future<void> _saveEdit() async {
     _closeTextInput();
     await _cubit.saveEdit();
+    _scheduleScrollToCurrentPage(_cubit.state.activePageIndex());
   }
 
   Future<void> _placeCaret({
@@ -125,7 +127,7 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
   }
 
   bool _handleReaderScroll(ScrollNotification notification) {
-    if (!_cubit.state.editing && _pageKeys.isNotEmpty) {
+    if (_pageKeys.isNotEmpty) {
       _scheduleVisibleReaderPageUpdate();
     }
     return false;
@@ -143,11 +145,12 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
   }
 
   void _updateVisibleReaderPage() {
-    if (!mounted || _cubit.state.editing || _pageKeys.isEmpty) {
+    if (!mounted || _pageKeys.isEmpty) {
       return;
     }
     final double viewportTop = 0;
     final double viewportBottom = MediaQuery.sizeOf(context).height;
+    final Set<int> visiblePages = <int>{};
     int? bestPage;
     double bestOverlap = 0;
     for (int index = 0; index < _pageKeys.length; index += 1) {
@@ -161,11 +164,15 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
       final double bottom = top + renderObject.size.height;
       final double overlap =
           math.min(bottom, viewportBottom) - math.max(top, viewportTop);
+      if (overlap > 0) {
+        visiblePages.add(index);
+      }
       if (overlap > bestOverlap) {
         bestOverlap = overlap;
         bestPage = index;
       }
     }
+    _cubit.setVisiblePages(visiblePages);
     if (bestPage != null && bestPage != _cubit.state.currentPageIndex) {
       _cubit.setCurrentPage(bestPage);
       logHwpEvent('reader_visible_page_changed', <String, Object?>{
@@ -293,6 +300,9 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
         },
         builder: (BuildContext context, HwpReaderState state) {
           _syncPageKeys(state.pageSvgs.length);
+          if (state.pageSvgs.isNotEmpty) {
+            _scheduleVisibleReaderPageUpdate();
+          }
           return Scaffold(
             appBar: state.editing
                 ? _buildEditorAppBar(state)
@@ -375,8 +385,8 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
   Widget _buildReader(HwpReaderState state) {
     final String query = _searchController.text;
     final int matches = _countMatches(state.text, query);
-    if (state.pageSvgs.isNotEmpty && !state.editing) {
-      final bool showSearchSummary = query.isNotEmpty;
+    if (state.pageSvgs.isNotEmpty) {
+      final bool showSearchSummary = !state.editing && query.isNotEmpty;
       return NotificationListener<ScrollNotification>(
         onNotification: _handleReaderScroll,
         child: ListView.builder(
@@ -394,8 +404,8 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
                 pageNumber: index + 1,
                 pageCount: state.pageCount,
                 svg: state.pageSvgs[index],
-                editing: false,
-                caret: null,
+                editing: state.editing,
+                caret: state.caret?.pageIndex == index ? state.caret : null,
                 onNeedRender: _cubit.renderPage,
                 onTapPage: _placeCaret,
               ),
@@ -415,27 +425,7 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
               style: Theme.of(context).textTheme.bodyMedium,
               children: _highlightSpans(context, state.text, query),
             ),
-          )
-        else if (state.editing) ...<Widget>[
-          _EditPageNavigator(
-            pageIndex: state.activePageIndex(),
-            pageCount: state.pageSvgs.length,
-            busy: state.busy,
-            onShowPage: _cubit.showEditPage,
           ),
-          HwpPageSurface(
-            pageIndex: state.activePageIndex(),
-            pageNumber: state.activePageIndex() + 1,
-            pageCount: state.pageCount,
-            svg: state.pageSvgs[state.activePageIndex()],
-            editing: true,
-            caret: state.caret?.pageIndex == state.activePageIndex()
-                ? state.caret
-                : null,
-            onNeedRender: _cubit.renderPage,
-            onTapPage: _placeCaret,
-          ),
-        ],
       ],
     );
   }
@@ -512,53 +502,6 @@ class _SearchSummary extends StatelessWidget {
       child: Text(
         '$matches kết quả trong text trích xuất',
         style: Theme.of(context).textTheme.bodySmall,
-      ),
-    );
-  }
-}
-
-class _EditPageNavigator extends StatelessWidget {
-  const _EditPageNavigator({
-    required this.pageIndex,
-    required this.pageCount,
-    required this.busy,
-    required this.onShowPage,
-  });
-
-  final int pageIndex;
-  final int pageCount;
-  final bool busy;
-  final Future<void> Function(int pageIndex) onShowPage;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: <Widget>[
-          IconButton(
-            tooltip: 'Trang trước',
-            onPressed: busy || pageIndex <= 0
-                ? null
-                : () => unawaited(onShowPage(pageIndex - 1)),
-            icon: const Icon(Icons.chevron_left),
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                'Trang ${pageIndex + 1}/$pageCount',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Trang sau',
-            onPressed: busy || pageIndex >= pageCount - 1
-                ? null
-                : () => unawaited(onShowPage(pageIndex + 1)),
-            icon: const Icon(Icons.chevron_right),
-          ),
-        ],
       ),
     );
   }

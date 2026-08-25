@@ -17,7 +17,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       super(const HwpReaderState());
 
   final HwpDocumentService _service;
-  final Set<int> _renderingPages = <int>{};
+  final Map<int, int> _renderingPageRevisions = <int, int>{};
   Future<void> _directEditQueue = Future<void>.value();
 
   Future<void> openDocument({
@@ -38,6 +38,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       emit(state.copyWith(status: 'Đang trích xuất text...'));
       final String text = await _service.extractText();
       final int initialPage = _clampPageIndex(initialPageIndex, info.pageCount);
+      final int revision = state.renderRevision + 1;
       emit(
         state.copyWith(
           info: info,
@@ -46,6 +47,10 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
           canUndo: false,
           canRedo: false,
           currentPageIndex: initialPage,
+          dirtyPages: const <int>{},
+          visiblePageIndexes: const <int>{},
+          renderingPages: const <int>{},
+          renderRevision: revision,
           pageSvgs: List<String?>.filled(info.pageCount, null),
           status: info.pageCount > 0
               ? 'Đang dựng trang ${initialPage + 1}/${info.pageCount}'
@@ -84,6 +89,19 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
     emit(state.copyWith(currentPageIndex: currentPage));
   }
 
+  void setVisiblePages(Set<int> pageIndexes) {
+    final Set<int> visiblePages = _normalizePageSet(
+      pageIndexes,
+      state.pageCount,
+    );
+    if (_setEquals(visiblePages, state.visiblePageIndexes)) {
+      _renderDirtyVisiblePages();
+      return;
+    }
+    emit(state.copyWith(visiblePageIndexes: visiblePages));
+    _renderDirtyVisiblePages();
+  }
+
   Future<void> renderPage(
     int pageIndex, {
     bool force = false,
@@ -97,7 +115,9 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       }
       return;
     }
-    if (!force && state.pageSvgs[pageIndex] != null) {
+    final int requestedRevision = state.renderRevision;
+    final bool isDirty = state.dirtyPages.contains(pageIndex);
+    if (!force && !isDirty && state.pageSvgs[pageIndex] != null) {
       if (finalStatus != null) {
         emit(state.copyWith(status: finalStatus));
       }
@@ -107,36 +127,66 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       });
       return;
     }
-    if (_renderingPages.contains(pageIndex)) {
+    final int? existingRenderRevision = _renderingPageRevisions[pageIndex];
+    if (existingRenderRevision == requestedRevision) {
       return;
     }
 
-    _renderingPages.add(pageIndex);
+    _renderingPageRevisions[pageIndex] = requestedRevision;
+    _emitRenderingPages();
     if (loadingStatus != null) {
       emit(state.copyWith(status: loadingStatus));
     }
     logHwpEvent('${reason}_start', <String, Object?>{
       'page': pageIndex + 1,
       'pages': state.pageSvgs.length,
+      'revision': requestedRevision,
     });
     try {
       final String svg = await _service.renderPageSvg(pageIndex);
       if (isClosed) {
         return;
       }
+      // Render page chạy async qua native. Nếu user edit tiếp trước khi SVG trả
+      // về, revision của document đã đổi; kết quả cũ phải bị bỏ để không ghi đè
+      // cache page mới hơn.
+      if (requestedRevision != state.renderRevision) {
+        logHwpEvent('${reason}_stale', <String, Object?>{
+          'page': pageIndex + 1,
+          'requestedRevision': requestedRevision,
+          'currentRevision': state.renderRevision,
+        });
+        return;
+      }
       logHwpEvent('${reason}_done', <String, Object?>{
         'page': pageIndex + 1,
         'bytes': svg.length,
+        'revision': requestedRevision,
       });
       final List<String?> pages = List<String?>.from(state.pageSvgs);
       if (pageIndex < pages.length) {
         pages[pageIndex] = svg;
       }
+      final Set<int> dirtyPages = Set<int>.from(state.dirtyPages)
+        ..remove(pageIndex);
       emit(
-        state.copyWith(pageSvgs: pages, status: finalStatus ?? state.status),
+        state.copyWith(
+          pageSvgs: pages,
+          dirtyPages: dirtyPages,
+          status: finalStatus ?? state.status,
+        ),
       );
     } finally {
-      _renderingPages.remove(pageIndex);
+      if (_renderingPageRevisions[pageIndex] == requestedRevision) {
+        _renderingPageRevisions.remove(pageIndex);
+      }
+      _emitRenderingPages();
+      if (!isClosed &&
+          requestedRevision != state.renderRevision &&
+          state.dirtyPages.contains(pageIndex) &&
+          state.visiblePageIndexes.contains(pageIndex)) {
+        _renderDirtyVisiblePages();
+      }
     }
   }
 
@@ -271,6 +321,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
         state.currentPageIndex,
         savedInfo.pageCount,
       );
+      final int revision = state.renderRevision + 1;
       emit(
         state.copyWith(
           info: savedInfo,
@@ -279,6 +330,12 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
           canUndo: false,
           canRedo: false,
           currentPageIndex: currentPage,
+          dirtyPages: const <int>{},
+          visiblePageIndexes: _normalizePageSet(
+            state.visiblePageIndexes,
+            savedInfo.pageCount,
+          ),
+          renderRevision: revision,
           text: text,
           pageSvgs: List<String?>.filled(savedInfo.pageCount, null),
           status: savedInfo.pageCount > 0
@@ -377,6 +434,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       return;
     }
     await _runDirectEdit(() async {
+      final int dirtyStartPage = await _dirtyStartPageForParagraph(caret);
       logHwpEvent('insert_text_start', <String, Object?>{
         'section': caret.sectionIndex,
         'paragraph': caret.paragraphIndex,
@@ -393,7 +451,10 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       final int nextOffset =
           _readInt(_decodeObject(editJson), 'charOffset') ??
           caret.charOffset + text.runes.length;
-      await _refreshAfterDirectEdit(caret.copyWith(charOffset: nextOffset));
+      await _refreshAfterDirectEdit(
+        caret.copyWith(charOffset: nextOffset),
+        dirtyStartPage: dirtyStartPage,
+      );
       logHwpEvent('insert_text_done', <String, Object?>{
         'nextOffset': nextOffset,
       });
@@ -406,6 +467,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       return;
     }
     await _runDirectEdit(() async {
+      final int dirtyStartPage = await _dirtyStartPageForParagraph(caret);
       logHwpEvent('split_paragraph_start', <String, Object?>{
         'section': caret.sectionIndex,
         'paragraph': caret.paragraphIndex,
@@ -427,6 +489,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
           paragraphIndex: nextParagraphIndex,
           charOffset: nextOffset,
         ),
+        dirtyStartPage: dirtyStartPage,
       );
       logHwpEvent('split_paragraph_done', <String, Object?>{
         'paragraph': nextParagraphIndex,
@@ -445,6 +508,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       return;
     }
     await _runDirectEdit(() async {
+      final int dirtyStartPage = await _dirtyStartPageForParagraph(caret);
       final int nextOffset = math.max(0, caret.charOffset - 1);
       logHwpEvent('delete_text_start', <String, Object?>{
         'section': caret.sectionIndex,
@@ -463,6 +527,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
           charOffset:
               _readInt(_decodeObject(editJson), 'charOffset') ?? nextOffset,
         ),
+        dirtyStartPage: dirtyStartPage,
       );
       logHwpEvent('delete_text_done', <String, Object?>{'offset': nextOffset});
     });
@@ -487,6 +552,9 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       return;
     }
     await _runDirectEdit(() async {
+      final int dirtyStartPage = await _dirtyStartPageForParagraph(
+        caret.copyWith(paragraphIndex: caret.paragraphIndex - 1, charOffset: 0),
+      );
       logHwpEvent('merge_paragraph_start', <String, Object?>{
         'section': caret.sectionIndex,
         'paragraph': caret.paragraphIndex,
@@ -506,6 +574,7 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
           paragraphIndex: mergedParagraphIndex,
           charOffset: mergedOffset,
         ),
+        dirtyStartPage: dirtyStartPage,
       );
       logHwpEvent('merge_paragraph_done', <String, Object?>{
         'paragraph': mergedParagraphIndex,
@@ -514,7 +583,10 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
     });
   }
 
-  Future<void> _refreshAfterDirectEdit(HwpDirectCaret caret) async {
+  Future<void> _refreshAfterDirectEdit(
+    HwpDirectCaret caret, {
+    required int dirtyStartPage,
+  }) async {
     logHwpEvent('edit_refresh_start', <String, Object?>{
       'section': caret.sectionIndex,
       'paragraph': caret.paragraphIndex,
@@ -533,22 +605,18 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
       updatedCaret.pageIndex,
       info.pageCount,
     );
-    final List<String?> pages = List<String?>.filled(info.pageCount, null);
-    if (pages.isNotEmpty) {
-      logHwpEvent('edit_invalidate_page_cache', <String, Object?>{
-        'allPages': true,
-        'pages': pages.length,
-      });
-      logHwpEvent('edit_render_active_page_start', <String, Object?>{
-        'page': activePage + 1,
-        'pages': info.pageCount,
-      });
-      pages[activePage] = await _service.renderPageSvg(activePage);
-      logHwpEvent('edit_render_active_page_done', <String, Object?>{
-        'page': activePage + 1,
-        'bytes': pages[activePage]?.length,
-      });
-    }
+    final int revision = state.renderRevision + 1;
+    final List<String?> pages = _resizePageCache(
+      state.pageSvgs,
+      info.pageCount,
+    );
+    final int safeDirtyStart = _clampPageIndex(dirtyStartPage, info.pageCount);
+    final Set<int> dirtyPages = _dirtyRangeFrom(safeDirtyStart, info.pageCount);
+    logHwpEvent('edit_invalidate_page_cache', <String, Object?>{
+      'dirtyStartPage': safeDirtyStart + 1,
+      'pages': info.pageCount,
+      'revision': revision,
+    });
     emit(
       state.copyWith(
         info: info,
@@ -557,9 +625,16 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
         canRedo: history.canRedo,
         currentPageIndex: activePage,
         pageSvgs: pages,
+        dirtyPages: dirtyPages,
+        visiblePageIndexes: _normalizePageSet(
+          state.visiblePageIndexes,
+          info.pageCount,
+        ),
+        renderRevision: revision,
         status: 'Đang chỉnh sửa',
       ),
     );
+    _renderDirtyVisiblePages(priorityPages: <int>{activePage});
     logHwpEvent('edit_refresh_done', <String, Object?>{
       'page': activePage + 1,
       'pages': info.pageCount,
@@ -575,25 +650,18 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
   }) async {
     final HwpDocumentInfo info = await _service.currentInfo();
     final int activePage = state.activePageIndex(info.pageCount);
-    final List<String?> pages = List<String?>.filled(info.pageCount, null);
+    final int revision = state.renderRevision + 1;
+    final List<String?> pages = _resizePageCache(
+      state.pageSvgs,
+      info.pageCount,
+    );
+    final Set<int> dirtyPages = _dirtyRangeFrom(0, info.pageCount);
     logHwpEvent('edit_invalidate_page_cache', <String, Object?>{
       'allPages': true,
       'pages': pages.length,
       'reason': 'history',
+      'revision': revision,
     });
-    if (pages.isNotEmpty) {
-      logHwpEvent('edit_render_active_page_start', <String, Object?>{
-        'page': activePage + 1,
-        'pages': info.pageCount,
-        'reason': 'history',
-      });
-      pages[activePage] = await _service.renderPageSvg(activePage);
-      logHwpEvent('edit_render_active_page_done', <String, Object?>{
-        'page': activePage + 1,
-        'bytes': pages[activePage]?.length,
-        'reason': 'history',
-      });
-    }
     emit(
       state.copyWith(
         info: info,
@@ -602,9 +670,125 @@ class HwpReaderCubit extends Cubit<HwpReaderState> {
         canRedo: history.canRedo,
         currentPageIndex: activePage,
         pageSvgs: pages,
+        dirtyPages: dirtyPages,
+        visiblePageIndexes: _normalizePageSet(
+          state.visiblePageIndexes,
+          info.pageCount,
+        ),
+        renderRevision: revision,
         status: status,
       ),
     );
+    _renderDirtyVisiblePages(priorityPages: <int>{activePage});
+  }
+
+  void _emitRenderingPages() {
+    if (isClosed) {
+      return;
+    }
+    emit(
+      state.copyWith(
+        renderingPages: Set<int>.unmodifiable(_renderingPageRevisions.keys),
+      ),
+    );
+  }
+
+  void _renderDirtyVisiblePages({Set<int> priorityPages = const <int>{}}) {
+    final int pageCount = state.pageCount;
+    if (pageCount <= 0) {
+      return;
+    }
+
+    final Set<int> targets = <int>{}
+      ..addAll(priorityPages)
+      ..add(state.activePageIndex())
+      ..addAll(state.visiblePageIndexes);
+    for (final int pageIndex in state.visiblePageIndexes) {
+      targets.add(pageIndex - 1);
+      targets.add(pageIndex + 1);
+    }
+
+    final List<int> orderedTargets =
+        targets
+            .where((int pageIndex) => pageIndex >= 0 && pageIndex < pageCount)
+            .toList()
+          ..sort();
+    for (final int pageIndex in orderedTargets) {
+      final bool isDirty = state.dirtyPages.contains(pageIndex);
+      final bool missingSvg =
+          pageIndex >= state.pageSvgs.length ||
+          state.pageSvgs[pageIndex] == null;
+      if (!isDirty && !missingSvg) {
+        continue;
+      }
+      unawaited(
+        renderPage(
+          pageIndex,
+          force: isDirty,
+          reason: isDirty
+              ? 'edit_render_visible_dirty_page'
+              : 'lazy_render_page',
+        ),
+      );
+    }
+  }
+
+  Future<int> _dirtyStartPageForParagraph(HwpDirectCaret caret) async {
+    try {
+      final HwpDirectCaret paragraphStart = await _cursorFor(
+        sectionIndex: caret.sectionIndex,
+        paragraphIndex: caret.paragraphIndex,
+        charOffset: 0,
+        fallbackPageIndex: caret.pageIndex,
+      );
+      // Layout có thể thay đổi ngược một trang khi paragraph nằm gần page
+      // boundary hoặc khi delete/merge kéo nội dung về trang trước. Vì vậy dirty
+      // range bắt đầu từ page chứa đầu paragraph, lùi thêm 1 page để an toàn.
+      return math.max(0, paragraphStart.pageIndex - 1);
+    } catch (error) {
+      logHwpEvent('dirty_start_page_fallback', <String, Object?>{
+        'page': caret.pageIndex + 1,
+        'section': caret.sectionIndex,
+        'paragraph': caret.paragraphIndex,
+        'error': error,
+      });
+      return math.max(0, caret.pageIndex - 1);
+    }
+  }
+
+  List<String?> _resizePageCache(List<String?> pages, int pageCount) {
+    return List<String?>.generate(
+      pageCount,
+      (int index) => index < pages.length ? pages[index] : null,
+    );
+  }
+
+  Set<int> _dirtyRangeFrom(int startPage, int pageCount) {
+    if (pageCount <= 0) {
+      return const <int>{};
+    }
+    final int start = _clampPageIndex(startPage, pageCount);
+    return Set<int>.unmodifiable(
+      Iterable<int>.generate(pageCount - start, (int index) => start + index),
+    );
+  }
+
+  Set<int> _normalizePageSet(Set<int> pageIndexes, int pageCount) {
+    if (pageCount <= 0) {
+      return const <int>{};
+    }
+    return Set<int>.unmodifiable(
+      pageIndexes.where(
+        (int pageIndex) => pageIndex >= 0 && pageIndex < pageCount,
+      ),
+    );
+  }
+
+  bool _setEquals(Set<int> left, Set<int> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    return left.every(right.contains);
   }
 
   Future<HwpDirectCaret> _cursorFor({

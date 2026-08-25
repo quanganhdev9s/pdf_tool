@@ -5,10 +5,11 @@ Flutter: `HwpReaderPage._beginEdit()`
 
 Công dụng:
 - Đóng keyboard nếu đang mở.
-- Set `_editing = true`.
-- Chọn page đang edit bằng `_activeEditPageIndex()`.
-- Không copy file, không render thêm.
-- Dùng lại SVG cache hiện có.
+- Báo `HwpReaderCubit.beginEdit()`.
+- Giữ `currentPageIndex` đang xem ở reader.
+- Chuyển sang edit mode dạng multi-page, dùng cùng `ListView.builder` như reader.
+- Không copy file, không render toàn bộ document.
+- Dùng lại SVG cache hiện có; page nào chưa có SVG vẫn lazy render.
 
 **2. Chạm vào content để đặt con trỏ**
 Flutter: `_HwpPageSurface` → `GestureDetector.onTapUp`
@@ -188,18 +189,21 @@ Công dụng:
 - Trả paragraph/offset mới.
 
 **8. Refresh sau mỗi edit**
-Flutter: `_refreshAfterDirectEdit()`
+Flutter/Cubit: `HwpReaderCubit._refreshAfterDirectEdit()`
 
 Công dụng:
 - Gọi `_cursorFor()` để lấy caret rect mới.
 - Gọi `currentInfo()` để lấy page count mới.
-- Xoá toàn bộ cache `_pageSvgs` vì pagination có thể làm nội dung các trang sau thay đổi.
-- Render lại **chỉ active page** bằng `renderPageSvg(activePage)`.
-- Update `_caret`, `_editingPageIndex`, `_pageSvgs`.
 - Query `hwpEditHistoryState()` để cập nhật trạng thái nút Undo/Redo.
+- Tăng `renderRevision` vì layout/render tree đã đổi sau edit.
+- Tính dirty range từ page chứa đầu paragraph bị sửa, lùi thêm 1 page để an toàn.
+- Mark dirty từ `dirtyStartPage` tới cuối document.
+- Giữ SVG cũ của dirty pages để UI không nhấp nháy trắng.
+- Render lại ngay các dirty pages đang visible, cộng thêm page current/caret và 1 page trước/sau visible.
+- Các dirty pages còn lại lazy render khi người dùng scroll tới.
 
 Quan trọng: đoạn này hiện **không còn `extractText()` toàn file sau mỗi ký tự**.
-Các trang khác vẫn lazy render khi người dùng chuyển tới, nhưng sẽ render từ trạng thái Rust mới thay vì dùng cache cũ.
+Kết quả render native cũ sẽ bị bỏ nếu `renderRevision` không còn khớp, tránh việc SVG render xong muộn ghi đè trạng thái mới hơn.
 
 **9. Undo/Redo**
 Flutter:
@@ -217,11 +221,11 @@ Công dụng:
 - Rust bridge giữ `undo_stack` và `redo_stack` bằng snapshot ID của `DocumentCore`.
 - Undo: lưu snapshot trạng thái hiện tại vào redo stack, restore snapshot gần nhất từ undo stack.
 - Redo: lưu snapshot hiện tại vào undo stack, restore snapshot gần nhất từ redo stack.
-- Sau restore, Flutter xoá toàn bộ `_pageSvgs`, render lại active page, clear caret và cập nhật `canUndo/canRedo`.
+- Sau restore, Flutter mark dirty toàn bộ document, render lại visible pages/current page, clear caret và cập nhật `canUndo/canRedo`.
 - History hiện giới hạn 40 bước trong bridge để không vượt quá snapshot store native.
 
 **10. Render page**
-Flutter: `_renderPage()` hoặc trong edit `_refreshAfterDirectEdit()`
+Flutter/Cubit: `HwpReaderCubit.renderPage()`
 
 Đi qua:
 - `HwpDocumentService.renderPageSvg()`
@@ -235,6 +239,9 @@ Công dụng:
 - Native/Rust render page thành SVG.
 - Flutter sanitize SVG để bỏ image SVG unsupported.
 - `SvgPicture.string()` hiển thị page.
+- Nếu page không dirty và đã có SVG cache thì bỏ qua render.
+- Nếu page dirty thì render lại dù vẫn đang có SVG cũ.
+- Nếu render trả về với `renderRevision` cũ thì discard kết quả.
 
 **11. Save**
 Flutter: `_saveEdit()`

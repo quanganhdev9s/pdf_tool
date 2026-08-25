@@ -19,6 +19,10 @@ class HwpReaderState {
     this.canUndo = false,
     this.canRedo = false,
     this.currentPageIndex = 0,
+    this.dirtyPages = const <int>{},
+    this.visiblePageIndexes = const <int>{},
+    this.renderingPages = const <int>{},
+    this.renderRevision = 0,
     this.caret,
   });
 
@@ -31,6 +35,24 @@ class HwpReaderState {
   final bool canUndo;
   final bool canRedo;
   final int currentPageIndex;
+
+  // Những trang có SVG cache có thể đã cũ sau khi document reflow/paginate.
+  // Page dirty vẫn có thể hiển thị SVG cũ tạm thời, nhưng phải render lại khi
+  // nó đang visible hoặc sắp visible.
+  final Set<int> dirtyPages;
+
+  // Các trang đang nằm trong viewport, do widget layer đo bằng GlobalKey rồi
+  // báo xuống Cubit. Cubit dùng tập này để ưu tiên render dirty page trước.
+  final Set<int> visiblePageIndexes;
+
+  // Các trang đang có request render native chạy. Field này giúp tránh bắn
+  // nhiều request render trùng một trang trong lúc user scroll/gõ nhanh.
+  final Set<int> renderingPages;
+
+  // Tăng sau mỗi edit làm layout thay đổi. Kết quả render cũ mang revision thấp
+  // sẽ bị bỏ qua để tránh ghi đè SVG mới khi người dùng gõ nhanh.
+  final int renderRevision;
+
   final HwpDirectCaret? caret;
 
   int get pageCount => info?.pageCount ?? pageSvgs.length;
@@ -53,6 +75,10 @@ class HwpReaderState {
     bool? canUndo,
     bool? canRedo,
     int? currentPageIndex,
+    Set<int>? dirtyPages,
+    Set<int>? visiblePageIndexes,
+    Set<int>? renderingPages,
+    int? renderRevision,
     Object? caret = _unset,
   }) {
     return HwpReaderState(
@@ -65,6 +91,10 @@ class HwpReaderState {
       canUndo: canUndo ?? this.canUndo,
       canRedo: canRedo ?? this.canRedo,
       currentPageIndex: currentPageIndex ?? this.currentPageIndex,
+      dirtyPages: dirtyPages ?? this.dirtyPages,
+      visiblePageIndexes: visiblePageIndexes ?? this.visiblePageIndexes,
+      renderingPages: renderingPages ?? this.renderingPages,
+      renderRevision: renderRevision ?? this.renderRevision,
       caret: identical(caret, _unset) ? this.caret : caret as HwpDirectCaret?,
     );
   }
