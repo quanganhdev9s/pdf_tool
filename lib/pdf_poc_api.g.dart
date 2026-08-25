@@ -1393,6 +1393,310 @@ class PdfViewableDocument {
   }
 }
 
+/// Trạng thái con trỏ trong trình soạn thảo HWP, đủ để vẽ thanh công cụ.
+///
+/// Con trỏ và vùng chọn sống trong trang vỏ chứ không trong tài liệu — rhwp
+/// không giữ chúng — nên đây là ảnh chụp đẩy ngược lên, không phải nguồn sự
+/// thật để ghi xuống.
+class HwpEditorState {
+  HwpEditorState({
+    required this.hasCaret,
+    required this.hasSelection,
+    required this.bold,
+    required this.italic,
+    required this.underline,
+    required this.strikethrough,
+    this.fontSizePt,
+    this.alignment,
+    this.lineSpacing,
+    required this.canUndo,
+    required this.canRedo,
+    required this.dirty,
+    required this.pageIndex,
+    required this.pageCount,
+  });
+
+  bool hasCaret;
+
+  bool hasSelection;
+
+  bool bold;
+
+  bool italic;
+
+  bool underline;
+
+  bool strikethrough;
+
+  /// Cỡ chữ theo **điểm**. rhwp lưu theo HWPUNIT (pt × 100); phép chia nằm ở
+  /// trang vỏ để bên Flutter không phải biết đơn vị của định dạng tệp.
+  double? fontSizePt;
+
+  /// `left`, `center`, `right`, `justify` hoặc `distribute`.
+  String? alignment;
+
+  double? lineSpacing;
+
+  bool canUndo;
+
+  bool canRedo;
+
+  /// Có thay đổi chưa ghi xuống tệp. Tắt chế độ sửa khi đang bật cờ này là mất
+  /// thay đổi.
+  bool dirty;
+
+  /// Trang đang hiển thị, đếm từ 0. Trình xem dựng đúng một trang mỗi lúc.
+  int pageIndex;
+
+  /// Tổng số trang, luôn ít nhất là 1.
+  ///
+  /// Đổi được **trong lúc sửa**: gõ thêm chữ có thể làm tài liệu nở ra hoặc co
+  /// lại một trang, nên thanh lật trang phải đọc lại con số này chứ không nhớ
+  /// giá trị lúc mở tệp.
+  int pageCount;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      hasCaret,
+      hasSelection,
+      bold,
+      italic,
+      underline,
+      strikethrough,
+      fontSizePt,
+      alignment,
+      lineSpacing,
+      canUndo,
+      canRedo,
+      dirty,
+      pageIndex,
+      pageCount,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static HwpEditorState decode(Object result) {
+    result as List<Object?>;
+    return HwpEditorState(
+      hasCaret: result[0]! as bool,
+      hasSelection: result[1]! as bool,
+      bold: result[2]! as bool,
+      italic: result[3]! as bool,
+      underline: result[4]! as bool,
+      strikethrough: result[5]! as bool,
+      fontSizePt: result[6] as double?,
+      alignment: result[7] as String?,
+      lineSpacing: result[8] as double?,
+      canUndo: result[9]! as bool,
+      canRedo: result[10]! as bool,
+      dirty: result[11]! as bool,
+      pageIndex: result[12]! as int,
+      pageCount: result[13]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! HwpEditorState || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(hasCaret, other.hasCaret) && _deepEquals(hasSelection, other.hasSelection) && _deepEquals(bold, other.bold) && _deepEquals(italic, other.italic) && _deepEquals(underline, other.underline) && _deepEquals(strikethrough, other.strikethrough) && _deepEquals(fontSizePt, other.fontSizePt) && _deepEquals(alignment, other.alignment) && _deepEquals(lineSpacing, other.lineSpacing) && _deepEquals(canUndo, other.canUndo) && _deepEquals(canRedo, other.canRedo) && _deepEquals(dirty, other.dirty) && _deepEquals(pageIndex, other.pageIndex) && _deepEquals(pageCount, other.pageCount);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'HwpEditorState(hasCaret: $hasCaret, hasSelection: $hasSelection, bold: $bold, italic: $italic, underline: $underline, strikethrough: $strikethrough, fontSizePt: $fontSizePt, alignment: $alignment, lineSpacing: $lineSpacing, canUndo: $canUndo, canRedo: $canRedo, dirty: $dirty, pageIndex: $pageIndex, pageCount: $pageCount)';
+  }
+}
+
+/// Định dạng chữ cần áp. Khoá nào `null` thì giữ nguyên — bật đậm không được
+/// phép lặng lẽ đặt lại cỡ chữ.
+class HwpCharFormat {
+  HwpCharFormat({
+    this.bold,
+    this.italic,
+    this.underline,
+    this.strikethrough,
+    this.fontSizePt,
+  });
+
+  bool? bold;
+
+  bool? italic;
+
+  bool? underline;
+
+  bool? strikethrough;
+
+  double? fontSizePt;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      bold,
+      italic,
+      underline,
+      strikethrough,
+      fontSizePt,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static HwpCharFormat decode(Object result) {
+    result as List<Object?>;
+    return HwpCharFormat(
+      bold: result[0] as bool?,
+      italic: result[1] as bool?,
+      underline: result[2] as bool?,
+      strikethrough: result[3] as bool?,
+      fontSizePt: result[4] as double?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! HwpCharFormat || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(bold, other.bold) && _deepEquals(italic, other.italic) && _deepEquals(underline, other.underline) && _deepEquals(strikethrough, other.strikethrough) && _deepEquals(fontSizePt, other.fontSizePt);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'HwpCharFormat(bold: $bold, italic: $italic, underline: $underline, strikethrough: $strikethrough, fontSizePt: $fontSizePt)';
+  }
+}
+
+/// Định dạng đoạn cần áp. Cùng quy ước `null` là giữ nguyên như
+/// [HwpCharFormat].
+class HwpParaFormat {
+  HwpParaFormat({
+    this.alignment,
+    this.lineSpacing,
+  });
+
+  String? alignment;
+
+  double? lineSpacing;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      alignment,
+      lineSpacing,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static HwpParaFormat decode(Object result) {
+    result as List<Object?>;
+    return HwpParaFormat(
+      alignment: result[0] as String?,
+      lineSpacing: result[1] as double?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! HwpParaFormat || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(alignment, other.alignment) && _deepEquals(lineSpacing, other.lineSpacing);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'HwpParaFormat(alignment: $alignment, lineSpacing: $lineSpacing)';
+  }
+}
+
+/// Kết quả một lần ghi tài liệu HWP xuống đĩa.
+class HwpSaveResult {
+  HwpSaveResult({
+    required this.ok,
+    this.contentLoss,
+    this.error,
+  });
+
+  bool ok;
+
+  /// Báo cáo phần nội dung trình xuất phải bỏ đi, lấy từ
+  /// `exportHwpWithReport`. Không rỗng nghĩa là tệp ghi ra **không** giữ đủ
+  /// tài liệu ban đầu, kể cả khi [ok].
+  String? contentLoss;
+
+  String? error;
+
+  List<Object?> _toList() {
+    return <Object?>[
+      ok,
+      contentLoss,
+      error,
+    ];
+  }
+
+  Object encode() {
+    return _toList();  }
+
+  static HwpSaveResult decode(Object result) {
+    result as List<Object?>;
+    return HwpSaveResult(
+      ok: result[0]! as bool,
+      contentLoss: result[1] as String?,
+      error: result[2] as String?,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! HwpSaveResult || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(ok, other.ok) && _deepEquals(contentLoss, other.contentLoss) && _deepEquals(error, other.error);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'HwpSaveResult(ok: $ok, contentLoss: $contentLoss, error: $error)';
+  }
+}
+
 /// A PDF produced by an earlier operation (convert, scan, split, merge,
 /// compress) and still present in the native working directory.
 class PdfGeneratedOutput {
@@ -1546,8 +1850,20 @@ class _PigeonCodec extends StandardMessageCodec {
     }    else if (value is PdfViewableDocument) {
       buffer.putUint8(154);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfGeneratedOutput) {
+    }    else if (value is HwpEditorState) {
       buffer.putUint8(155);
+      writeValue(buffer, value.encode());
+    }    else if (value is HwpCharFormat) {
+      buffer.putUint8(156);
+      writeValue(buffer, value.encode());
+    }    else if (value is HwpParaFormat) {
+      buffer.putUint8(157);
+      writeValue(buffer, value.encode());
+    }    else if (value is HwpSaveResult) {
+      buffer.putUint8(158);
+      writeValue(buffer, value.encode());
+    }    else if (value is PdfGeneratedOutput) {
+      buffer.putUint8(159);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1614,6 +1930,14 @@ class _PigeonCodec extends StandardMessageCodec {
       case 154:
         return PdfViewableDocument.decode(readValue(buffer)!);
       case 155:
+        return HwpEditorState.decode(readValue(buffer)!);
+      case 156:
+        return HwpCharFormat.decode(readValue(buffer)!);
+      case 157:
+        return HwpParaFormat.decode(readValue(buffer)!);
+      case 158:
+        return HwpSaveResult.decode(readValue(buffer)!);
+      case 159:
         return PdfGeneratedOutput.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -2571,7 +2895,7 @@ class PdfPocHostApi {
   /// Ghi tài liệu đang sửa đè lên tệp đang mở.
   ///
   /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
-  /// hiện trong log.
+  /// về qua `onHwpEditsSaved`.
   Future<void> saveDocumentEdits() async {
     final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.saveDocumentEdits$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -2580,6 +2904,132 @@ class PdfPocHostApi {
       binaryMessenger: pigeonVar_binaryMessenger,
     );
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Áp định dạng chữ lên vùng đang chọn.
+  ///
+  /// Không có vùng chọn thì định dạng được giữ lại và áp cho đoạn chữ gõ tiếp
+  /// theo, giống mọi trình soạn thảo khác.
+  Future<void> applyHwpCharFormat(HwpCharFormat format) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.applyHwpCharFormat$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[format]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Áp định dạng lên đoạn văn đang chứa con trỏ, hoặc mọi đoạn mà vùng chọn
+  /// chạm tới.
+  Future<void> applyHwpParaFormat(HwpParaFormat format) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.applyHwpParaFormat$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[format]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Cho trình soạn thảo biết Flutter đang che mất bao nhiêu điểm ở đáy web
+  /// view — tức chiều cao thanh công cụ nổi.
+  ///
+  /// Bàn phím thì native tự đo được; chỗ này chỉ nói về phần giao diện của
+  /// Flutter, thứ native không nhìn thấy. Con trỏ phải tránh cả hai.
+  Future<void> setViewerChromeInset(double pixels) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setViewerChromeInset$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pixels]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Hoàn tác bước sửa gần nhất. Ngăn xếp nằm trong trang vỏ và mất khi tắt
+  /// chế độ sửa.
+  Future<void> hwpUndo() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpUndo$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  Future<void> hwpRedo() async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpRedo$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+        pigeonVar_replyList,
+        pigeonVar_channelName,
+        isNullValid: true,
+    )
+    ;
+  }
+
+  /// Lật tới trang `pageIndex` (đếm từ 0) trong trình xem HWP.
+  ///
+  /// Dùng được cả khi **không** ở chế độ sửa: trình xem chỉ dựng đúng một trang
+  /// mỗi lúc, nên đây là đường duy nhất để đọc phần còn lại của tài liệu.
+  /// Chỉ số ngoài phạm vi bị kẹp về đầu hoặc cuối chứ không báo lỗi.
+  Future<void> hwpGoToPage(int pageIndex) async {
+    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpGoToPage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndex]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     _extractReplyValueOrThrow(
@@ -2825,6 +3275,12 @@ abstract class PdfPocFlutterApi {
   void onDocumentForViewingPicked(PdfViewableDocument document);
 
   void onDocumentForViewingCancelled();
+
+  /// Con trỏ, vùng chọn hoặc nội dung trong trình soạn thảo HWP vừa đổi.
+  void onHwpEditorStateChanged(HwpEditorState state);
+
+  /// Một lần ghi tài liệu HWP đã xong — thành công hay không.
+  void onHwpEditsSaved(HwpSaveResult result);
 
   void onOperationFailed(String operationId, String code, String message, String? details);
 
@@ -3258,6 +3714,48 @@ abstract class PdfPocFlutterApi {
         pigeonVar_channel.setMessageHandler((Object? message) async {
           try {
             api.onDocumentForViewingCancelled();
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onHwpEditorStateChanged$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final HwpEditorState arg_state = args[0]! as HwpEditorState;
+          try {
+            api.onHwpEditorStateChanged(arg_state);
+            return wrapResponse(empty: true);
+          } on PlatformException catch (e) {
+            return wrapResponse(error: e);
+          }          catch (e) {
+            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          }
+        });
+      }
+    }
+    {
+      final pigeonVar_channel = BasicMessageChannel<Object?>(
+          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onHwpEditsSaved$messageChannelSuffix', pigeonChannelCodec,
+          binaryMessenger: binaryMessenger);
+      if (api == null) {
+        pigeonVar_channel.setMessageHandler(null);
+      } else {
+        pigeonVar_channel.setMessageHandler((Object? message) async {
+          final List<Object?> args = message! as List<Object?>;
+          final HwpSaveResult arg_result = args[0]! as HwpSaveResult;
+          try {
+            api.onHwpEditsSaved(arg_result);
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);

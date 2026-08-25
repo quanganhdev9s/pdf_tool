@@ -1,0 +1,459 @@
+diff --git a/src/renderer/composer/line_breaking.rs b/src/renderer/composer/line_breaking.rs
+index cdccfaae..c6e73aa5 100644
+--- a/src/renderer/composer/line_breaking.rs
++++ b/src/renderer/composer/line_breaking.rs
+@@ -11,7 +11,7 @@ use crate::renderer::layout::{
+     estimate_text_width, estimate_text_width_unrounded, is_cjk_char, resolved_to_text_style,
+     stale_split_hanyang_shinmyeongjo_space_width,
+ };
+-use crate::renderer::px_to_hwpunit;
++use crate::renderer::{hwpunit_to_px, px_to_hwpunit};
+ use crate::renderer::style_resolver::{detect_lang_category, ResolvedStyleSet};
+ 
+ /// 줄 나눔 토큰
+@@ -669,6 +669,9 @@ fn fill_lines(
+     tokens: &[BreakToken],
+     text_chars: &[char],
+     available_width_px: f64,
++    // 줄별 가용 폭 (px). 비어 있으면 모든 줄이 `available_width_px` 를 쓴다 —
++    // 종전 동작. 그림 옆으로 흐르는 문단처럼 줄마다 폭이 다를 때만 채운다.
++    line_widths_px: &[f64],
+     indent_px: f64,
+     default_tab_width: f64,
+     korean_break_unit: u8,
+@@ -708,21 +711,30 @@ fn fill_lines(
+     let mut space_savings_at_last_break = 0i32;
+     let mut fs_at_last_break = 0.0f64;
+ 
+-    let eff_w = |first: bool| -> i32 {
++    // `results.len()` 은 지금까지 확정된 줄 수 = 지금 채우고 있는 줄의 인덱스.
++    let base_w = |line_idx: usize| -> f64 {
++        line_widths_px
++            .get(line_idx)
++            .copied()
++            .filter(|w| *w > 0.0)
++            .unwrap_or(available_width_px)
++    };
++    let eff_w_at = |first: bool, line_idx: usize| -> i32 {
++        let w = base_w(line_idx);
+         if indent_px > 0.0 {
+             if first {
+-                to_hwp((available_width_px - indent_px).max(1.0))
++                to_hwp((w - indent_px).max(1.0))
+             } else {
+-                to_hwp(available_width_px)
++                to_hwp(w)
+             }
+         } else if indent_px < 0.0 {
+             if first {
+-                to_hwp(available_width_px)
++                to_hwp(w)
+             } else {
+-                to_hwp((available_width_px + indent_px).max(1.0))
++                to_hwp((w + indent_px).max(1.0))
+             }
+         } else {
+-            to_hwp(available_width_px)
++            to_hwp(w)
+         }
+     };
+ 
+@@ -751,7 +763,7 @@ fn fill_lines(
+                     line_max_fs = *max_font_size;
+                 }
+ 
+-                if next_tab_hwp > eff_w(is_first_line) && line_start_idx < *idx {
++                if next_tab_hwp > eff_w_at(is_first_line, results.len()) && line_start_idx < *idx {
+                     if let Some(_) = last_break_token_idx {
+                         results.push(LineBreakResult {
+                             start_idx: line_start_idx,
+@@ -833,7 +845,7 @@ fn fill_lines(
+                     // 이 글자가 줄에 들어가는 경우에만 break point 갱신
+                     if allow_break
+                         && condensed_line_width_hwp(candidate_w, line_space_savings)
+-                            <= eff_w(is_first_line) + LINE_BREAK_TOLERANCE
++                            <= eff_w_at(is_first_line, results.len()) + LINE_BREAK_TOLERANCE
+                     {
+                         last_break_token_idx = Some(ti);
+                         last_break_char_idx = *end_idx; // 이 글자 다음 (이 글자 포함)
+@@ -842,7 +854,7 @@ fn fill_lines(
+                         fs_at_last_break = line_max_fs;
+                     }
+                 }
+-                let effective_width = eff_w(is_first_line);
++                let effective_width = eff_w_at(is_first_line, results.len());
+                 if !text_token_fits_line_hwp(
+                     lw,
+                     w_hwp,
+@@ -889,7 +901,7 @@ fn fill_lines(
+                                 lw,
+                                 w_hwp,
+                                 line_space_savings,
+-                                eff_w(false),
++                                eff_w_at(false, results.len()),
+                                 *max_font_size,
+                             ) {
+                                 lw += w_hwp;
+@@ -906,8 +918,8 @@ fn fill_lines(
+                         &mut line_start_idx,
+                         lw,
+                         line_max_fs,
+-                        eff_w(is_first_line),
+-                        eff_w(false),
++                        eff_w_at(is_first_line, results.len()),
++                        eff_w_at(false, results.len()),
+                         is_first_line,
+                         &cw_hwp,
+                     );
+@@ -1281,17 +1293,145 @@ fn reflow_line_segs_impl(
+         .unwrap_or(LineSpacingType::Percent);
+     let ls_value = para_style.map(|s| s.line_spacing).unwrap_or(160.0);
+ 
++    // 문단 대표 폰트의 줄 높이 비율.
++    //
++    // `line_height` 는 폰트 크기가 아니라 폰트의 세로 메트릭에서 나온다. 한컴
++    // 저장본 실측: Arial 문단은 font_size=1100 에 line_height=1265 (=1.15배),
++    // 한글 폰트 문단은 1100 에 1100 (=1.0배). 종전에는 항상 1.0 이라 Arial
++    // 본문 문서가 편집 직후 줄 간격이 13% 줄고 쪽수까지 줄었다.
++    //
++    // 한 문단이 폰트를 섞어 쓰면 한컴은 줄마다 가장 큰 값을 쓰지만 BreakToken 이
++    // 폰트 이름을 나르지 않아 여기서는 문단 첫 글자의 폰트로 근사한다. 단일 폰트
++    // 문단(대부분)에서는 저장본과 정확히 일치한다.
++    // 반드시 **글자의 언어 계열**로 폰트를 골라야 한다. 하나의 char shape 안에
++    // 한글/라틴/한자용 폰트가 따로 들어있어서, 계열을 고정하면 엉뚱한 폰트를 본다
++    // — 실제로 계열 0 이 "SimSun" 인데 본문은 Arial 인 문서가 있다.
++    let (line_ratio, baseline_ratio) = {
++        // 계열별 글자 수를 세어 **가장 많은 계열**의 폰트를 쓴다.
++        //
++        // 문단 전체의 최댓값을 쓰면 한글 문단에 라틴 몇 글자가 섞였을 때 그 몇
++        // 글자의 폰트가 문단 전체 줄 높이를 끌어올린다 — 실측에서 한 문서의
++        // 630 문단 중 11 개가 그렇게 저장본과 어긋났다. 지배 계열을 쓰면 그
++        // 문서는 종전 그대로 두면서 라틴 본문 문서만 고쳐진다.
++        let mut counts: [usize; 8] = [0; 8];
++        let mut first_pos: [u32; 8] = [0; 8];
++        for (i, c) in para.text.chars().enumerate() {
++            if is_lang_neutral(c) {
++                continue;
++            }
++            let lang = detect_lang_category(c);
++            if lang >= counts.len() {
++                continue;
++            }
++            let utf16_pos = para.char_offsets.get(i).copied().unwrap_or(i as u32);
++            if counts[lang] == 0 {
++                first_pos[lang] = utf16_pos;
++            }
++            counts[lang] += 1;
++        }
++        match counts
++            .iter()
++            .enumerate()
++            .filter(|(_, n)| **n > 0)
++            .max_by_key(|(_, n)| **n)
++        {
++            Some((lang, _)) => {
++                let style_id = find_active_char_shape(&para.char_shapes, first_pos[lang]);
++                let ts = resolved_to_text_style(styles, style_id, lang);
++                (
++                    crate::renderer::font_line_metrics::line_height_ratio(&ts.font_family),
++                    crate::renderer::font_line_metrics::baseline_ratio(&ts.font_family),
++                )
++            }
++            None => (
++                crate::renderer::font_line_metrics::DEFAULT_LINE_HEIGHT_RATIO,
++                crate::renderer::font_line_metrics::DEFAULT_BASELINE_RATIO,
++            ),
++        }
++    };
++
++    // Bề rộng từng dòng, lấy từ lineseg mà Hancom đã lưu.
++    //
++    // Chữ né ảnh nằm sẵn trong dữ liệu: một dòng thị giác cạnh ảnh được lưu
++    // thành **nhiều đoạn** cùng `vertical_pos`, mỗi đoạn có `column_start` và
++    // `segment_width` riêng. Thực đo trên một tệp có ảnh `wrap=square`: 7 dòng
++    // đầu là cặp (30185 bên trái ảnh + 586 khe phải), 3 dòng cuối nguyên bề
++    // ngang 48188. Reflow cũ ném hết đi và ngắt mọi dòng theo một bề rộng
++    // phẳng, nên chữ chạy xuyên qua ảnh và đoạn tụt từ 17 đoạn xuống 9.
++    //
++    // Gộp theo `vertical_pos` rồi lấy đoạn rộng nhất của mỗi dòng: khe hẹp bên
++    // kia ảnh chứa được rất ít chữ, nên bề rộng chính là thứ quyết định ngắt
++    // dòng.
++    //
++    // **Chỉ dùng khi các dòng thật sự khác bề rộng nhau.** Đoạn bình thường có
++    // mọi dòng bằng nhau và giữ nguyên đường cũ — điều kiện này giữ cho thay
++    // đổi không đụng tới tài liệu không có vật cản.
++    // Bề rộng từng dòng, lấy từ lineseg mà Hancom đã lưu.
++    //
++    // Việc chữ né ảnh nằm sẵn trong dữ liệu: một dòng thị giác cạnh ảnh được
++    // lưu thành nhiều đoạn cùng `vertical_pos` — phần rộng bên trái ảnh và một
++    // khe hẹp bên phải. Reflow cũ ném hết đi và ngắt mọi dòng theo một bề rộng
++    // phẳng, nên chữ chạy xuyên qua ảnh (đo được: mép phải 467 → 676).
++    //
++    // Gộp theo `vertical_pos` và lấy đoạn rộng nhất. Đã thử mô hình đầy đủ —
++    // cấp cho khe hẹp một ô chữ riêng — và **sai**: khe 586 HWPUNIT (≈5.9pt)
++    // chứa gần như không được chữ nào, bộ ngắt dòng sinh ra hàng loạt đoạn tí
++    // hon và số đoạn dao động 29 ↔ 21 qua mỗi lần sửa. Bề rộng lớn mới là thứ
++    // quyết định ngắt dòng.
++    //
++    // **Chỉ dùng khi các dòng thật sự khác bề rộng nhau** — đoạn bình thường
++    // giữ nguyên đường cũ, nên thay đổi này không đụng tới tài liệu không có
++    // vật cản (đo được: 4.5% số đoạn nhiều dòng đi vào đường mới).
++    // Giữ `column_start` và `segment_width` của từng dòng từ lineseg đã lưu.
++    //
++    // `column_start` là phần thụt ngang, và với nhiều tài liệu nó **chỉ nằm ở
++    // lineseg** — `marginLeft`/`indent` trong paraShape vẫn bằng 0. Dựng seg mới
++    // bằng `..Default::default()` là đặt nó về 0, và cả đoạn nhảy về lề trái
++    // (thực đo: 153.2px → 75.6px). Nên luôn khôi phục, không kèm điều kiện.
++    let mut line_starts_hwp: Vec<i32> = Vec::new();
++    let line_widths_px: Vec<f64> = {
++        // Gộp theo `vertical_pos`, giữ đoạn rộng nhất của mỗi dòng thị giác.
++        let mut lines: Vec<(i32, i32, i32)> = Vec::new(); // (vpos, column_start, width)
++        for seg in para.line_segs.iter() {
++            if seg.segment_width <= 0 {
++                continue;
++            }
++            match lines.last_mut() {
++                Some((vpos, start, w)) if *vpos == seg.vertical_pos => {
++                    if seg.segment_width > *w {
++                        *w = seg.segment_width;
++                        *start = seg.column_start;
++                    }
++                }
++                _ => lines.push((seg.vertical_pos, seg.column_start, seg.segment_width)),
++            }
++        }
++        line_starts_hwp = lines.iter().map(|(_, start, _)| *start).collect();
++
++        // Bề rộng thì chỉ dùng khi các dòng **khác nhau** — dấu hiệu chữ đang né
++        // vật cản. Đoạn thường giữ nguyên đường cũ. Đã thử cấp cho khe hẹp bên
++        // kia ảnh một ô chữ riêng và **sai**: số đoạn dao động qua mỗi lần sửa.
++        let varies = lines.windows(2).any(|p| p[0].2 != p[1].2);
++        if varies {
++            lines.iter().map(|(_, _, w)| hwpunit_to_px(*w, dpi)).collect()
++        } else {
++            Vec::new()
++        }
++    };
++
+     // 줄별 max_font_size에 따라 line_height/text_height/baseline_distance를 계산
+     // 한컴은 줄마다 최대 폰트 크기에 맞게 다른 치수를 사용
+-    let make_line_seg = |utf16_start: u32, max_font_size: f64| -> LineSeg {
++    let make_line_seg = |utf16_start: u32, max_font_size: f64, line_idx: Option<usize>| -> LineSeg {
+         let fs = if max_font_size > 0.0 {
+             max_font_size
+         } else {
+             12.0
+         };
+-        let line_height_hwp = font_size_to_line_height(fs, dpi);
++        // line_spacing 은 이 값에서 파생되므로(Percent) 여기만 고치면 advance 까지
++        // 저장본과 맞는다: 1265 + 632 = 1897 — 한컴 실측과 동일.
++        let line_height_hwp = font_size_to_line_height(fs * line_ratio, dpi);
+         let text_height_hwp = line_height_hwp;
+-        let baseline_distance_hwp = (line_height_hwp as f64 * 0.85) as i32;
++        let baseline_distance_hwp = (line_height_hwp as f64 * baseline_ratio) as i32;
+         let line_spacing_hwp = compute_line_spacing_hwp(ls_type, ls_value, line_height_hwp, dpi);
+         // [Task #1811] 원본 linesegarray 부재(orig=None) 시 합성 seg 에 구현속성
+         // 태그를 부여 — vpos 보정 등에서 실제 저장 증거와 구분한다 (컨버터의
+@@ -1306,7 +1446,18 @@ fn reflow_line_segs_impl(
+             text_height: text_height_hwp,
+             baseline_distance: baseline_distance_hwp,
+             line_spacing: line_spacing_hwp,
+-            segment_width: seg_width_hwp,
++            // Ghi lại bề rộng riêng của dòng này, nếu không lần reflow sau
++            // thấy mọi dòng bằng nhau và đánh mất việc né ảnh.
++            segment_width: line_idx
++                .and_then(|i| line_widths_px.get(i))
++                .map(|w| px_to_hwpunit(*w, dpi))
++                .unwrap_or(seg_width_hwp),
++            // Dòng vượt quá số dòng đã lưu thì lấy theo dòng cuối, không về 0 —
++            // đoạn thụt lề mà thêm dòng thì dòng mới cũng phải thụt như vậy.
++            column_start: line_idx
++                .and_then(|i| line_starts_hwp.get(i).or_else(|| line_starts_hwp.last()))
++                .copied()
++                .unwrap_or(0),
+             tag: if orig_tag != 0 {
+                 orig_tag
+             } else {
+@@ -1346,7 +1497,7 @@ fn reflow_line_segs_impl(
+             for (line_idx, (start_pos, _line_width, height_hwp)) in
+                 line_specs.into_iter().enumerate()
+             {
+-                let mut seg = make_line_seg(start_pos as u32, 0.0);
++                let mut seg = make_line_seg(start_pos as u32, 0.0, None);
+                 if let Some(template) = orig_line_segs
+                     .get(line_idx)
+                     .or_else(|| orig_line_segs.first())
+@@ -1382,7 +1533,7 @@ fn reflow_line_segs_impl(
+                 .and_then(|char_shape| styles.char_styles.get(char_shape.char_shape_id as usize))
+                 .map(|style| style.font_size)
+                 .unwrap_or(12.0);
+-            let mut seg = make_line_seg(0, font_size);
++            let mut seg = make_line_seg(0, font_size, None);
+             if let Some(template) = orig.as_ref() {
+                 seg.vertical_pos = template.vertical_pos;
+             }
+@@ -1493,6 +1644,7 @@ fn reflow_line_segs_impl(
+         &tokens[token_start..],
+         &text_chars,
+         available_width_px,
++        &line_widths_px,
+         indent_px,
+         tab_width,
+         korean_break_unit,
+@@ -1526,7 +1678,7 @@ fn reflow_line_segs_impl(
+         } else {
+             12.0
+         };
+-        let mut text_seg = make_line_seg(utf16_start, fs);
++        let mut text_seg = make_line_seg(utf16_start, fs, Some(line_idx));
+         if forced_inline_line.is_some_and(|(position, _)| position == lb.start_idx) {
+             let (_, height_hwp) = forced_inline_line.expect("checked inline control");
+             apply_inline_control_line_height(&mut text_seg, height_hwp);
+@@ -1543,14 +1695,14 @@ fn reflow_line_segs_impl(
+         });
+         if control_after_text {
+             let (position, height_hwp) = forced_inline_line.expect("checked inline control");
+-            let mut control_seg = make_line_seg(char_index_to_utf16_offset(para, position), fs);
++            let mut control_seg = make_line_seg(char_index_to_utf16_offset(para, position), fs, None);
+             apply_inline_control_line_height(&mut control_seg, height_hwp);
+             new_line_segs.push(control_seg);
+         }
+     }
+ 
+     if new_line_segs.is_empty() {
+-        new_line_segs.push(make_line_seg(0, 12.0));
++        new_line_segs.push(make_line_seg(0, 12.0, None));
+     }
+ 
+     if forced_inline_line.is_none() {
+@@ -1861,3 +2013,4 @@ mod utf16_offset_tests {
+         assert_eq!(char_index_to_utf16_offset(&para, 2), 3);
+     }
+ }
++
+diff --git a/src/renderer/font_line_metrics.rs b/src/renderer/font_line_metrics.rs
+new file mode 100644
+index 00000000..c75eeb07
+--- /dev/null
++++ b/src/renderer/font_line_metrics.rs
+@@ -0,0 +1,108 @@
++//! 폰트별 줄 높이 비율 (line_height / font_size).
++//!
++//! # 배경
++//!
++//! `LineSeg.line_height` 는 폰트 크기가 아니라 폰트의 세로 메트릭에서 나온다:
++//!
++//! ```text
++//! line_height = font_size * (hhea.ascender - hhea.descender + hhea.lineGap) / unitsPerEm
++//! ```
++//!
++//! 한컴이 저장한 실제 파일에서 측정한 값이 이 식과 일치한다:
++//!
++//! | 폰트 | 식이 주는 값 | 저장본 실측 |
++//! |---|---|---|
++//! | Arial (asc 1854, desc -434, gap 67, em 2048) | 1.1499 | 1.1500 |
++//! | 한글 계열 (asc 800, desc -200, gap 0, em 1000) | 1.0000 | 1.0000 |
++//!
++//! 종전 구현은 이 비율을 항상 1.0 으로 두었다. 한글 폰트 문서는 우연히 맞았지만
++//! Arial 본문 문서는 편집 직후 줄 간격이 13% 줄어들고 쪽수가 함께 줄었다.
++//!
++//! # 기본값이 1.0 인 이유
++//!
++//! `font_metrics_data.rs` 는 자동 생성물이라 세로 메트릭이 없다. 표에 없는 폰트는
++//! 종전 동작(1.0)을 그대로 유지해 회귀를 만들지 않는다. `font-metric-gen` 이
++//! hhea 세로 메트릭까지 뽑도록 확장되면 이 표는 생성물로 대체될 수 있다.
++
++/// 표에 없는 폰트의 기본 비율 — 종전 동작과 동일하다.
++pub const DEFAULT_LINE_HEIGHT_RATIO: f64 = 1.0;
++
++/// 표에 없는 폰트의 기본 baseline 비율 — 종전 하드코딩 값과 동일하다.
++pub const DEFAULT_BASELINE_RATIO: f64 = 0.85;
++
++/// (폰트 이름, ascender, descender, lineGap, unitsPerEm)
++///
++/// 값은 각 폰트의 hhea 테이블 공표값이다. 이름 비교는 대소문자를 무시한다.
++const HHEA_METRICS: &[(&str, i32, i32, i32, i32)] = &[
++    ("Arial", 1854, -434, 67, 2048),
++    ("Arial Black", 2254, -634, 0, 2048),
++    ("Arial Narrow", 1854, -434, 67, 2048),
++    ("Helvetica", 1577, -471, 0, 2048),
++    ("Times New Roman", 1825, -443, 87, 2048),
++    ("Courier New", 1705, -615, 0, 2048),
++    ("Verdana", 2059, -430, 0, 2048),
++    ("Tahoma", 2049, -423, 0, 2048),
++    ("Georgia", 1878, -449, 0, 2048),
++    ("Calibri", 1536, -512, 442, 2048),
++    ("Cambria", 1946, -486, 0, 2048),
++    ("Segoe UI", 2210, -514, 0, 2048),
++];
++
++fn lookup(font_family: &str) -> Option<(i32, i32, i32, i32)> {
++    let name = font_family.trim();
++    if name.is_empty() {
++        return None;
++    }
++    HHEA_METRICS
++        .iter()
++        .find(|(font, ..)| name.eq_ignore_ascii_case(font))
++        .filter(|(_, _, _, _, em)| *em > 0)
++        .map(|(_, asc, desc, gap, em)| (*asc, *desc, *gap, *em))
++}
++
++/// 폰트 이름으로 줄 높이 비율을 구한다. 모르는 폰트는
++/// [`DEFAULT_LINE_HEIGHT_RATIO`].
++pub fn line_height_ratio(font_family: &str) -> f64 {
++    match lookup(font_family) {
++        Some((asc, desc, gap, em)) => (asc - desc + gap) as f64 / em as f64,
++        None => DEFAULT_LINE_HEIGHT_RATIO,
++    }
++}
++
++/// `baseline_distance / line_height` — 줄 상단에서 baseline 까지의 비율.
++///
++/// 한컴 저장본 실측(Arial, line_height 1265): baseline 1032 → 0.8158.
++/// `(ascender + lineGap) / (ascender - descender + lineGap)` = 0.8157 로 일치한다.
++/// 종전 하드코딩 0.85 는 이 폰트에서 baseline 을 43 HWPUNIT 아래로 밀었다.
++pub fn baseline_ratio(font_family: &str) -> f64 {
++    match lookup(font_family) {
++        Some((asc, desc, gap, _)) => {
++            let lh = asc - desc + gap;
++            if lh <= 0 {
++                DEFAULT_BASELINE_RATIO
++            } else {
++                (asc + gap) as f64 / lh as f64
++            }
++        }
++        None => DEFAULT_BASELINE_RATIO,
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn arial_matches_hancom_stored_line_height() {
++        // 한컴 저장본 실측 1.1500 — 소수 셋째 자리까지 일치해야 한다.
++        assert!((line_height_ratio("Arial") - 1.15).abs() < 0.001);
++        // 이름 대소문자는 무시한다.
++        assert!((line_height_ratio("ARIAL") - 1.15).abs() < 0.001);
++    }
++
++    #[test]
++    fn unknown_font_keeps_previous_behaviour() {
++        assert_eq!(line_height_ratio("함초롬바탕"), DEFAULT_LINE_HEIGHT_RATIO);
++        assert_eq!(line_height_ratio(""), DEFAULT_LINE_HEIGHT_RATIO);
++    }
++}
+diff --git a/src/renderer/mod.rs b/src/renderer/mod.rs
+index 185a55cf..3bdf1f7c 100644
+--- a/src/renderer/mod.rs
++++ b/src/renderer/mod.rs
+@@ -14,6 +14,7 @@ pub mod composer;
+ pub mod equation;
+ pub(crate) mod equation_tac_flow;
+ pub mod float_placement;
++pub mod font_line_metrics;
+ pub mod font_metrics_data;
+ #[cfg(not(target_arch = "wasm32"))]
+ pub mod font_paths;

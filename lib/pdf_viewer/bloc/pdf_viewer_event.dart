@@ -234,9 +234,6 @@ final class PdfViewerCancelMergeRequested extends PdfViewerEvent {
   const PdfViewerCancelMergeRequested();
 }
 
-
-
-
 final class PdfViewerPickFileForPdfConversionRequested extends PdfViewerEvent {
   const PdfViewerPickFileForPdfConversionRequested({
     required this.pageSize,
@@ -273,6 +270,20 @@ final class PdfViewerNativeDocumentForViewingPicked extends PdfViewerEvent {
 
 final class PdfViewerNativeDocumentForViewingCancelled extends PdfViewerEvent {
   const PdfViewerNativeDocumentForViewingCancelled();
+}
+
+/// Con trỏ, vùng chọn hoặc nội dung trong trình soạn thảo HWP vừa đổi.
+final class PdfViewerNativeHwpEditorStateChanged extends PdfViewerEvent {
+  const PdfViewerNativeHwpEditorStateChanged(this.state);
+
+  final HwpEditorState state;
+}
+
+/// Một lần ghi tài liệu HWP đã xong.
+final class PdfViewerNativeHwpEditsSaved extends PdfViewerEvent {
+  const PdfViewerNativeHwpEditsSaved(this.result);
+
+  final HwpSaveResult result;
 }
 
 final class PdfViewerCancelPdfConversionRequested extends PdfViewerEvent {
@@ -456,8 +467,6 @@ final class PdfViewerNativeMergeCompleted extends PdfViewerEvent {
   final PdfMergeResult? result;
   final bool cancelled;
 }
-
-
 
 final class PdfViewerNativePdfConversionProgress extends PdfViewerEvent {
   const PdfViewerNativePdfConversionProgress({

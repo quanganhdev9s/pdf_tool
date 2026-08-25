@@ -160,8 +160,16 @@ enum HwpFileType {
 final class HwpViewerLogRelay: NSObject, WKScriptMessageHandler {
   static let name = "hwpViewer"
 
-  /// Bytes của tài liệu sau khi sửa, đã giải base64.
-  var onExported: ((Data) -> Void)?
+  /// Bytes của tài liệu sau khi sửa, kèm báo cáo phần nội dung trình xuất phải
+  /// bỏ đi. Báo cáo rỗng nghĩa là không mất gì.
+  var onExported: ((Data, String) -> Void)?
+
+  /// Trình soạn thảo không dựng nổi tệp. Chưa có gì được ghi xuống đĩa.
+  var onExportFailed: ((String) -> Void)?
+
+  /// Trạng thái con trỏ/vùng chọn, nguyên văn JSON. Swift không đọc vào trong:
+  /// hình dạng của nó thuộc về trang vỏ và Flutter, không thuộc về đây.
+  var onStateChanged: ((String) -> Void)?
 
   func userContentController(
     _ controller: WKUserContentController,
@@ -176,10 +184,20 @@ final class HwpViewerLogRelay: NSObject, WKScriptMessageHandler {
       // Không log payload: đây là cả tệp dưới dạng base64.
       guard let detail, let data = Data(base64Encoded: detail) else {
         logPdfEvent("hwp_editor_export_decode_failed", nil)
+        onExportFailed?("The editor produced a payload that could not be decoded.")
         return
       }
-      logPdfEvent("hwp_editor_export_received", "bytes=\(data.count)")
-      onExported?(data)
+      let loss = body["contentLoss"] as? String ?? ""
+      logPdfEvent("hwp_editor_export_received", "bytes=\(data.count) loss=\(loss.count)")
+      onExported?(data, loss)
+    case "hwp_editor_export_failed":
+      logPdfEvent(event, detail)
+      onExportFailed?(detail ?? "The editor could not build the file.")
+    case "hwp_editor_state":
+      // Không log: nó bắn ra sau mỗi lần con trỏ nhúc nhích và sẽ nhấn chìm
+      // mọi dòng log khác.
+      guard let detail else { return }
+      onStateChanged?(detail)
     default:
       logPdfEvent(event, detail)
     }

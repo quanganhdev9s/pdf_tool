@@ -31,6 +31,21 @@ final class PdfDocumentViewerPlatformView: NSObject, FlutterPlatformView {
   }
 }
 
+/// Những gì trình soạn thảo HWP muốn nói ngược ra ngoài. `PdfPocRuntime` nhận
+/// và chuyển tiếp sang Flutter — view này không biết gì về Pigeon.
+protocol PdfDocumentViewerViewDelegate: AnyObject {
+  /// Con trỏ, vùng chọn hoặc nội dung vừa đổi. `json` là nguyên văn từ trang
+  /// vỏ.
+  func documentViewer(_ view: PdfDocumentViewerView, didChangeEditorState json: String)
+
+  /// Một lần ghi tài liệu đã xong. `contentLoss` rỗng nghĩa là không mất gì.
+  func documentViewer(
+    _ view: PdfDocumentViewerView,
+    didSaveEditsWith error: String?,
+    contentLoss: String
+  )
+}
+
 /// Renders a picked Office, iWork, or PDF file inside the Flutter layout with
 /// `WKWebView`, the only native iOS renderer that understands those formats.
 ///
@@ -50,6 +65,11 @@ final class PdfDocumentViewerView: UIView {
   /// Tài liệu đang mở trong trình soạn thảo, nếu có. `nil` là đang chỉ xem.
   private var editingURL: URL?
 
+  weak var delegate: PdfDocumentViewerViewDelegate?
+
+  /// Theo dõi bàn phím để đẩy chiều cao của nó xuống trang vỏ.
+  private var keyboardObservers: [NSObjectProtocol] = []
+
   override init(frame: CGRect) {
     let configuration = WKWebViewConfiguration()
     configuration.userContentController.addUserScript(Self.searchHighlightScript())
@@ -62,6 +82,13 @@ final class PdfDocumentViewerView: UIView {
     super.init(frame: frame)
     configureRelay()
     configureSubviews()
+    observeKeyboard()
+  }
+
+  deinit {
+    for observer in keyboardObservers {
+      NotificationCenter.default.removeObserver(observer)
+    }
   }
 
   required init?(coder: NSCoder) {
@@ -85,6 +112,8 @@ final class PdfDocumentViewerView: UIView {
       )
     }
     loadedURL = sourceURL
+    // Nạp tệp khác là trang vỏ mới: chế độ sửa của tệp cũ không còn nữa.
+    editingURL = nil
     showMessage(nil)
     activityIndicator.startAnimating()
     logPdfEvent("document_viewer_load", "file=\(sourceURL.lastPathComponent)")
@@ -188,13 +217,72 @@ final class PdfDocumentViewerView: UIView {
       editing ? "hwp_editor_open" : "hwp_editor_close",
       "file=\(loadedURL.lastPathComponent)"
     )
-    webView.evaluateJavaScript(
-      "window.__rhwpSetEditing(\(editing))", completionHandler: nil
-    )
+    runEditor("setEditing(\(editing))")
   }
 
   /// Yêu cầu trang soạn thảo xuất tài liệu. Kết quả về bất đồng bộ qua relay.
   func saveEdits() throws {
+    try requireEditor()
+    logPdfEvent("hwp_editor_save_request")
+    runEditor("export()")
+  }
+
+  /// Áp định dạng chữ lên vùng đang chọn, hoặc giữ lại cho đoạn gõ tiếp theo.
+  func applyCharFormat(_ format: HwpCharFormat) throws {
+    try requireEditor()
+    var props: [String: Any] = [:]
+    if let bold = format.bold { props["bold"] = bold }
+    if let italic = format.italic { props["italic"] = italic }
+    if let underline = format.underline { props["underline"] = underline }
+    if let strikethrough = format.strikethrough { props["strikethrough"] = strikethrough }
+    // Cỡ chữ đi qua bằng **điểm**; trang vỏ đổi sang HWPUNIT. Đơn vị của định
+    // dạng tệp không nên rò ra tới đây.
+    if let fontSizePt = format.fontSizePt { props["fontSizePt"] = fontSizePt }
+    guard !props.isEmpty else { return }
+    logPdfEvent("hwp_char_format", props.keys.sorted().joined(separator: ","))
+    runEditor("applyCharFormat(\(Self.jsString(props)))")
+  }
+
+  /// Áp định dạng lên các đoạn mà con trỏ hoặc vùng chọn chạm tới.
+  func applyParaFormat(_ format: HwpParaFormat) throws {
+    try requireEditor()
+    var props: [String: Any] = [:]
+    if let alignment = format.alignment { props["alignment"] = alignment }
+    if let lineSpacing = format.lineSpacing { props["lineSpacing"] = lineSpacing }
+    guard !props.isEmpty else { return }
+    logPdfEvent("hwp_para_format", props.keys.sorted().joined(separator: ","))
+    runEditor("applyParaFormat(\(Self.jsString(props)))")
+  }
+
+  /// Chiều cao phần giao diện Flutter đang phủ lên đáy web view.
+  ///
+  /// Không đi qua `requireEditor()`: Flutter báo số 0 khi rời chế độ sửa, và
+  /// lúc đó `editingURL` đã là nil rồi — chặn ở đây thì phần chừa chỗ không
+  /// bao giờ được trả lại.
+  func setChromeInset(_ pixels: Double) {
+    runEditor("setChromeInset(\(Int(pixels.rounded())))")
+  }
+
+  func undoEdit() throws {
+    try requireEditor()
+    runEditor("undo()")
+  }
+
+  func redoEdit() throws {
+    try requireEditor()
+    runEditor("redo()")
+  }
+
+  /// Lật trang trong trình xem HWP.
+  ///
+  /// Cố tình **không** gọi `requireEditor()`: trang vỏ chỉ dựng một trang mỗi
+  /// lúc, nên lật trang là việc của cả chế độ chỉ xem. `runEditor` dùng optional
+  /// chaining nên khi trang vỏ chưa gắn xong thì đây chỉ là lệnh rỗng.
+  func goToPage(_ pageIndex: Int64) {
+    runEditor("goToPage(\(pageIndex))")
+  }
+
+  private func requireEditor() throws {
     guard editingURL != nil else {
       throw PdfPocError(
         code: "document_not_open",
@@ -202,24 +290,96 @@ final class PdfDocumentViewerView: UIView {
         details: nil
       )
     }
-    logPdfEvent("hwp_editor_save_request")
-    webView.evaluateJavaScript("window.__rhwpExport()", completionHandler: nil)
+  }
+
+  private func runEditor(_ call: String) {
+    webView.evaluateJavaScript("window.__rhwpEditor?.\(call)", completionHandler: nil)
+  }
+
+  /// Một literal chuỗi JavaScript chứa JSON.
+  ///
+  /// Nối chuỗi vào `evaluateJavaScript` bằng tay là chỗ dễ hỏng nhất; để
+  /// `JSONSerialization` lo phần thoát ký tự, rồi bọc kết quả lại thành một
+  /// chuỗi JS cũng bằng `JSONSerialization`.
+  private static func jsString(_ value: [String: Any]) -> String {
+    guard let data = try? JSONSerialization.data(withJSONObject: value),
+          let json = String(data: data, encoding: .utf8),
+          let quoted = try? JSONSerialization.data(
+            withJSONObject: [json], options: .fragmentsAllowed
+          ),
+          let wrapped = String(data: quoted, encoding: .utf8) else {
+      return "\"{}\""
+    }
+    // `wrapped` là `["…"]`; bỏ hai ngoặc vuông là còn đúng literal chuỗi.
+    return String(wrapped.dropFirst().dropLast())
   }
 
   private func configureRelay() {
-    relay.onExported = { [weak self] data in
-      guard let self, let url = self.editingURL else { return }
+    relay.onExported = { [weak self] data, contentLoss in
+      guard let self else { return }
+      guard let url = self.editingURL else {
+        self.reportSave(error: "The HWP editor closed before the file could be written.")
+        return
+      }
       do {
         // Ghi qua tệp tạm rồi thay chỗ: hỏng giữa chừng thì bản cũ vẫn nguyên.
         let scratch = url.deletingLastPathComponent()
           .appendingPathComponent("hwp-save-\(UUID().uuidString).tmp")
         try data.write(to: scratch, options: .atomic)
         _ = try FileManager.default.replaceItemAt(url, withItemAt: scratch)
-        logPdfEvent("hwp_editor_saved", "file=\(url.lastPathComponent) bytes=\(data.count)")
+        logPdfEvent(
+          "hwp_editor_saved",
+          "file=\(url.lastPathComponent) bytes=\(data.count) loss=\(contentLoss.count)"
+        )
+        self.reportSave(error: nil, contentLoss: contentLoss)
       } catch {
         logPdfEvent("hwp_editor_save_failed", "error=\(error)")
+        self.reportSave(error: error.localizedDescription)
       }
     }
+
+    relay.onExportFailed = { [weak self] message in
+      self?.reportSave(error: message)
+    }
+
+    relay.onStateChanged = { [weak self] json in
+      guard let self else { return }
+      self.delegate?.documentViewer(self, didChangeEditorState: json)
+    }
+  }
+
+  /// Kết quả lưu phải đi tới tận UI. Trước đây nó chỉ vào log, nên "ghi hỏng"
+  /// và "ghi xong" trông y hệt nhau trên màn hình.
+  private func reportSave(error: String?, contentLoss: String = "") {
+    delegate?.documentViewer(self, didSaveEditsWith: error, contentLoss: contentLoss)
+  }
+
+  /// Màn hình Flutter đặt `resizeToAvoidBottomInset: false`, nên web view giữ
+  /// nguyên chiều cao khi bàn phím lên và con trỏ dễ nằm khuất dưới nó. Đo bàn
+  /// phím ở đây rồi đẩy con số xuống trang vỏ; đường này chắc chắn hơn là trông
+  /// vào `visualViewport` bên trong WebKit.
+  private func observeKeyboard() {
+    let center = NotificationCenter.default
+    let names: [Notification.Name] = [
+      UIResponder.keyboardWillChangeFrameNotification,
+      UIResponder.keyboardWillHideNotification,
+    ]
+    keyboardObservers = names.map { name in
+      center.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+        self?.handleKeyboard(notification)
+      }
+    }
+  }
+
+  private func handleKeyboard(_ notification: Notification) {
+    guard editingURL != nil, window != nil else { return }
+    var inset: CGFloat = 0
+    if notification.name != UIResponder.keyboardWillHideNotification,
+       let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+      let keyboard = convert(frame.cgRectValue, from: nil)
+      inset = max(0, bounds.maxY - keyboard.minY)
+    }
+    runEditor("setKeyboardInset(\(Int(inset.rounded())))")
   }
 
   func clearSearch() {
@@ -281,6 +441,7 @@ final class PdfDocumentViewerView: UIView {
       try? FileManager.default.removeItem(at: loadedURL)
     }
     loadedURL = nil
+    editingURL = nil
   }
 
   private func configureSubviews() {
@@ -309,6 +470,9 @@ final class PdfDocumentViewerView: UIView {
 extension PdfDocumentViewerView: WKNavigationDelegate {
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     activityIndicator.stopAnimating()
+    // Bỏ thanh phụ trợ bàn phím của iOS. Phải đợi tới đây: view nhận bàn phím
+    // chỉ tồn tại sau khi trang đã nạp. Xem `WKWebView+InputAccessory.swift`.
+    webView.removeInputAccessoryView()
     logPdfEvent("document_viewer_loaded", "file=\(loadedURL?.lastPathComponent ?? "")")
   }
 

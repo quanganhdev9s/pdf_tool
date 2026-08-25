@@ -1255,6 +1255,274 @@ struct PdfViewableDocument: Hashable, CustomStringConvertible {
   }
 }
 
+/// Trạng thái con trỏ trong trình soạn thảo HWP, đủ để vẽ thanh công cụ.
+///
+/// Con trỏ và vùng chọn sống trong trang vỏ chứ không trong tài liệu — rhwp
+/// không giữ chúng — nên đây là ảnh chụp đẩy ngược lên, không phải nguồn sự
+/// thật để ghi xuống.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct HwpEditorState: Hashable, CustomStringConvertible {
+  var hasCaret: Bool
+  var hasSelection: Bool
+  var bold: Bool
+  var italic: Bool
+  var underline: Bool
+  var strikethrough: Bool
+  /// Cỡ chữ theo **điểm**. rhwp lưu theo HWPUNIT (pt × 100); phép chia nằm ở
+  /// trang vỏ để bên Flutter không phải biết đơn vị của định dạng tệp.
+  var fontSizePt: Double? = nil
+  /// `left`, `center`, `right`, `justify` hoặc `distribute`.
+  var alignment: String? = nil
+  var lineSpacing: Double? = nil
+  var canUndo: Bool
+  var canRedo: Bool
+  /// Có thay đổi chưa ghi xuống tệp. Tắt chế độ sửa khi đang bật cờ này là mất
+  /// thay đổi.
+  var dirty: Bool
+  /// Trang đang hiển thị, đếm từ 0. Trình xem dựng đúng một trang mỗi lúc.
+  var pageIndex: Int64
+  /// Tổng số trang, luôn ít nhất là 1.
+  ///
+  /// Đổi được **trong lúc sửa**: gõ thêm chữ có thể làm tài liệu nở ra hoặc co
+  /// lại một trang, nên thanh lật trang phải đọc lại con số này chứ không nhớ
+  /// giá trị lúc mở tệp.
+  var pageCount: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> HwpEditorState? {
+    let hasCaret = pigeonVar_list[0] as! Bool
+    let hasSelection = pigeonVar_list[1] as! Bool
+    let bold = pigeonVar_list[2] as! Bool
+    let italic = pigeonVar_list[3] as! Bool
+    let underline = pigeonVar_list[4] as! Bool
+    let strikethrough = pigeonVar_list[5] as! Bool
+    let fontSizePt: Double? = nilOrValue(pigeonVar_list[6])
+    let alignment: String? = nilOrValue(pigeonVar_list[7])
+    let lineSpacing: Double? = nilOrValue(pigeonVar_list[8])
+    let canUndo = pigeonVar_list[9] as! Bool
+    let canRedo = pigeonVar_list[10] as! Bool
+    let dirty = pigeonVar_list[11] as! Bool
+    let pageIndex = pigeonVar_list[12] as! Int64
+    let pageCount = pigeonVar_list[13] as! Int64
+
+    return HwpEditorState(
+      hasCaret: hasCaret,
+      hasSelection: hasSelection,
+      bold: bold,
+      italic: italic,
+      underline: underline,
+      strikethrough: strikethrough,
+      fontSizePt: fontSizePt,
+      alignment: alignment,
+      lineSpacing: lineSpacing,
+      canUndo: canUndo,
+      canRedo: canRedo,
+      dirty: dirty,
+      pageIndex: pageIndex,
+      pageCount: pageCount
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      hasCaret,
+      hasSelection,
+      bold,
+      italic,
+      underline,
+      strikethrough,
+      fontSizePt,
+      alignment,
+      lineSpacing,
+      canUndo,
+      canRedo,
+      dirty,
+      pageIndex,
+      pageCount,
+    ]
+  }
+  static func == (lhs: HwpEditorState, rhs: HwpEditorState) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.hasCaret, rhs.hasCaret) && PdfPocApiPigeonInternal.deepEquals(lhs.hasSelection, rhs.hasSelection) && PdfPocApiPigeonInternal.deepEquals(lhs.bold, rhs.bold) && PdfPocApiPigeonInternal.deepEquals(lhs.italic, rhs.italic) && PdfPocApiPigeonInternal.deepEquals(lhs.underline, rhs.underline) && PdfPocApiPigeonInternal.deepEquals(lhs.strikethrough, rhs.strikethrough) && PdfPocApiPigeonInternal.deepEquals(lhs.fontSizePt, rhs.fontSizePt) && PdfPocApiPigeonInternal.deepEquals(lhs.alignment, rhs.alignment) && PdfPocApiPigeonInternal.deepEquals(lhs.lineSpacing, rhs.lineSpacing) && PdfPocApiPigeonInternal.deepEquals(lhs.canUndo, rhs.canUndo) && PdfPocApiPigeonInternal.deepEquals(lhs.canRedo, rhs.canRedo) && PdfPocApiPigeonInternal.deepEquals(lhs.dirty, rhs.dirty) && PdfPocApiPigeonInternal.deepEquals(lhs.pageIndex, rhs.pageIndex) && PdfPocApiPigeonInternal.deepEquals(lhs.pageCount, rhs.pageCount)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("HwpEditorState")
+    PdfPocApiPigeonInternal.deepHash(value: hasCaret, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: hasSelection, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: bold, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: italic, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: underline, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: strikethrough, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fontSizePt, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: alignment, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: lineSpacing, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: canUndo, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: canRedo, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: dirty, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: pageIndex, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: pageCount, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "HwpEditorState(hasCaret: \(String(describing: hasCaret)), hasSelection: \(String(describing: hasSelection)), bold: \(String(describing: bold)), italic: \(String(describing: italic)), underline: \(String(describing: underline)), strikethrough: \(String(describing: strikethrough)), fontSizePt: \(String(describing: fontSizePt)), alignment: \(String(describing: alignment)), lineSpacing: \(String(describing: lineSpacing)), canUndo: \(String(describing: canUndo)), canRedo: \(String(describing: canRedo)), dirty: \(String(describing: dirty)), pageIndex: \(String(describing: pageIndex)), pageCount: \(String(describing: pageCount)))"
+  }
+}
+
+/// Định dạng chữ cần áp. Khoá nào `null` thì giữ nguyên — bật đậm không được
+/// phép lặng lẽ đặt lại cỡ chữ.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct HwpCharFormat: Hashable, CustomStringConvertible {
+  var bold: Bool? = nil
+  var italic: Bool? = nil
+  var underline: Bool? = nil
+  var strikethrough: Bool? = nil
+  var fontSizePt: Double? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> HwpCharFormat? {
+    let bold: Bool? = nilOrValue(pigeonVar_list[0])
+    let italic: Bool? = nilOrValue(pigeonVar_list[1])
+    let underline: Bool? = nilOrValue(pigeonVar_list[2])
+    let strikethrough: Bool? = nilOrValue(pigeonVar_list[3])
+    let fontSizePt: Double? = nilOrValue(pigeonVar_list[4])
+
+    return HwpCharFormat(
+      bold: bold,
+      italic: italic,
+      underline: underline,
+      strikethrough: strikethrough,
+      fontSizePt: fontSizePt
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      bold,
+      italic,
+      underline,
+      strikethrough,
+      fontSizePt,
+    ]
+  }
+  static func == (lhs: HwpCharFormat, rhs: HwpCharFormat) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.bold, rhs.bold) && PdfPocApiPigeonInternal.deepEquals(lhs.italic, rhs.italic) && PdfPocApiPigeonInternal.deepEquals(lhs.underline, rhs.underline) && PdfPocApiPigeonInternal.deepEquals(lhs.strikethrough, rhs.strikethrough) && PdfPocApiPigeonInternal.deepEquals(lhs.fontSizePt, rhs.fontSizePt)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("HwpCharFormat")
+    PdfPocApiPigeonInternal.deepHash(value: bold, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: italic, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: underline, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: strikethrough, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: fontSizePt, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "HwpCharFormat(bold: \(String(describing: bold)), italic: \(String(describing: italic)), underline: \(String(describing: underline)), strikethrough: \(String(describing: strikethrough)), fontSizePt: \(String(describing: fontSizePt)))"
+  }
+}
+
+/// Định dạng đoạn cần áp. Cùng quy ước `null` là giữ nguyên như
+/// [HwpCharFormat].
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct HwpParaFormat: Hashable, CustomStringConvertible {
+  var alignment: String? = nil
+  var lineSpacing: Double? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> HwpParaFormat? {
+    let alignment: String? = nilOrValue(pigeonVar_list[0])
+    let lineSpacing: Double? = nilOrValue(pigeonVar_list[1])
+
+    return HwpParaFormat(
+      alignment: alignment,
+      lineSpacing: lineSpacing
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      alignment,
+      lineSpacing,
+    ]
+  }
+  static func == (lhs: HwpParaFormat, rhs: HwpParaFormat) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.alignment, rhs.alignment) && PdfPocApiPigeonInternal.deepEquals(lhs.lineSpacing, rhs.lineSpacing)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("HwpParaFormat")
+    PdfPocApiPigeonInternal.deepHash(value: alignment, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: lineSpacing, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "HwpParaFormat(alignment: \(String(describing: alignment)), lineSpacing: \(String(describing: lineSpacing)))"
+  }
+}
+
+/// Kết quả một lần ghi tài liệu HWP xuống đĩa.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct HwpSaveResult: Hashable, CustomStringConvertible {
+  var ok: Bool
+  /// Báo cáo phần nội dung trình xuất phải bỏ đi, lấy từ
+  /// `exportHwpWithReport`. Không rỗng nghĩa là tệp ghi ra **không** giữ đủ
+  /// tài liệu ban đầu, kể cả khi [ok].
+  var contentLoss: String? = nil
+  var error: String? = nil
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> HwpSaveResult? {
+    let ok = pigeonVar_list[0] as! Bool
+    let contentLoss: String? = nilOrValue(pigeonVar_list[1])
+    let error: String? = nilOrValue(pigeonVar_list[2])
+
+    return HwpSaveResult(
+      ok: ok,
+      contentLoss: contentLoss,
+      error: error
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      ok,
+      contentLoss,
+      error,
+    ]
+  }
+  static func == (lhs: HwpSaveResult, rhs: HwpSaveResult) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return PdfPocApiPigeonInternal.deepEquals(lhs.ok, rhs.ok) && PdfPocApiPigeonInternal.deepEquals(lhs.contentLoss, rhs.contentLoss) && PdfPocApiPigeonInternal.deepEquals(lhs.error, rhs.error)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("HwpSaveResult")
+    PdfPocApiPigeonInternal.deepHash(value: ok, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: contentLoss, hasher: &hasher)
+    PdfPocApiPigeonInternal.deepHash(value: error, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "HwpSaveResult(ok: \(String(describing: ok)), contentLoss: \(String(describing: contentLoss)), error: \(String(describing: error)))"
+  }
+}
+
 /// A PDF produced by an earlier operation (convert, scan, split, merge,
 /// compress) and still present in the native working directory.
 ///
@@ -1385,6 +1653,14 @@ private class PdfPocApiPigeonCodecReader: FlutterStandardReader {
     case 154:
       return PdfViewableDocument.fromList(self.readValue() as! [Any?])
     case 155:
+      return HwpEditorState.fromList(self.readValue() as! [Any?])
+    case 156:
+      return HwpCharFormat.fromList(self.readValue() as! [Any?])
+    case 157:
+      return HwpParaFormat.fromList(self.readValue() as! [Any?])
+    case 158:
+      return HwpSaveResult.fromList(self.readValue() as! [Any?])
+    case 159:
       return PdfGeneratedOutput.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -1472,8 +1748,20 @@ private class PdfPocApiPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? PdfViewableDocument {
       super.writeByte(154)
       super.writeValue(value.toList())
-    } else if let value = value as? PdfGeneratedOutput {
+    } else if let value = value as? HwpEditorState {
       super.writeByte(155)
+      super.writeValue(value.toList())
+    } else if let value = value as? HwpCharFormat {
+      super.writeByte(156)
+      super.writeValue(value.toList())
+    } else if let value = value as? HwpParaFormat {
+      super.writeByte(157)
+      super.writeValue(value.toList())
+    } else if let value = value as? HwpSaveResult {
+      super.writeByte(158)
+      super.writeValue(value.toList())
+    } else if let value = value as? PdfGeneratedOutput {
+      super.writeByte(159)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -1560,8 +1848,32 @@ protocol PdfPocHostApi {
   /// Ghi tài liệu đang sửa đè lên tệp đang mở.
   ///
   /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
-  /// hiện trong log.
+  /// về qua `onHwpEditsSaved`.
   func saveDocumentEdits() throws
+  /// Áp định dạng chữ lên vùng đang chọn.
+  ///
+  /// Không có vùng chọn thì định dạng được giữ lại và áp cho đoạn chữ gõ tiếp
+  /// theo, giống mọi trình soạn thảo khác.
+  func applyHwpCharFormat(format: HwpCharFormat) throws
+  /// Áp định dạng lên đoạn văn đang chứa con trỏ, hoặc mọi đoạn mà vùng chọn
+  /// chạm tới.
+  func applyHwpParaFormat(format: HwpParaFormat) throws
+  /// Cho trình soạn thảo biết Flutter đang che mất bao nhiêu điểm ở đáy web
+  /// view — tức chiều cao thanh công cụ nổi.
+  ///
+  /// Bàn phím thì native tự đo được; chỗ này chỉ nói về phần giao diện của
+  /// Flutter, thứ native không nhìn thấy. Con trỏ phải tránh cả hai.
+  func setViewerChromeInset(pixels: Double) throws
+  /// Hoàn tác bước sửa gần nhất. Ngăn xếp nằm trong trang vỏ và mất khi tắt
+  /// chế độ sửa.
+  func hwpUndo() throws
+  func hwpRedo() throws
+  /// Lật tới trang `pageIndex` (đếm từ 0) trong trình xem HWP.
+  ///
+  /// Dùng được cả khi **không** ở chế độ sửa: trình xem chỉ dựng đúng một trang
+  /// mỗi lúc, nên đây là đường duy nhất để đọc phần còn lại của tài liệu.
+  /// Chỉ số ngoài phạm vi bị kẹp về đầu hoặc cuối chứ không báo lỗi.
+  func hwpGoToPage(pageIndex: Int64) throws
   /// Releases the embedded viewer and deletes the local copy.
   func closeDocumentViewer() throws
   /// Finds the next or previous match in the embedded viewer. Returns whether
@@ -2314,7 +2626,7 @@ class PdfPocHostApiSetup {
     /// Ghi tài liệu đang sửa đè lên tệp đang mở.
     ///
     /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
-    /// hiện trong log.
+    /// về qua `onHwpEditsSaved`.
     let saveDocumentEditsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.saveDocumentEdits\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       saveDocumentEditsChannel.setMessageHandler { _, reply in
@@ -2327,6 +2639,110 @@ class PdfPocHostApiSetup {
       }
     } else {
       saveDocumentEditsChannel.setMessageHandler(nil)
+    }
+    /// Áp định dạng chữ lên vùng đang chọn.
+    ///
+    /// Không có vùng chọn thì định dạng được giữ lại và áp cho đoạn chữ gõ tiếp
+    /// theo, giống mọi trình soạn thảo khác.
+    let applyHwpCharFormatChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.applyHwpCharFormat\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      applyHwpCharFormatChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let formatArg = args[0] as! HwpCharFormat
+        do {
+          try api.applyHwpCharFormat(format: formatArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      applyHwpCharFormatChannel.setMessageHandler(nil)
+    }
+    /// Áp định dạng lên đoạn văn đang chứa con trỏ, hoặc mọi đoạn mà vùng chọn
+    /// chạm tới.
+    let applyHwpParaFormatChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.applyHwpParaFormat\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      applyHwpParaFormatChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let formatArg = args[0] as! HwpParaFormat
+        do {
+          try api.applyHwpParaFormat(format: formatArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      applyHwpParaFormatChannel.setMessageHandler(nil)
+    }
+    /// Cho trình soạn thảo biết Flutter đang che mất bao nhiêu điểm ở đáy web
+    /// view — tức chiều cao thanh công cụ nổi.
+    ///
+    /// Bàn phím thì native tự đo được; chỗ này chỉ nói về phần giao diện của
+    /// Flutter, thứ native không nhìn thấy. Con trỏ phải tránh cả hai.
+    let setViewerChromeInsetChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setViewerChromeInset\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setViewerChromeInsetChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pixelsArg = args[0] as! Double
+        do {
+          try api.setViewerChromeInset(pixels: pixelsArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setViewerChromeInsetChannel.setMessageHandler(nil)
+    }
+    /// Hoàn tác bước sửa gần nhất. Ngăn xếp nằm trong trang vỏ và mất khi tắt
+    /// chế độ sửa.
+    let hwpUndoChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpUndo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      hwpUndoChannel.setMessageHandler { _, reply in
+        do {
+          try api.hwpUndo()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      hwpUndoChannel.setMessageHandler(nil)
+    }
+    let hwpRedoChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpRedo\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      hwpRedoChannel.setMessageHandler { _, reply in
+        do {
+          try api.hwpRedo()
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      hwpRedoChannel.setMessageHandler(nil)
+    }
+    /// Lật tới trang `pageIndex` (đếm từ 0) trong trình xem HWP.
+    ///
+    /// Dùng được cả khi **không** ở chế độ sửa: trình xem chỉ dựng đúng một trang
+    /// mỗi lúc, nên đây là đường duy nhất để đọc phần còn lại của tài liệu.
+    /// Chỉ số ngoài phạm vi bị kẹp về đầu hoặc cuối chứ không báo lỗi.
+    let hwpGoToPageChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpGoToPage\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      hwpGoToPageChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let pageIndexArg = args[0] as! Int64
+        do {
+          try api.hwpGoToPage(pageIndex: pageIndexArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      hwpGoToPageChannel.setMessageHandler(nil)
     }
     /// Releases the embedded viewer and deletes the local copy.
     let closeDocumentViewerChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocumentViewer\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
@@ -2501,6 +2917,10 @@ protocol PdfPocFlutterApiProtocol {
   func onPdfConversionCompleted(operationId operationIdArg: String, result resultArg: PdfConvertToPdfResult?, cancelled cancelledArg: Bool, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onDocumentForViewingPicked(document documentArg: PdfViewableDocument, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onDocumentForViewingCancelled(completion: @escaping (Result<Void, PigeonError>) -> Void)
+  /// Con trỏ, vùng chọn hoặc nội dung trong trình soạn thảo HWP vừa đổi.
+  func onHwpEditorStateChanged(state stateArg: HwpEditorState, completion: @escaping (Result<Void, PigeonError>) -> Void)
+  /// Một lần ghi tài liệu HWP đã xong — thành công hay không.
+  func onHwpEditsSaved(result resultArg: HwpSaveResult, completion: @escaping (Result<Void, PigeonError>) -> Void)
   func onOperationFailed(operationId operationIdArg: String, code codeArg: String, message messageArg: String, details detailsArg: String?, completion: @escaping (Result<Void, PigeonError>) -> Void)
 }
 class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
@@ -2859,6 +3279,44 @@ class PdfPocFlutterApi: PdfPocFlutterApiProtocol {
     let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentForViewingCancelled\(messageChannelSuffix)"
     let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
     channel.sendMessage(nil) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  /// Con trỏ, vùng chọn hoặc nội dung trong trình soạn thảo HWP vừa đổi.
+  func onHwpEditorStateChanged(state stateArg: HwpEditorState, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onHwpEditorStateChanged\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([stateArg] as [Any?]) { response in
+      guard let listResponse = response as? [Any?] else {
+        completion(.failure(createConnectionError(withChannelName: channelName)))
+        return
+      }
+      if listResponse.count > 1 {
+        let code: String = listResponse[0] as! String
+        let message: String? = nilOrValue(listResponse[1])
+        let details: String? = nilOrValue(listResponse[2])
+        completion(.failure(PigeonError(code: code, message: message, details: details)))
+      } else {
+        completion(.success(()))
+      }
+    }
+  }
+  /// Một lần ghi tài liệu HWP đã xong — thành công hay không.
+  func onHwpEditsSaved(result resultArg: HwpSaveResult, completion: @escaping (Result<Void, PigeonError>) -> Void) {
+    let channelName: String = "dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onHwpEditsSaved\(messageChannelSuffix)"
+    let channel = FlutterBasicMessageChannel(name: channelName, binaryMessenger: binaryMessenger, codec: codec)
+    channel.sendMessage([resultArg] as [Any?]) { response in
       guard let listResponse = response as? [Any?] else {
         completion(.failure(createConnectionError(withChannelName: channelName)))
         return

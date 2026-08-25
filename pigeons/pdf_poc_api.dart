@@ -289,6 +289,102 @@ class PdfViewableDocument {
   int fileSizeBytes;
 }
 
+/// Trạng thái con trỏ trong trình soạn thảo HWP, đủ để vẽ thanh công cụ.
+///
+/// Con trỏ và vùng chọn sống trong trang vỏ chứ không trong tài liệu — rhwp
+/// không giữ chúng — nên đây là ảnh chụp đẩy ngược lên, không phải nguồn sự
+/// thật để ghi xuống.
+class HwpEditorState {
+  HwpEditorState({
+    required this.hasCaret,
+    required this.hasSelection,
+    required this.bold,
+    required this.italic,
+    required this.underline,
+    required this.strikethrough,
+    required this.fontSizePt,
+    required this.alignment,
+    required this.lineSpacing,
+    required this.canUndo,
+    required this.canRedo,
+    required this.dirty,
+    required this.pageIndex,
+    required this.pageCount,
+  });
+
+  bool hasCaret;
+  bool hasSelection;
+  bool bold;
+  bool italic;
+  bool underline;
+  bool strikethrough;
+
+  /// Cỡ chữ theo **điểm**. rhwp lưu theo HWPUNIT (pt × 100); phép chia nằm ở
+  /// trang vỏ để bên Flutter không phải biết đơn vị của định dạng tệp.
+  double? fontSizePt;
+
+  /// `left`, `center`, `right`, `justify` hoặc `distribute`.
+  String? alignment;
+  double? lineSpacing;
+  bool canUndo;
+  bool canRedo;
+
+  /// Có thay đổi chưa ghi xuống tệp. Tắt chế độ sửa khi đang bật cờ này là mất
+  /// thay đổi.
+  bool dirty;
+
+  /// Trang đang hiển thị, đếm từ 0. Trình xem dựng đúng một trang mỗi lúc.
+  int pageIndex;
+
+  /// Tổng số trang, luôn ít nhất là 1.
+  ///
+  /// Đổi được **trong lúc sửa**: gõ thêm chữ có thể làm tài liệu nở ra hoặc co
+  /// lại một trang, nên thanh lật trang phải đọc lại con số này chứ không nhớ
+  /// giá trị lúc mở tệp.
+  int pageCount;
+}
+
+/// Định dạng chữ cần áp. Khoá nào `null` thì giữ nguyên — bật đậm không được
+/// phép lặng lẽ đặt lại cỡ chữ.
+class HwpCharFormat {
+  HwpCharFormat({
+    this.bold,
+    this.italic,
+    this.underline,
+    this.strikethrough,
+    this.fontSizePt,
+  });
+
+  bool? bold;
+  bool? italic;
+  bool? underline;
+  bool? strikethrough;
+  double? fontSizePt;
+}
+
+/// Định dạng đoạn cần áp. Cùng quy ước `null` là giữ nguyên như
+/// [HwpCharFormat].
+class HwpParaFormat {
+  HwpParaFormat({this.alignment, this.lineSpacing});
+
+  String? alignment;
+  double? lineSpacing;
+}
+
+/// Kết quả một lần ghi tài liệu HWP xuống đĩa.
+class HwpSaveResult {
+  HwpSaveResult({required this.ok, this.contentLoss, this.error});
+
+  bool ok;
+
+  /// Báo cáo phần nội dung trình xuất phải bỏ đi, lấy từ
+  /// `exportHwpWithReport`. Không rỗng nghĩa là tệp ghi ra **không** giữ đủ
+  /// tài liệu ban đầu, kể cả khi [ok].
+  String? contentLoss;
+
+  String? error;
+}
+
 /// A PDF produced by an earlier operation (convert, scan, split, merge,
 /// compress) and still present in the native working directory.
 class PdfGeneratedOutput {
@@ -422,8 +518,38 @@ abstract class PdfPocHostApi {
   /// Ghi tài liệu đang sửa đè lên tệp đang mở.
   ///
   /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
-  /// hiện trong log.
+  /// về qua `onHwpEditsSaved`.
   void saveDocumentEdits();
+
+  /// Áp định dạng chữ lên vùng đang chọn.
+  ///
+  /// Không có vùng chọn thì định dạng được giữ lại và áp cho đoạn chữ gõ tiếp
+  /// theo, giống mọi trình soạn thảo khác.
+  void applyHwpCharFormat(HwpCharFormat format);
+
+  /// Áp định dạng lên đoạn văn đang chứa con trỏ, hoặc mọi đoạn mà vùng chọn
+  /// chạm tới.
+  void applyHwpParaFormat(HwpParaFormat format);
+
+  /// Cho trình soạn thảo biết Flutter đang che mất bao nhiêu điểm ở đáy web
+  /// view — tức chiều cao thanh công cụ nổi.
+  ///
+  /// Bàn phím thì native tự đo được; chỗ này chỉ nói về phần giao diện của
+  /// Flutter, thứ native không nhìn thấy. Con trỏ phải tránh cả hai.
+  void setViewerChromeInset(double pixels);
+
+  /// Hoàn tác bước sửa gần nhất. Ngăn xếp nằm trong trang vỏ và mất khi tắt
+  /// chế độ sửa.
+  void hwpUndo();
+
+  void hwpRedo();
+
+  /// Lật tới trang `pageIndex` (đếm từ 0) trong trình xem HWP.
+  ///
+  /// Dùng được cả khi **không** ở chế độ sửa: trình xem chỉ dựng đúng một trang
+  /// mỗi lúc, nên đây là đường duy nhất để đọc phần còn lại của tài liệu.
+  /// Chỉ số ngoài phạm vi bị kẹp về đầu hoặc cuối chứ không báo lỗi.
+  void hwpGoToPage(int pageIndex);
 
   /// Releases the embedded viewer and deletes the local copy.
   void closeDocumentViewer();
@@ -519,6 +645,12 @@ abstract class PdfPocFlutterApi {
   void onDocumentForViewingPicked(PdfViewableDocument document);
 
   void onDocumentForViewingCancelled();
+
+  /// Con trỏ, vùng chọn hoặc nội dung trong trình soạn thảo HWP vừa đổi.
+  void onHwpEditorStateChanged(HwpEditorState state);
+
+  /// Một lần ghi tài liệu HWP đã xong — thành công hay không.
+  void onHwpEditsSaved(HwpSaveResult result);
 
   void onOperationFailed(
     String operationId,

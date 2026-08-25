@@ -291,6 +291,54 @@ final class PdfPocHostApiImpl: PdfPocHostApi {
     }
   }
 
+  func applyHwpCharFormat(format: HwpCharFormat) throws {
+    do {
+      try runtime.requireDocumentViewer().applyCharFormat(format)
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func applyHwpParaFormat(format: HwpParaFormat) throws {
+    do {
+      try runtime.requireDocumentViewer().applyParaFormat(format)
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func setViewerChromeInset(pixels: Double) throws {
+    do {
+      try runtime.requireDocumentViewer().setChromeInset(pixels)
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func hwpUndo() throws {
+    do {
+      try runtime.requireDocumentViewer().undoEdit()
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func hwpRedo() throws {
+    do {
+      try runtime.requireDocumentViewer().redoEdit()
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
+  func hwpGoToPage(pageIndex: Int64) throws {
+    do {
+      try runtime.requireDocumentViewer().goToPage(pageIndex)
+    } catch let error as PdfPocError {
+      throw error.asPigeonError()
+    }
+  }
+
   func closeDocumentViewer() throws {
     do {
       try runtime.requireDocumentViewer().close()

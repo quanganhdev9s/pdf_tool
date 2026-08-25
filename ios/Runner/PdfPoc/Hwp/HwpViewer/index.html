@@ -7,51 +7,78 @@
 <style>
   :root { color-scheme: light dark; }
   html, body { margin: 0; padding: 0; background: #8e8e93; -webkit-text-size-adjust: 100%; }
-  #pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; }
-  #pages svg {
-    display: block; width: 100%; height: auto; max-width: 900px;
-    background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  /* Chế độ một trang: `#pages` luôn chỉ có đúng một nút con, nên `gap` không
+     còn việc gì. Giữ flex để trang nằm giữa theo chiều ngang. */
+  #pages { display: flex; flex-direction: column; align-items: center; padding: 12px; }
+
+  /* Mỗi trang là svg + một lớp phủ chồng khít lên nó. Lớp phủ giữ con trỏ và
+     vệt bôi đen, nên chúng di chuyển được mà không phải vẽ lại svg. */
+  .page {
+    position: relative; width: 100%; max-width: 900px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.3);
   }
-  /* Chế độ sửa: cho thấy trang đang nhận chạm. */
-  body.editing #pages svg { outline: 2px solid #0a84ff; outline-offset: -2px; }
+  .page svg { display: block; width: 100%; height: auto; background: #fff; }
+  .ov { position: absolute; inset: 0; pointer-events: none; }
+
+  .caret {
+    position: absolute; width: 2px; background: #0a84ff;
+    animation: blink 1.06s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .sel { position: absolute; background: rgba(10,132,255,.28); }
+
+  /* Chữ đang tổ hợp chưa nằm trong tài liệu nên nền phải đục: nó che phần chữ
+     ngay sau con trỏ thay vì chồng lên. */
+  .preedit {
+    position: absolute; background: #fff; color: #000;
+    text-decoration: underline; white-space: pre;
+  }
+
+  /* Bàn phím và IME của iOS chỉ làm việc với một phần tử soạn thảo thật. Nó
+     bám theo con trỏ để iOS cuộn tới đúng chỗ và cửa sổ gợi ý tiếng Hàn hiện
+     cạnh chữ đang gõ, chứ không phải ở góc màn hình. */
+  #hwp-input {
+    position: fixed; width: 1px; height: 1px; padding: 0; border: 0;
+    opacity: 0; background: transparent; caret-color: transparent;
+    resize: none; z-index: 1; font-size: 16px;
+  }
+
+  /* Trỏ font của tài liệu sang font iOS gần nhất. `local()` chỉ đổi tên, không
+     tải gì. Số đo vẫn không trùng khít Hancom nhưng gần hơn hẳn so với rơi về
+     font mặc định. */
+  @font-face { font-family: "SimSun";        src: local("Songti SC"), local("Songti TC"); }
+  @font-face { font-family: "NSimSun";       src: local("Songti SC"); }
+  @font-face { font-family: "SimHei";        src: local("PingFang SC"); }
+  @font-face { font-family: "Microsoft YaHei"; src: local("PingFang SC"); }
+
+  @font-face { font-family: "바탕";          src: local("AppleMyungjo"); }
+  @font-face { font-family: "바탕체";        src: local("AppleMyungjo"); }
+  @font-face { font-family: "함초롬바탕";    src: local("AppleMyungjo"); }
+  @font-face { font-family: "Batang";        src: local("AppleMyungjo"); }
+  @font-face { font-family: "BatangChe";     src: local("AppleMyungjo"); }
+
+  @font-face { font-family: "굴림";          src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "굴림체";        src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "돋움";          src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "돋움체";        src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "맑은 고딕";     src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "함초롬돋움";    src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "Gulim";         src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "Dotum";         src: local("Apple SD Gothic Neo"); }
+  @font-face { font-family: "Malgun Gothic"; src: local("Apple SD Gothic Neo"); }
+
   #status { font: 15px -apple-system, sans-serif; color: #fff; text-align: center; padding: 24px 16px; }
   #status.error { color: #ffd8d6; }
-
-  #sheet {
-    position: fixed; left: 0; right: 0; bottom: 0;
-    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
-    background: #1c1c1e; display: none; flex-direction: column; gap: 8px;
-  }
-  #sheet.open { display: flex; }
-  #sheet textarea {
-    font: 16px -apple-system, sans-serif; color: #fff; background: #2c2c2e;
-    border: 0; border-radius: 9px; padding: 10px; min-height: 96px; resize: none;
-  }
-  #sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
-  #sheet button {
-    font: 15px -apple-system, sans-serif; color: #fff; background: #3a3a3c;
-    border: 0; border-radius: 9px; padding: 9px 18px;
-  }
-  #sheet button.primary { background: #0a84ff; }
 </style>
 </head>
 <body>
 <div id="status">Đang tải…</div>
 <div id="pages"></div>
 
-<div id="sheet">
-  <textarea id="draft" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-  <div class="row">
-    <button id="cancel">Huỷ</button>
-    <button id="apply" class="primary">Xong</button>
-  </div>
-</div>
-
 <script type="module">
 const statusEl = document.getElementById('status');
 const pagesEl = document.getElementById('pages');
-const sheet = document.getElementById('sheet');
-const draft = document.getElementById('draft');
 
 function report(event, detail) {
   try {
@@ -59,18 +86,9 @@ function report(event, detail) {
   } catch (_) {}
 }
 
-function fail(message, error) {
-  statusEl.hidden = false;
-  statusEl.className = 'error';
-  statusEl.textContent = message;
-  report('hwp_viewer_failed', error?.stack || error || message);
-}
-
-// Đo chữ bằng Canvas — bắt buộc, và phải đăng ký **trước** khi init.
-//
-// rhwp dàn trang bên trong WASM nhưng không với tới font của trình duyệt, nên
-// nó gọi ngược ra đây để hỏi bề rộng thật của từng đoạn chữ. Không có hàm này
-// thì ngắt dòng và canh đều sai hết.
+// Đo chữ bằng Canvas cho rhwp. Có thể là code chết — rhwp 0.8.4 tự import
+// `measureText` chứ không gọi `measureTextWidth` — nhưng bỏ nhầm thì ngắt dòng
+// của cả trình xem hỏng lặng lẽ, nên giữ tới khi xác nhận được.
 let measureCtx = null;
 let lastFont = '';
 globalThis.measureTextWidth = (font, text) => {
@@ -79,138 +97,12 @@ globalThis.measureTextWidth = (font, text) => {
   return measureCtx.measureText(text).width;
 };
 
-let doc = null;
-let editing = false;
-/** Đoạn đang mở ô nhập: {sectionIndex, paragraphIndex, length}. */
-let target = null;
-
-function paintPage(index) {
-  const holder = document.createElement('div');
-  holder.innerHTML = doc.renderPageSvg(index);
-  const svg = holder.firstElementChild;
-  svg.dataset.page = String(index);
-  const existing = pagesEl.children[index];
-  if (existing) pagesEl.replaceChild(svg, existing);
-  else pagesEl.appendChild(svg);
+function fail(message, error) {
+  statusEl.hidden = false;
+  statusEl.className = 'error';
+  statusEl.textContent = message;
+  report('hwp_viewer_failed', error?.stack || error || message);
 }
-
-function repaintAll() {
-  const total = doc.pageCount();
-  for (let i = 0; i < total; i += 1) paintPage(i);
-  while (pagesEl.children.length > total) pagesEl.lastElementChild.remove();
-  return total;
-}
-
-/// Đổi toạ độ chạm trên màn hình sang toạ độ trang mà `hitTest` hiểu.
-///
-/// SVG bị ép co theo bề ngang màn hình nên tỉ lệ hiển thị khác tỉ lệ thật.
-/// `viewBox` giữ kích thước thật của trang; không có nó thì lùi về width/height.
-///
-/// Tính lại mỗi lần chạm, không nhớ: bàn phím lên xuống và xoay máy đều đổi
-/// `getBoundingClientRect`, mà nhớ lại giá trị cũ chính là cách con trỏ đứng
-/// yên một chỗ.
-function pagePoint(svg, event) {
-  const rect = svg.getBoundingClientRect();
-  const box = svg.viewBox?.baseVal;
-  const width = box?.width || svg.width?.baseVal?.value || rect.width;
-  const height = box?.height || svg.height?.baseVal?.value || rect.height;
-  return {
-    x: (event.clientX - rect.left) / rect.width * width + (box?.x || 0),
-    y: (event.clientY - rect.top) / rect.height * height + (box?.y || 0),
-  };
-}
-
-pagesEl.addEventListener('click', (event) => {
-  if (!editing || !doc) return;
-  const svg = event.target.closest('svg[data-page]');
-  if (!svg) return;
-
-  const page = Number(svg.dataset.page);
-  const point = pagePoint(svg, event);
-  let hit;
-  try {
-    hit = JSON.parse(doc.hitTest(page, point.x, point.y));
-  } catch (error) {
-    report('hwp_hit_test_failed', error);
-    return;
-  }
-  if (!hit || hit.paragraphIndex == null) {
-    report('hwp_hit_test_empty', `page=${page} x=${Math.round(point.x)} y=${Math.round(point.y)}`);
-    return;
-  }
-
-  // Đơn vị sửa là **đoạn văn**, không phải chỗ chạm — giống cách phần sửa chữ
-  // PDF đang làm, và tránh phải tự dựng con trỏ trên SVG.
-  const length = doc.getParagraphLength(hit.sectionIndex, hit.paragraphIndex);
-  const text = length > 0 ? doc.getTextRange(hit.sectionIndex, hit.paragraphIndex, 0, length) : '';
-  target = { sectionIndex: hit.sectionIndex, paragraphIndex: hit.paragraphIndex, length };
-  draft.value = text;
-  sheet.classList.add('open');
-  draft.focus();
-  report('hwp_paragraph_picked',
-    `page=${page} section=${hit.sectionIndex} para=${hit.paragraphIndex} length=${length}`);
-});
-
-function closeSheet() {
-  sheet.classList.remove('open');
-  target = null;
-}
-
-document.getElementById('cancel').addEventListener('click', closeSheet);
-
-document.getElementById('apply').addEventListener('click', () => {
-  if (!target || !doc) return;
-  const { sectionIndex, paragraphIndex, length } = target;
-  const text = draft.value;
-  closeSheet();
-  try {
-    doc.replaceText(sectionIndex, paragraphIndex, 0, length, text);
-    // Sửa một đoạn có thể đẩy nội dung sang trang khác, nên vẽ lại tất cả.
-    const total = repaintAll();
-    report('hwp_paragraph_edited',
-      `section=${sectionIndex} para=${paragraphIndex} from=${length} to=${text.length} pages=${total}`);
-  } catch (error) {
-    fail('Không áp dụng được thay đổi.', error);
-  }
-});
-
-// Flutter bật/tắt qua `setDocumentEditingEnabled`, Swift gọi xuống đây.
-window.__rhwpSetEditing = (enabled) => {
-  editing = !!enabled;
-  document.body.classList.toggle('editing', editing);
-  if (!editing) closeSheet();
-  report('hwp_edit_mode', `enabled=${editing}`);
-};
-
-// Swift gọi khi người dùng bấm Lưu. Bytes về qua `hwp_editor_export_data`.
-window.__rhwpExport = () => {
-  if (!doc) {
-    report('hwp_editor_export_failed', 'document not ready');
-    return;
-  }
-  try {
-    // Bản `WithReport`, không phải `exportHwp()` trần: nó kèm báo cáo phần nội
-    // dung bị mất khi ghi. Đó là thứ duy nhất cho biết ta có đang âm thầm làm
-    // hỏng tài liệu của người dùng không.
-    const result = doc.exportHwpWithReport();
-    const loss = result.contentLoss();
-    const bytes = result.takeBytes();
-    // Chia nhỏ khi mã hoá: `fromCharCode.apply` với cả tệp một lần tràn stack.
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    }
-    report('hwp_content_loss', loss);
-    report('hwp_editor_export_ready', `bytes=${bytes.length}`);
-    window.webkit?.messageHandlers?.hwpViewer?.postMessage({
-      event: 'hwp_editor_export_data',
-      detail: btoa(binary),
-    });
-  } catch (error) {
-    fail('Không lưu được tệp.', error);
-    report('hwp_editor_export_failed', error?.stack || error);
-  }
-};
 
 try {
   const started = performance.now();
@@ -223,11 +115,17 @@ try {
   if (!response.ok) throw new Error(`document fetch ${response.status}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
 
-  doc = new HwpDocument(bytes);
+  // Đúng một `HwpDocument` cho cả xem lẫn sửa. Tuyệt đối không dựng
+  // `HwpViewer` quanh nó: constructor của lớp đó **tiêu huỷ** document và ta
+  // mất sạch API soạn thảo.
+  const doc = new HwpDocument(bytes);
   report('hwp_document_parsed', `pages=${doc.pageCount()} bytes=${bytes.length}`);
 
+  const { attach } = await import('./editor.js');
+  const editor = attach(doc, pagesEl, report);
+
   statusEl.hidden = true;
-  const total = repaintAll();
+  const total = editor.renderPages(0);
   report('hwp_render_done', `pages=${total} in=${Math.round(performance.now() - ready)}ms`);
 } catch (error) {
   fail('Không mở được tệp HWP này.', error);

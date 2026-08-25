@@ -1,0 +1,620 @@
+diff --git a/examples/diag_arial_width.rs b/examples/diag_arial_width.rs
+new file mode 100644
+index 00000000..facbabb7
+--- /dev/null
++++ b/examples/diag_arial_width.rs
+@@ -0,0 +1,29 @@
++// Cộng bề rộng từng ký tự từ chính bảng của rhwp, so với tổng token mà bộ ngắt
++// dòng báo. Nếu bảng đúng mà tổng lệch thì có thứ gì cộng thêm khi ghép token.
++use rhwp::renderer::font_metrics_data::find_metric;
++
++fn main() {
++    let m = find_metric("Arial", false, false).expect("Arial");
++    let fm = m.metric;
++    println!("em_size={}", fm.em_size);
++    // 1 em = 1100 HWPUNIT (cỡ chữ 11pt)
++    let to_hwp = |units: f64| units * 1100.0 / fm.em_size as f64;
++    for word in ["XThe", "names", "John", "Doe\"", "for", "males,", "Jane", "Roe\""] {
++        let mut sum = 0f64;
++        let mut miss = String::new();
++        for c in word.chars() {
++            match fm.get_width(c) {
++                Some(w) => sum += w as f64,
++                None => { miss.push(c); }
++            }
++        }
++        println!("{:<8} tong_units={:<7.0} = {:>6.0} HWPUNIT{}",
++                 format!("{word:?}"), sum, to_hwp(sum),
++                 if miss.is_empty() { String::new() } else { format!("   THIEU: {miss:?}") });
++    }
++    println!();
++    println!("--- be rong tung ky tu (units) ---");
++    for c in "XThenamsJoD\",fl".chars() {
++        println!("  {c:?} = {:?}", fm.get_width(c));
++    }
++}
+diff --git a/examples/diag_break_diff.rs b/examples/diag_break_diff.rs
+new file mode 100644
+index 00000000..a7d61f7f
+--- /dev/null
++++ b/examples/diag_break_diff.rs
+@@ -0,0 +1,59 @@
++// rhwp ngắt dòng lệch so với Hancom ở đâu, và lệch bao nhiêu?
++//
++// Chèn rồi xoá một ký tự để nội dung về đúng nguyên trạng, sau đó so vị trí bắt
++// đầu (`text_start`) của từng DÒNG THỊ GIÁC. Nếu rhwp ngắt sớm hơn dần thì nó
++// đo chữ rộng hơn Hancom — và độ lệch cho biết sai bao nhiêu phần trăm.
++use rhwp::document_core::DocumentCore;
++
++/// Gộp lineseg theo `vertical_pos` -> (text_start dòng, bề rộng lớn nhất).
++fn visual_lines(p: &rhwp::model::paragraph::Paragraph) -> Vec<(u32, i32)> {
++    let mut out: Vec<(u32, i32, i32)> = Vec::new();
++    for s in p.line_segs.iter() {
++        match out.last_mut() {
++            Some((_, vpos, w)) if *vpos == s.vertical_pos => *w = (*w).max(s.segment_width),
++            _ => out.push((s.text_start, s.vertical_pos, s.segment_width)),
++        }
++    }
++    out.into_iter().map(|(t, _, w)| (t, w)).collect()
++}
++
++fn main() {
++    let path = std::env::args().nth(1).expect("cần .hwp");
++    let para: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(7);
++    let bytes = std::fs::read(&path).expect("read");
++
++    let base = DocumentCore::from_bytes(&bytes).expect("parse");
++    let hancom = visual_lines(&base.document().sections[0].paragraphs[para]);
++
++    let mut c = DocumentCore::from_bytes(&bytes).expect("parse");
++    c.insert_text_native(0, para, 0, "X").expect("ins");
++    c.delete_text_native(0, para, 0, 1).expect("del");
++    let mine = visual_lines(&c.document().sections[0].paragraphs[para]);
++
++    let text: Vec<u16> = base.document().sections[0].paragraphs[para]
++        .text.encode_utf16().collect();
++    println!("đoạn {para}: {} ký tự UTF-16", text.len());
++    println!("Hancom {} dòng thị giác | rhwp {} dòng", hancom.len(), mine.len());
++    println!();
++    println!("{:<5} {:>10} {:>10} {:>8}   {:>8}", "dòng", "Hancom", "rhwp", "lệch", "bề rộng");
++    let n = hancom.len().max(mine.len());
++    for i in 0..n {
++        let h = hancom.get(i);
++        let m = mine.get(i);
++        let (hs, hw) = h.map(|(a, b)| (a.to_string(), b.to_string())).unwrap_or(("-".into(), "-".into()));
++        let ms = m.map(|(a, _)| a.to_string()).unwrap_or("-".into());
++        let d = match (h, m) {
++            (Some((a, _)), Some((b, _))) => format!("{:+}", *b as i64 - *a as i64),
++            _ => "-".into(),
++        };
++        println!("{:<5} {:>10} {:>10} {:>8}   {:>8}", i, hs, ms, d, hw);
++    }
++    // Số ký tự trung bình mỗi dòng — thước đo trực tiếp "ai nhét được nhiều hơn".
++    let per = |v: &Vec<(u32, i32)>| if v.len() > 1 {
++        (text.len() as f64) / (v.len() as f64)
++    } else { 0.0 };
++    println!();
++    println!("ký tự / dòng: Hancom {:.1}  |  rhwp {:.1}  -> rhwp nhét được {:+.1}%",
++             per(&hancom), per(&mine),
++             100.0 * (per(&mine) / per(&hancom) - 1.0));
++}
+diff --git a/examples/diag_edit_sequence.rs b/examples/diag_edit_sequence.rs
+new file mode 100644
+index 00000000..78dad0f4
+--- /dev/null
++++ b/examples/diag_edit_sequence.rs
+@@ -0,0 +1,57 @@
++// Chẩn đoán: line_spacing có sống sót qua chuỗi chèn → xoá → chèn không?
++//
++// Triệu chứng báo từ người dùng: giãn dòng bị "đặt lại" sau khi xoá/thêm chữ.
++// Đo LineSeg sau từng bước để xem trường nào bị mất và ở bước nào.
++//
++//   cargo run --release --example diag_edit_sequence -- <file.hwp> [para_idx]
++
++use rhwp::document_core::DocumentCore;
++
++fn row(core: &DocumentCore, para: usize, label: &str) {
++    let Some(p) = core
++        .document()
++        .sections
++        .first()
++        .and_then(|s| s.paragraphs.get(para))
++    else {
++        println!("  {label:<28} (không có đoạn)");
++        return;
++    };
++    match p.line_segs.first() {
++        Some(ls) => println!(
++            "  {label:<28} line_height={:<6} line_spacing={:<6} advance={:<6} baseline={:<6} segs={}",
++            ls.line_height,
++            ls.line_spacing,
++            ls.line_height + ls.line_spacing,
++            ls.baseline_distance,
++            p.line_segs.len()
++        ),
++        None => println!("  {label:<28} (không có lineseg)"),
++    }
++}
++
++fn main() {
++    let args: Vec<String> = std::env::args().collect();
++    let path = args.get(1).expect("cần đường dẫn .hwp");
++    let para: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(1);
++    let bytes = std::fs::read(path).expect("read");
++
++    let mut core = DocumentCore::from_bytes(&bytes).expect("parse");
++    println!("đoạn {para}:");
++    row(&core, para, "0. mới mở (Hancom lưu)");
++
++    core.insert_text_native(0, para, 0, "A").expect("insert");
++    row(&core, para, "1. sau khi chèn 'A'");
++
++    core.insert_text_native(0, para, 1, "B").expect("insert");
++    row(&core, para, "2. sau khi chèn 'B'");
++
++    core.delete_text_native(0, para, 1, 1).expect("delete");
++    row(&core, para, "3. sau khi xoá 'B'");
++
++    core.delete_text_native(0, para, 0, 1).expect("delete");
++    row(&core, para, "4. sau khi xoá 'A'");
++
++    core.insert_text_native(0, para, 0, "C").expect("insert");
++    row(&core, para, "5. chèn lại 'C'");
++}
+diff --git a/examples/diag_export_loss.rs b/examples/diag_export_loss.rs
+new file mode 100644
+index 00000000..d86cfba9
+--- /dev/null
++++ b/examples/diag_export_loss.rs
+@@ -0,0 +1,98 @@
++// Lưu tệp có mất nội dung không?
++//
++// Đo ba trạng thái: xuất nguyên bản, xuất sau khi sửa, và nạp lại bản vừa xuất.
++// So từng ký tự của mọi đoạn để biết `contentLoss` báo cái gì và có mất thật không.
++use rhwp::document_core::DocumentCore;
++
++fn all_text(core: &DocumentCore) -> Vec<String> {
++    let mut out = Vec::new();
++    for sec in core.document().sections.iter() {
++        for p in sec.paragraphs.iter() {
++            out.push(p.text.clone());
++        }
++    }
++    out
++}
++
++fn controls(core: &DocumentCore) -> usize {
++    core.document()
++        .sections
++        .iter()
++        .flat_map(|s| s.paragraphs.iter())
++        .map(|p| p.controls.len())
++        .sum()
++}
++
++fn compare(label: &str, a: &[String], b: &[String], ca: usize, cb: usize) {
++    println!("  {label}");
++    println!("     số đoạn      : {} -> {}", a.len(), b.len());
++    println!("     số control   : {ca} -> {cb}");
++    let n = a.len().min(b.len());
++    let mut diff = 0;
++    let mut lost_chars = 0i64;
++    for i in 0..n {
++        if a[i] != b[i] {
++            diff += 1;
++            lost_chars += a[i].chars().count() as i64 - b[i].chars().count() as i64;
++            if diff <= 3 {
++                println!(
++                    "     đoạn {i} khác: {} ký tự -> {} ký tự",
++                    a[i].chars().count(),
++                    b[i].chars().count()
++                );
++            }
++        }
++    }
++    let ta: usize = a.iter().map(|s| s.chars().count()).sum();
++    let tb: usize = b.iter().map(|s| s.chars().count()).sum();
++    println!("     tổng ký tự   : {ta} -> {tb}  ({:+})", tb as i64 - ta as i64);
++    println!("     số đoạn khác : {diff} (lệch {lost_chars:+} ký tự)");
++}
++
++fn main() {
++    let path = std::env::args().nth(1).expect("cần .hwp");
++    let bytes = std::fs::read(&path).expect("read");
++    let base = DocumentCore::from_bytes(&bytes).expect("parse");
++    let base_text = all_text(&base);
++    let base_ctl = controls(&base);
++    println!("gốc: {} đoạn, {} control, {} ký tự", base_text.len(), base_ctl,
++             base_text.iter().map(|s| s.chars().count()).sum::<usize>());
++    println!();
++
++    // A. Xuất ngay, không sửa gì.
++    {
++        let mut c = DocumentCore::from_bytes(&bytes).expect("parse");
++        match c.export_hwp_with_report() {
++            Ok((out, loss)) => {
++                println!("=== A. Xuất nguyên bản (không sửa) ===");
++                println!("     contentLoss  : {}", if loss.is_empty() { "(rỗng)".into() } else { loss.clone() });
++                println!("     bytes        : {} -> {}", bytes.len(), out.len());
++                match DocumentCore::from_bytes(&out) {
++                    Ok(re) => compare("nạp lại:", &base_text, &all_text(&re), base_ctl, controls(&re)),
++                    Err(e) => println!("     KHÔNG NẠP LẠI ĐƯỢC: {e:?}"),
++                }
++            }
++            Err(e) => println!("=== A. XUẤT LỖI: {e:?}"),
++        }
++    }
++    println!();
++
++    // B. Sửa rồi xuất.
++    {
++        let mut c = DocumentCore::from_bytes(&bytes).expect("parse");
++        c.insert_text_native(0, 1, 0, "XYZ").expect("insert");
++        let edited_text = all_text(&c);
++        match c.export_hwp_with_report() {
++            Ok((out, loss)) => {
++                println!("=== B. Sửa (chèn 'XYZ' vào đoạn 1) rồi xuất ===");
++                println!("     contentLoss  : {}", if loss.is_empty() { "(rỗng)".into() } else { loss.clone() });
++                println!("     bytes        : {} -> {}", bytes.len(), out.len());
++                match DocumentCore::from_bytes(&out) {
++                    Ok(re) => compare("nạp lại so với bản đang sửa:", &edited_text, &all_text(&re), base_ctl, controls(&re)),
++                    Err(e) => println!("     KHÔNG NẠP LẠI ĐƯỢC: {e:?}"),
++                }
++            }
++            Err(e) => println!("=== B. XUẤT LỖI: {e:?}"),
++        }
++    }
++}
+diff --git a/examples/diag_find_table.rs b/examples/diag_find_table.rs
+new file mode 100644
+index 00000000..baaf898b
+--- /dev/null
++++ b/examples/diag_find_table.rs
+@@ -0,0 +1,26 @@
++// Tim tep mau co bang, in vi tri de hit-test.
++use rhwp::document_core::DocumentCore;
++use rhwp::model::control::Control;
++fn main(){
++  for path in std::env::args().skip(1) {
++    let Ok(bytes)=std::fs::read(&path) else { continue };
++    let Ok(core)=DocumentCore::from_bytes(&bytes) else { continue };
++    let mut found=0;
++    for (si,s) in core.document().sections.iter().enumerate(){
++      for (pi,p) in s.paragraphs.iter().enumerate(){
++        for (ci,c) in p.controls.iter().enumerate(){
++          if matches!(c, Control::Table(_)) {
++            if found==0 {
++              println!("{}  sec={si} parentPara={pi} controlIdx={ci}  (trang {})",
++                path.rsplit('/').next().unwrap_or(&path).chars().take(38).collect::<String>(),
++                core.page_count());
++            }
++            found+=1;
++          }
++        }
++      }
++    }
++    if found>0 { println!("   -> {found} bang"); return; }
++  }
++  println!("(khong thay bang)");
++}
+diff --git a/examples/diag_float_anchor.rs b/examples/diag_float_anchor.rs
+new file mode 100644
+index 00000000..a39e37f8
+--- /dev/null
++++ b/examples/diag_float_anchor.rs
+@@ -0,0 +1,51 @@
++// Ảnh trong tài liệu neo theo cái gì?
++//
++// Nếu `vert_rel_to = Para` thì vị trí dọc của ảnh tính được ngay trong hệ toạ độ
++// của đoạn, tức là `reflow_paragraph` tự biết ảnh chắn những dòng nào mà không
++// cần đợi phân trang. Nếu là Page/Paper thì mới vướng vòng phụ thuộc.
++//
++//   cargo run --release --example diag_float_anchor -- <file.hwp>
++
++use rhwp::document_core::DocumentCore;
++use rhwp::model::control::Control;
++
++fn main() {
++    let path = std::env::args().nth(1).expect("cần đường dẫn .hwp");
++    let bytes = std::fs::read(&path).expect("read");
++    let core = DocumentCore::from_bytes(&bytes).expect("parse");
++
++    for (sec_idx, sec) in core.document().sections.iter().enumerate() {
++        for (para_idx, para) in sec.paragraphs.iter().enumerate() {
++            for (ci, ctrl) in para.controls.iter().enumerate() {
++                let common = match ctrl {
++                    Control::Picture(p) => &p.common,
++                    Control::Shape(s) => s.common(),
++                    Control::Table(t) => &t.common,
++                    _ => continue,
++                };
++                println!(
++                    "sec{sec_idx} para{para_idx} ctrl{ci}: {:?}\n    \
++                     text_wrap={:?} treat_as_char={} \n    \
++                     vert_rel_to={:?} vert_align={:?} vertical_offset={} \n    \
++                     horz_rel_to={:?} horz_align={:?} horizontal_offset={} \n    \
++                     w={} h={} margin=(l{} r{} t{} b{})",
++                    std::mem::discriminant(ctrl),
++                    common.text_wrap,
++                    common.treat_as_char,
++                    common.vert_rel_to,
++                    common.vert_align,
++                    common.vertical_offset,
++                    common.horz_rel_to,
++                    common.horz_align,
++                    common.horizontal_offset,
++                    common.width,
++                    common.height,
++                    common.margin.left,
++                    common.margin.right,
++                    common.margin.top,
++                    common.margin.bottom,
++                );
++            }
++        }
++    }
++}
+diff --git a/examples/diag_lineseg_pitch.rs b/examples/diag_lineseg_pitch.rs
+new file mode 100644
+index 00000000..7f19d2ae
+--- /dev/null
++++ b/examples/diag_lineseg_pitch.rs
+@@ -0,0 +1,98 @@
++// Khảo sát: Hancom lưu `line_height` bằng bao nhiêu lần cỡ chữ?
++//
++// rhwp sinh `line_height = cỡ chữ` (font_size_to_line_height). Nếu tỉ lệ mà
++// Hancom dùng là một hằng số ổn định thì sửa được bằng một hệ số; nếu nó tản
++// mát theo font thì bắt buộc phải có ascent/descent thật.
++//
++// Cách đo: chụp `line_height` gốc của từng đoạn, ép reflow đoạn đó, rồi lấy
++// tỉ lệ gốc / mới. Giá trị mới chính là cỡ chữ, nên tỉ lệ này là hệ số cần tìm.
++//
++//   cargo run --release --example diag_lineseg_pitch -- <file.hwp>...
++
++use rhwp::document_core::DocumentCore;
++
++fn main() {
++    let files: Vec<String> = std::env::args().skip(1).collect();
++    let mut all: Vec<f64> = Vec::new();
++
++    for path in &files {
++        let bytes = match std::fs::read(path) {
++            Ok(b) => b,
++            Err(_) => continue,
++        };
++        let orig = match DocumentCore::from_bytes(&bytes) {
++            Ok(c) => c,
++            Err(_) => continue,
++        };
++        // Chụp line_height gốc của dòng đầu mỗi đoạn.
++        let stored: Vec<Option<i32>> = orig.document().sections[0]
++            .paragraphs
++            .iter()
++            .map(|p| p.line_segs.first().map(|l| l.line_height))
++            .collect();
++
++        let mut ratios: Vec<f64> = Vec::new();
++        for (idx, s) in stored.iter().enumerate() {
++            let Some(stored_lh) = *s else { continue };
++            if stored_lh <= 0 {
++                continue;
++            }
++            // Reflow riêng đoạn này trên một bản sạch.
++            let Ok(mut c) = DocumentCore::from_bytes(&bytes) else {
++                continue;
++            };
++            if c.insert_text_native(0, idx, 0, "X").is_err() {
++                continue;
++            }
++            let Some(new_lh) = c.document().sections[0]
++                .paragraphs
++                .get(idx)
++                .and_then(|p| p.line_segs.first())
++                .map(|l| l.line_height)
++            else {
++                continue;
++            };
++            if new_lh > 0 {
++                ratios.push(stored_lh as f64 / new_lh as f64);
++            }
++        }
++
++        if ratios.is_empty() {
++            continue;
++        }
++        let mut s = ratios.clone();
++        s.sort_by(|a, b| a.partial_cmp(b).unwrap());
++        let name = path.rsplit('/').next().unwrap_or(path);
++        // Tỉ lệ đoạn khớp chính xác (sai lệch < 0.5%) — đây mới là thước đo.
++        let exact = ratios.iter().filter(|r| (**r - 1.0).abs() < 0.005).count();
++        println!(
++            "{:<44} n={:<4} khop={:>5.1}%  min={:.3} tv={:.3} max={:.3}",
++            &name[..name.len().min(44)],
++            s.len(),
++            100.0 * exact as f64 / s.len() as f64,
++            s[0],
++            s[s.len() / 2],
++            s[s.len() - 1]
++        );
++        all.extend(ratios);
++    }
++
++    if all.is_empty() {
++        println!("(không đo được đoạn nào)");
++        return;
++    }
++    all.sort_by(|a, b| a.partial_cmp(b).unwrap());
++    println!();
++    println!("=== TỔNG HỢP {} đoạn / {} tệp ===", all.len(), files.len());
++    for q in [0usize, 5, 25, 50, 75, 95, 100] {
++        let i = ((all.len() - 1) * q) / 100;
++        println!("  phân vị {q:>3}%: {:.4}", all[i]);
++    }
++    let near = all.iter().filter(|r| (**r - 1.15).abs() < 0.01).count();
++    println!(
++        "  nằm trong ±0.01 quanh 1.15: {}/{} = {:.1}%",
++        near,
++        all.len(),
++        100.0 * near as f64 / all.len() as f64
++    );
++}
+diff --git a/examples/diag_para_style.rs b/examples/diag_para_style.rs
+new file mode 100644
+index 00000000..8f92c598
+--- /dev/null
++++ b/examples/diag_para_style.rs
+@@ -0,0 +1,30 @@
++// Đoạn 7 gồm chữ gì, và mỗi hệ chữ dùng font / 장평 / 자간 nào?
++use rhwp::document_core::DocumentCore;
++use rhwp::renderer::style_resolver::resolve_styles;
++
++fn main() {
++    let path = std::env::args().nth(1).expect("cần .hwp");
++    let para: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(7);
++    let bytes = std::fs::read(&path).expect("read");
++    let core = DocumentCore::from_bytes(&bytes).expect("parse");
++    let p = &core.document().sections[0].paragraphs[para];
++
++    let t: String = p.text.chars().take(60).collect();
++    println!("60 ký tự đầu: {t:?}");
++    let hangul = p.text.chars().filter(|c| ('\u{AC00}'..='\u{D7A3}').contains(c)).count();
++    let latin = p.text.chars().filter(|c| c.is_ascii_alphanumeric()).count();
++    println!("tổng {} ký tự — Hàn {hangul}, Latin {latin}", p.text.chars().count());
++    println!();
++
++    let styles = resolve_styles(&core.document().doc_info, 96.0);
++    let mut seen = std::collections::BTreeSet::new();
++    for cs in p.char_shapes.iter() {
++        if !seen.insert(cs.char_shape_id) { continue; }
++        let Some(s) = styles.char_styles.get(cs.char_shape_id as usize) else { continue };
++        println!("char_shape_id={} font_size={} bold={}", cs.char_shape_id, s.font_size, s.bold);
++        for lang in 0..7usize {
++            println!("   lang{lang}: font={:<24} ratio={:<6} letter_spacing={}",
++                     s.font_family_for_lang(lang), s.ratio_for_lang(lang), s.letter_spacing_for_lang(lang));
++        }
++    }
++}
+diff --git a/examples/diag_scale.rs b/examples/diag_scale.rs
+new file mode 100644
+index 00000000..e75d935a
+--- /dev/null
++++ b/examples/diag_scale.rs
+@@ -0,0 +1,46 @@
++// Chi phi mot phim go theo do lon tai lieu.
++//
++// Do rieng: thoi gian sua (reflow doan + phan trang lai vung) va thoi gian dung
++// hinh mot trang. Muc tieu: xem no tang theo so trang hay dung yen.
++use rhwp::document_core::DocumentCore;
++use std::time::Instant;
++
++fn main() {
++    println!("{:<44} {:>6} {:>7} {:>10} {:>11}", "tep", "trang", "doan", "sua(ms)", "render(ms)");
++    for path in std::env::args().skip(1) {
++        let Ok(bytes) = std::fs::read(&path) else { continue };
++        let t0 = Instant::now();
++        let Ok(mut core) = DocumentCore::from_bytes(&bytes) else { continue };
++        let parse_ms = t0.elapsed().as_secs_f64() * 1000.0;
++        let pages = core.page_count();
++        let paras: usize = core.document().sections.iter().map(|s| s.paragraphs.len()).sum();
++
++        // Tim mot doan co chu de sua.
++        let mut target = None;
++        for (si, s) in core.document().sections.iter().enumerate() {
++            for (pi, p) in s.paragraphs.iter().enumerate() {
++                if p.text.chars().count() > 20 { target = Some((si, pi)); break; }
++            }
++            if target.is_some() { break; }
++        }
++        let Some((si, pi)) = target else { continue };
++
++        // 5 lan go, lay trung binh.
++        let t = Instant::now();
++        for _ in 0..5 {
++            let _ = core.insert_text_native(si, pi, 0, "a");
++            let _ = core.delete_text_native(si, pi, 0, 1);
++        }
++        let edit_ms = t.elapsed().as_secs_f64() * 1000.0 / 10.0;
++
++        let t = Instant::now();
++        let mut bytes_svg = 0usize;
++        for _ in 0..3 { bytes_svg = core.render_page_svg_native(0).map(|s: String| s.len()).unwrap_or(0); }
++        let render_ms = t.elapsed().as_secs_f64() * 1000.0 / 3.0;
++
++        let name = path.rsplit('/').next().unwrap_or(&path);
++        println!("{:<44} {:>6} {:>7} {:>10.1} {:>11.1}   (parse {:.0}ms, svg {:.1}MB)",
++                 name.chars().take(44).collect::<String>(), pages, paras, edit_ms, render_ms,
++                 parse_ms, bytes_svg as f64 / 1e6);
++    }
++}
+diff --git a/examples/diag_seg_width.rs b/examples/diag_seg_width.rs
+new file mode 100644
+index 00000000..933f9915
+--- /dev/null
++++ b/examples/diag_seg_width.rs
+@@ -0,0 +1,20 @@
++// Lineseg mà Hancom lưu có mang bề rộng riêng cho từng dòng không?
++//
++// Nếu các dòng cạnh ảnh có `segment_width` hẹp hơn, thì việc chữ né ảnh đã nằm
++// sẵn trong dữ liệu — reflow chỉ cần dùng lại thay vì tính lại từ hình học.
++use rhwp::document_core::DocumentCore;
++
++fn main() {
++    let path = std::env::args().nth(1).expect("cần .hwp");
++    let para: usize = std::env::args().nth(2).and_then(|s| s.parse().ok()).unwrap_or(7);
++    let bytes = std::fs::read(&path).expect("read");
++    let core = DocumentCore::from_bytes(&bytes).expect("parse");
++    let p = &core.document().sections[0].paragraphs[para];
++    println!("đoạn {para}: {} lineseg", p.line_segs.len());
++    for (i, ls) in p.line_segs.iter().enumerate() {
++        println!(
++            "  [{i:>2}] text_start={:<5} vpos={:<7} column_start={:<7} segment_width={:<7}",
++            ls.text_start, ls.vertical_pos, ls.column_start, ls.segment_width
++        );
++    }
++}
+diff --git a/examples/diag_wrap_blast.rs b/examples/diag_wrap_blast.rs
+new file mode 100644
+index 00000000..e52b51a8
+--- /dev/null
++++ b/examples/diag_wrap_blast.rs
+@@ -0,0 +1,40 @@
++// Bán kính ảnh hưởng: bao nhiêu đoạn có lineseg với bề rộng KHÁC NHAU giữa các
++// dòng? Chỉ những đoạn đó mới đi vào đường mới; phần còn lại giữ nguyên hành vi.
++use rhwp::document_core::DocumentCore;
++
++fn main() {
++    let mut tot = 0usize;
++    let mut varying = 0usize;
++    let mut files = 0usize;
++    for path in std::env::args().skip(1) {
++        let Ok(bytes) = std::fs::read(&path) else { continue };
++        let Ok(core) = DocumentCore::from_bytes(&bytes) else { continue };
++        files += 1;
++        let mut f_var = 0usize;
++        let mut f_tot = 0usize;
++        for sec in core.document().sections.iter() {
++            for p in sec.paragraphs.iter() {
++                if p.line_segs.len() < 2 { continue; }
++                f_tot += 1;
++                let mut w: Vec<(i32, i32)> = Vec::new();
++                for seg in p.line_segs.iter() {
++                    if seg.segment_width <= 0 { continue; }
++                    match w.last_mut() {
++                        Some((v, x)) if *v == seg.vertical_pos => *x = (*x).max(seg.segment_width),
++                        _ => w.push((seg.vertical_pos, seg.segment_width)),
++                    }
++                }
++                if w.windows(2).any(|q| q[0].1 != q[1].1) { f_var += 1; }
++            }
++        }
++        tot += f_tot;
++        varying += f_var;
++        if f_var > 0 {
++            let name = path.rsplit('/').next().unwrap_or(&path).to_string();
++            println!("  {:<46} {}/{} doan co be rong thay doi", name.chars().take(40).collect::<String>(), f_var, f_tot);
++        }
++    }
++    println!();
++    println!("TONG: {varying}/{tot} doan nhieu dong ({:.2}%) tren {files} tep di vao duong moi",
++             100.0 * varying as f64 / tot.max(1) as f64);
++}

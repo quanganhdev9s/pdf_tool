@@ -28,6 +28,7 @@
 		A00000000000000000000001 /* PdfPocApi.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000011 /* PdfPocApi.g.swift */; };
 		A00000000000000000000002 /* PdfPocRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* PdfPocRuntime.swift */; };
 		A00000000000000000000102 /* HwpViewerSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* HwpViewerSchemeHandler.swift */; };
+		A00000000000000000000202 /* WKWebView+InputAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000201 /* WKWebView+InputAccessory.swift */; };
 		A00000000000000000000104 /* HwpViewer in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103 /* HwpViewer */; };
 		A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* PdfWorkspaceView.swift */; };
 		A00000000000000000000004 /* PdfPlatformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* PdfPlatformView.swift */; };
@@ -118,6 +119,7 @@
 		A00000000000000000000011 /* PdfPocApi.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocApi.g.swift; sourceTree = "<group>"; };
 		A00000000000000000000012 /* PdfPocRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocRuntime.swift; sourceTree = "<group>"; };
 		A00000000000000000000101 /* HwpViewerSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hwp/HwpViewerSchemeHandler.swift; sourceTree = "<group>"; };
+		A00000000000000000000201 /* WKWebView+InputAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hwp/WKWebView+InputAccessory.swift"; sourceTree = "<group>"; };
 		A00000000000000000000103 /* HwpViewer */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Hwp/HwpViewer; sourceTree = "<group>"; };
 		A00000000000000000000013 /* PdfWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfWorkspaceView.swift; sourceTree = "<group>"; };
 		A00000000000000000000014 /* PdfPlatformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPlatformView.swift; sourceTree = "<group>"; };
@@ -273,6 +275,7 @@
 				A00000000000000000000021 /* Bridge */,
 				A00000000000000000000012 /* PdfPocRuntime.swift */,
 				A00000000000000000000101 /* HwpViewerSchemeHandler.swift */,
+				A00000000000000000000201 /* WKWebView+InputAccessory.swift */,
 				A00000000000000000000103 /* HwpViewer */,
 				A00000000000000000000013 /* PdfWorkspaceView.swift */,
 				A00000000000000000000016 /* PdfWorkspaceSupport.swift */,
@@ -531,6 +534,7 @@
 				A00000000000000000000001 /* PdfPocApi.g.swift in Sources */,
 				A00000000000000000000002 /* PdfPocRuntime.swift in Sources */,
 				A00000000000000000000102 /* HwpViewerSchemeHandler.swift in Sources */,
+				A00000000000000000000202 /* WKWebView+InputAccessory.swift in Sources */,
 				A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */,
 				A00000000000000000000004 /* PdfPlatformView.swift in Sources */,
 				A00000000000000000000005 /* PdfPocHostApiImpl.swift in Sources */,

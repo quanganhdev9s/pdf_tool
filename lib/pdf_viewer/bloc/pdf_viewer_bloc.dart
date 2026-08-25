@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -15,7 +16,7 @@ export 'pdf_viewer_state.dart';
 class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     implements PdfPocFlutterApi {
   PdfViewerBloc({required this.assetKey, this.initialFilePath})
-      : super(PdfViewerState()) {
+    : super(PdfViewerState()) {
     logPdfEvent('viewer_bloc_init', <String, Object?>{'asset': assetKey});
     PdfPocFlutterApi.setUp(this);
 
@@ -117,6 +118,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNativeDocumentForViewingCancelled>(
       _onNativeDocumentForViewingCancelled,
     );
+    on<PdfViewerNativeHwpEditorStateChanged>(_onNativeHwpEditorStateChanged);
+    on<PdfViewerNativeHwpEditsSaved>(_onNativeHwpEditsSaved);
     on<PdfViewerCancelPdfConversionRequested>(_onCancelPdfConversionRequested);
     on<PdfViewerLoadGeneratedOutputsRequested>(
       _onLoadGeneratedOutputsRequested,
@@ -173,7 +176,9 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       final PdfDocumentInfo info;
       final String? filePath = initialFilePath;
       if (filePath != null) {
-        logPdfEvent('reset_external_document', <String, Object?>{'path': filePath});
+        logPdfEvent('reset_external_document', <String, Object?>{
+          'path': filePath,
+        });
         info = await _api.openExternalDocument(filePath);
       } else {
         final bytes = await _loadAssetBytes(assetKey);
@@ -993,7 +998,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
-
   Future<void> _onPickFileForPdfConversionRequested(
     PdfViewerPickFileForPdfConversionRequested event,
     Emitter<PdfViewerState> emit,
@@ -1156,11 +1160,15 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
-  /// Yêu cầu ghi bản đang sửa đè lên tệp đang mở.
+  /// Ghi bản đang sửa đè lên tệp đang mở, và **đợi kết quả thật**.
   ///
-  /// Trả về ngay: việc xuất chạy bất đồng bộ trong trình soạn thảo, kết quả
-  /// hiện trong log native (`hwp_editor_saved` / `hwp_editor_save_failed`).
-  Future<void> saveViewerEdits() async {
+  /// `saveDocumentEdits` bên native trả về ngay — việc xuất chạy bất đồng bộ
+  /// trong trình soạn thảo. Kết quả về sau, qua `onHwpEditsSaved`; chỗ này nối
+  /// hai đầu đó lại để màn hình biết được nó đã lưu xong hay hỏng, thay vì
+  /// đoán.
+  Future<HwpSaveResult> saveViewerEdits() async {
+    final completer = Completer<HwpSaveResult>();
+    _pendingSave = completer;
     try {
       await _api.saveDocumentEdits();
     } on PlatformException catch (error) {
@@ -1168,7 +1176,83 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         'code': error.code,
         'message': error.message,
       });
+      _pendingSave = null;
       rethrow;
+    }
+    return completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        _pendingSave = null;
+        logPdfEvent('save_document_edits_timeout');
+        return HwpSaveResult(ok: false, error: 'Quá thời gian chờ lưu tệp.');
+      },
+    );
+  }
+
+  /// Đợi kết quả của lần lưu đang chạy, nếu có.
+  Completer<HwpSaveResult>? _pendingSave;
+
+  /// Áp định dạng chữ cho vùng đang chọn trong trình soạn thảo HWP.
+  Future<void> applyHwpCharFormat(HwpCharFormat format) async {
+    try {
+      await _api.applyHwpCharFormat(format);
+    } on PlatformException catch (error) {
+      logPdfEvent('apply_hwp_char_format_failed', <String, Object?>{
+        'code': error.code,
+        'message': error.message,
+      });
+    }
+  }
+
+  Future<void> applyHwpParaFormat(HwpParaFormat format) async {
+    try {
+      await _api.applyHwpParaFormat(format);
+    } on PlatformException catch (error) {
+      logPdfEvent('apply_hwp_para_format_failed', <String, Object?>{
+        'code': error.code,
+        'message': error.message,
+      });
+    }
+  }
+
+  /// Báo cho trình soạn thảo biết thanh công cụ nổi của Flutter đang che mất
+  /// bao nhiêu ở đáy web view.
+  Future<void> setViewerChromeInset(double pixels) async {
+    try {
+      await _api.setViewerChromeInset(pixels);
+    } on PlatformException catch (_) {
+      // Trình xem chưa lên hoặc đã đóng; không có gì để chừa chỗ.
+    }
+  }
+
+  Future<void> hwpUndo() async {
+    try {
+      await _api.hwpUndo();
+    } on PlatformException catch (_) {
+      // Trình soạn thảo đã đóng; không có gì để hoàn tác.
+    }
+  }
+
+  Future<void> hwpRedo() async {
+    try {
+      await _api.hwpRedo();
+    } on PlatformException catch (_) {
+      // Trình soạn thảo đã đóng.
+    }
+  }
+
+  /// Lật tới trang [pageIndex] (đếm từ 0) trong trình xem HWP.
+  ///
+  /// Không tự cập nhật state: trang vỏ mới là nơi biết nó dừng ở trang nào sau
+  /// khi kẹp chỉ số, và nó báo ngược lên qua `onHwpEditorStateChanged`.
+  Future<void> hwpGoToPage(int pageIndex) async {
+    try {
+      await _api.hwpGoToPage(pageIndex);
+    } on PlatformException catch (error) {
+      logPdfEvent('hwp_go_to_page_failed', <String, Object?>{
+        'page': pageIndex,
+        'code': error.code,
+      });
     }
   }
 
@@ -1178,11 +1262,50 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     await _api.loadDocumentIntoViewer(path);
   }
 
+  void _onNativeHwpEditorStateChanged(
+    PdfViewerNativeHwpEditorStateChanged event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(state.copyWith(hwpEditor: event.state));
+  }
+
+  void _onNativeHwpEditsSaved(
+    PdfViewerNativeHwpEditsSaved event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    // Ghi xong thì không còn thay đổi chưa lưu. Trang vỏ cũng gửi state mới,
+    // nhưng nó tới sau và màn hình không nên nhấp nháy "chưa lưu" ở giữa.
+    final editor = state.hwpEditor;
+    if (event.result.ok && editor != null) {
+      emit(state.copyWith(hwpEditor: _copyEditorState(editor, dirty: false)));
+    }
+  }
+
+  /// `HwpEditorState` do Pigeon sinh nên không có `copyWith`.
+  HwpEditorState _copyEditorState(HwpEditorState from, {required bool dirty}) {
+    return HwpEditorState(
+      hasCaret: from.hasCaret,
+      hasSelection: from.hasSelection,
+      bold: from.bold,
+      italic: from.italic,
+      underline: from.underline,
+      strikethrough: from.strikethrough,
+      fontSizePt: from.fontSizePt,
+      alignment: from.alignment,
+      lineSpacing: from.lineSpacing,
+      canUndo: from.canUndo,
+      canRedo: from.canRedo,
+      dirty: dirty,
+      pageIndex: from.pageIndex,
+      pageCount: from.pageCount,
+    );
+  }
+
   Future<void> _onCloseDocumentViewerRequested(
     PdfViewerCloseDocumentViewerRequested event,
     Emitter<PdfViewerState> emit,
   ) async {
-    emit(state.copyWith(viewableDocument: null));
+    emit(state.copyWith(viewableDocument: null, hwpEditor: null));
     try {
       await _api.closeDocumentViewer();
     } on PlatformException catch (error) {
@@ -1621,7 +1744,9 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     final PdfDocumentInfo info;
     final String? filePath = initialFilePath;
     if (filePath != null) {
-      logPdfEvent('open_external_document', <String, Object?>{'path': filePath});
+      logPdfEvent('open_external_document', <String, Object?>{
+        'path': filePath,
+      });
       info = await _api.openExternalDocument(filePath);
     } else {
       final bytes = await _loadAssetBytes(assetKey);
@@ -2193,6 +2318,29 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     logPdfEvent('callback_document_for_viewing_cancelled');
     if (!isClosed) {
       add(const PdfViewerNativeDocumentForViewingCancelled());
+    }
+  }
+
+  @override
+  void onHwpEditorStateChanged(HwpEditorState state) {
+    // Không log: cái này bắn ra sau mỗi lần con trỏ nhúc nhích.
+    if (!isClosed) {
+      add(PdfViewerNativeHwpEditorStateChanged(state));
+    }
+  }
+
+  @override
+  void onHwpEditsSaved(HwpSaveResult result) {
+    logPdfEvent('callback_hwp_edits_saved', <String, Object?>{
+      'ok': result.ok,
+      'contentLoss': result.contentLoss?.length ?? 0,
+      'error': result.error,
+    });
+    final pending = _pendingSave;
+    _pendingSave = null;
+    if (pending != null && !pending.isCompleted) pending.complete(result);
+    if (!isClosed) {
+      add(PdfViewerNativeHwpEditsSaved(result));
     }
   }
 

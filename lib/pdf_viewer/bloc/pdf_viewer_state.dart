@@ -36,6 +36,7 @@ class PdfViewerState {
     this.generatedOutputsLoading = false,
     this.viewableDocument,
     this.viewablePickPending = false,
+    this.hwpEditor,
   });
 
   final PdfDocumentInfo? documentInfo;
@@ -72,6 +73,10 @@ class PdfViewerState {
   final PdfViewableDocument? viewableDocument;
   final bool viewablePickPending;
 
+  /// Con trỏ và định dạng trong trình soạn thảo HWP. `null` khi chưa bật chế
+  /// độ sửa, hoặc khi tệp đang mở không phải HWP.
+  final HwpEditorState? hwpEditor;
+
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
   PdfViewerState copyWith({
@@ -107,6 +112,7 @@ class PdfViewerState {
     bool? generatedOutputsLoading,
     Object? viewableDocument = _unset,
     bool? viewablePickPending,
+    Object? hwpEditor = _unset,
   }) {
     return PdfViewerState(
       documentInfo: documentInfo == _unset
@@ -163,6 +169,9 @@ class PdfViewerState {
           ? this.viewableDocument
           : viewableDocument as PdfViewableDocument?,
       viewablePickPending: viewablePickPending ?? this.viewablePickPending,
+      hwpEditor: hwpEditor == _unset
+          ? this.hwpEditor
+          : hwpEditor as HwpEditorState?,
     );
   }
 }

@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../pdf_poc_api.g.dart';
 import '../bloc/pdf_viewer_bloc.dart';
+import '../widgets/hwp_editor_tool_bar.dart';
+import '../widgets/hwp_page_bar.dart';
 
 enum _ViewerMenuAction { search, details, share }
 
@@ -36,6 +38,13 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   bool _editing = false;
   bool _busy = false;
 
+  /// Đo chiều cao thật của thanh công cụ thay vì đoán: nó đổi theo vùng an
+  /// toàn của máy, và khi đang lưu thì có thêm thanh tiến trình.
+  final GlobalKey _toolBarKey = GlobalKey();
+
+  /// Số đã báo xuống native lần gần nhất, để không bắn lại cùng một giá trị.
+  double _reportedChromeInset = -1;
+
   /// Tệp này có sửa được không. Chỉ HWP — mọi định dạng khác chỉ xem.
   bool get _editable => _editableExtensions.contains(
     widget.document.fileName.split('.').last.toLowerCase(),
@@ -55,40 +64,104 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
     super.dispose();
   }
 
+  /// Báo xuống native phần đáy web view mà Flutter đang che.
+  ///
+  /// Chiều cao thanh công cụ chỉ đo được sau khi bố cục xong, nên phải đợi hết
+  /// khung hình. Không báo lại khi số không đổi — bàn phím trượt lên là hàng
+  /// chục lần dựng khung hình liên tiếp.
+  void _syncChromeInset() {
+    if (!mounted) return;
+    final box = _toolBarKey.currentContext?.findRenderObject() as RenderBox?;
+    final inset = _editing && box != null && box.hasSize
+        ? box.size.height
+        : 0.0;
+    if ((inset - _reportedChromeInset).abs() < 0.5) return;
+    _reportedChromeInset = inset;
+    _bloc?.setViewerChromeInset(inset);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // Đừng co màn hình khi bàn phím lên.
-      //
-      // Co Scaffold là co `UiKitView`, tức là co cả `WKWebView` và iframe của
-      // trình soạn thảo bên trong. rhwp-studio ở khác origin nên ta không biết
-      // nó có tính lại hình học sau resize không — và nếu không, mọi cú chạm
-      // sau lần đầu sẽ ánh xạ theo toạ độ cũ, làm con trỏ như đứng yên một chỗ.
-      //
-      // Màn PDF cũng đặt như vậy, cùng một lý do.
-      resizeToAvoidBottomInset: false,
-      appBar: _searching ? _buildSearchAppBar() : _buildDefaultAppBar(),
-      body: Column(
-        children: <Widget>[
-          if (_showDetails) _DetailsBar(document: widget.document),
-          Expanded(child: _NativeDocumentViewer(path: widget.document.path)),
-        ],
-      ),
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncChromeInset());
+    return BlocBuilder<PdfViewerBloc, PdfViewerState>(
+      buildWhen: (previous, current) => previous.hwpEditor != current.hwpEditor,
+      builder: (context, state) {
+        final editor = state.hwpEditor;
+        return Scaffold(
+          // Đừng co màn hình khi bàn phím lên.
+          //
+          // Co Scaffold là co `UiKitView`, tức là co cả `WKWebView` bên trong,
+          // và mọi toạ độ chạm mà trình soạn thảo đã đo sẽ lệch đi — con trỏ
+          // trông như đứng yên một chỗ.
+          //
+          // Cái giá của nó là đáy màn hình cũng đứng yên, nên thanh công cụ
+          // phải tự nâng (xem `body` bên dưới) và con trỏ phải tự tránh: native
+          // đo bàn phím, Flutter báo chiều cao thanh công cụ, trang vỏ cộng hai
+          // số đó rồi cuộn.
+          //
+          // Màn PDF cũng đặt như vậy, cùng một lý do.
+          resizeToAvoidBottomInset: false,
+          appBar: _searching
+              ? _buildSearchAppBar()
+              : _buildDefaultAppBar(editor),
+          // Thanh công cụ **nổi** trên web view, không phải `bottomNavigationBar`.
+          // Đáy Scaffold không nhúc nhích khi bàn phím lên, nên đặt ở đó là bị
+          // bàn phím phủ mất. Ở đây nó tự nâng theo `viewInsets`.
+          body: Stack(
+            children: <Widget>[
+              Column(
+                children: <Widget>[
+                  if (_showDetails) _DetailsBar(document: widget.document),
+                  // Chỉ tài liệu HWP mới dựng từng trang một; PDF vẫn cuộn liên
+                  // tục nên không có gì để lật ở đây.
+                  if (_editable)
+                    HwpPageBar(
+                      state: editor,
+                      onGoToPage: (page) => _bloc?.hwpGoToPage(page),
+                    ),
+                  Expanded(
+                    child: _NativeDocumentViewer(path: widget.document.path),
+                  ),
+                ],
+              ),
+              if (_editing)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                  child: HwpEditorToolBar(
+                    key: _toolBarKey,
+                    state: editor,
+                    busy: _busy,
+                    onCharFormat: (format) => _bloc?.applyHwpCharFormat(format),
+                    onParaFormat: (format) => _bloc?.applyHwpParaFormat(format),
+                    onUndo: () => _bloc?.hwpUndo(),
+                    onRedo: () => _bloc?.hwpRedo(),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  PreferredSizeWidget _buildDefaultAppBar() {
+  PreferredSizeWidget _buildDefaultAppBar(HwpEditorState? editor) {
+    final dirty = editor?.dirty ?? false;
     return AppBar(
-      title: Text(widget.document.fileName, overflow: TextOverflow.ellipsis),
+      title: Text(
+        dirty ? '${widget.document.fileName} •' : widget.document.fileName,
+        overflow: TextOverflow.ellipsis,
+      ),
       actions: <Widget>[
         if (_editable && _editing) ...<Widget>[
           IconButton(
             tooltip: 'Lưu',
-            onPressed: _busy ? null : _saveEdits,
+            onPressed: _busy || !dirty ? null : _saveEdits,
             icon: const Icon(Icons.save_outlined),
           ),
           TextButton(
-            onPressed: _busy ? null : () => _setEditing(false),
+            onPressed: _busy ? null : () => _leaveEditing(dirty),
             child: const Text('Xong'),
           ),
         ] else if (_editable)
@@ -196,19 +269,93 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   Future<void> _saveEdits() async {
     setState(() => _busy = true);
     try {
-      await _bloc?.saveViewerEdits();
+      final result = await _bloc?.saveViewerEdits();
+      if (!mounted || result == null) return;
+      _showSaveResult(result);
+    } on Object catch (_) {
       if (mounted) {
-        // Việc xuất chạy bất đồng bộ bên trình soạn thảo, nên đây chỉ là "đã
-        // gửi yêu cầu" — không phải "đã lưu xong".
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đang lưu…')),
+          const SnackBar(content: Text('Không gửi được yêu cầu lưu.')),
         );
       }
-    } on Object catch (_) {
-      // Đã vào log.
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _showSaveResult(HwpSaveResult result) {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!result.ok) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Lưu hỏng: ${result.error ?? "không rõ lý do"}'),
+        ),
+      );
+      return;
+    }
+    // Ghi được không có nghĩa là ghi đủ. `exportHwpWithReport` nói phần nào nó
+    // phải bỏ lại, và đó là thứ duy nhất cho biết tệp vừa ghi có còn nguyên
+    // tài liệu ban đầu hay không.
+    final loss = result.contentLoss;
+    if (loss != null && loss.isNotEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Đã lưu, nhưng một phần nội dung không ghi được.',
+          ),
+          action: SnackBarAction(
+            label: 'Chi tiết',
+            onPressed: () => _showContentLoss(loss),
+          ),
+        ),
+      );
+      return;
+    }
+    messenger.showSnackBar(const SnackBar(content: Text('Đã lưu.')));
+  }
+
+  void _showContentLoss(String report) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nội dung không ghi được'),
+        content: SingleChildScrollView(child: Text(report)),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Tắt chế độ sửa là **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm trong
+  /// trình soạn thảo, không nằm trong tệp. Nên phải hỏi.
+  Future<void> _leaveEditing(bool dirty) async {
+    if (dirty) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Bỏ thay đổi?'),
+          content: const Text(
+            'Có thay đổi chưa lưu. Thoát chế độ sửa sẽ bỏ hết.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Ở lại'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Bỏ thay đổi'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true) return;
+    }
+    await _setEditing(false);
   }
 
   Future<void> _find({required bool forward}) async {
