@@ -38,6 +38,9 @@ AGENTS.md
 /build/
 /coverage/
 
+# Rust bridge build cache.
+/packages/rhwp_bridge/rust/target/
+
 # Symbolication related
 app.*.symbols
 

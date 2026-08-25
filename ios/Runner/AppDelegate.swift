@@ -15,6 +15,7 @@ import UIKit
     let applicationRegistrar = engineBridge.applicationRegistrar
     PdfPocRuntime.shared.configure(binaryMessenger: applicationRegistrar.messenger())
     PdfScanCoordinator.shared.configure(binaryMessenger: applicationRegistrar.messenger())
+    HwpRuntime.shared.configure(binaryMessenger: applicationRegistrar.messenger())
     applicationRegistrar.register(
       PdfPlatformViewFactory(),
       withId: "pdf_poc_view"

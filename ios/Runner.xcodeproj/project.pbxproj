@@ -49,6 +49,13 @@
 		A0000000000000000000003E /* PdfDocumentViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003F /* PdfDocumentViewerView.swift */; };
 		A92CDF412A7146A739AE80A8 /* PdfScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79EC57B8280E2778BF0FB5B1 /* PdfScanCoordinator.swift */; };
 		A991EF704F42578B73547AAC /* PdfScanLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D6AE2785230FAEFFCC1C17 /* PdfScanLibrary.swift */; };
+		B00000000000000000000001 /* HwpApi.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* HwpApi.g.swift */; };
+		B00000000000000000000002 /* HwpRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* HwpRuntime.swift */; };
+		B00000000000000000000003 /* HwpHostApiImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* HwpHostApiImpl.swift */; };
+		B00000000000000000000004 /* HwpDocumentSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000014 /* HwpDocumentSession.swift */; };
+		B00000000000000000000005 /* HwpRuntimeError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000015 /* HwpRuntimeError.swift */; };
+		B00000000000000000000006 /* RhwpEngineBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000016 /* RhwpEngineBridge.swift */; };
+		B00000000000000000000007 /* RhwpBridge.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = B00000000000000000000017 /* RhwpBridge.xcframework */; };
 		B7FFB09DD7777E71BE70CB6D /* PdfScanSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F05CC37A9C78A97B58BEBCF /* PdfScanSession.swift */; };
 		C0492946E8424AC4B3356B4D /* PdfScanCornerEditorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F2DF654E55B47D29ECFA537 /* PdfScanCornerEditorViewController.swift */; };
 		CD98C059541AC40F08177DB5 /* PdfScanReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C125B92E8B33108035AAB6F1 /* PdfScanReviewView.swift */; };
@@ -136,6 +143,13 @@
 		A0000000000000000000003D /* PdfOfficePreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfOfficePreviewManager.swift; sourceTree = "<group>"; };
 		A0000000000000000000003F /* PdfDocumentViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfDocumentViewerView.swift; sourceTree = "<group>"; };
 		AEB4071C99F34CFABD2FEB23 /* PdfScanDocumentDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanDocumentDetector.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 /* HwpApi.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpApi.g.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 /* HwpRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpRuntime.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 /* HwpHostApiImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpHostApiImpl.swift; sourceTree = "<group>"; };
+		B00000000000000000000014 /* HwpDocumentSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpDocumentSession.swift; sourceTree = "<group>"; };
+		B00000000000000000000015 /* HwpRuntimeError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpRuntimeError.swift; sourceTree = "<group>"; };
+		B00000000000000000000016 /* RhwpEngineBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RhwpEngineBridge.swift; sourceTree = "<group>"; };
+		B00000000000000000000017 /* RhwpBridge.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = RhwpBridge.xcframework; path = ../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework; sourceTree = "<group>"; };
 		C125B92E8B33108035AAB6F1 /* PdfScanReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanReviewView.swift; sourceTree = "<group>"; };
 		D1B1C307861DB0F64455722A /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F253DE7BDEAFA892786BC62A /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
@@ -146,6 +160,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B00000000000000000000007 /* RhwpBridge.xcframework in Frameworks */,
 				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
 				9102F6EDC86F85C3845813A4 /* Pods_Runner.framework in Frameworks */,
 			);
@@ -173,6 +188,7 @@
 		3407DB959B5334D7CE14CA8F /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				B00000000000000000000017 /* RhwpBridge.xcframework */,
 				4DDEF08E99FF74A24D3525AB /* Pods_Runner.framework */,
 				D1B1C307861DB0F64455722A /* Pods_RunnerTests.framework */,
 			);
@@ -195,7 +211,6 @@
 				7EBEB973AAE9910C3C9B3B00 /* PdfScanSessionStore.swift */,
 				30D6AE2785230FAEFFCC1C17 /* PdfScanLibrary.swift */,
 			);
-			name = Scan;
 			path = Scan;
 			sourceTree = "<group>";
 		};
@@ -209,7 +224,6 @@
 				4C923311F25B3E938E765322 /* Pods-RunnerTests.release.xcconfig */,
 				4CD8D737373EA2741DC9688D /* Pods-RunnerTests.profile.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -259,6 +273,7 @@
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				A00000000000000000000020 /* PdfPoc */,
+				B00000000000000000000020 /* Hwp */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -302,6 +317,27 @@
 			path = Bridge;
 			sourceTree = "<group>";
 		};
+		B00000000000000000000020 /* Hwp */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000021 /* Bridge */,
+				B00000000000000000000012 /* HwpRuntime.swift */,
+				B00000000000000000000013 /* HwpHostApiImpl.swift */,
+				B00000000000000000000014 /* HwpDocumentSession.swift */,
+				B00000000000000000000015 /* HwpRuntimeError.swift */,
+				B00000000000000000000016 /* RhwpEngineBridge.swift */,
+			);
+			path = Hwp;
+			sourceTree = "<group>";
+		};
+		B00000000000000000000021 /* Bridge */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000011 /* HwpApi.g.swift */,
+			);
+			path = Bridge;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -335,7 +371,6 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
-				4F795C7CFFB047FD9EA315EA /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -379,7 +414,7 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -428,23 +463,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
-		};
-		4F795C7CFFB047FD9EA315EA /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
 		};
 		89715A6C2EF664FB1845B5E0 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -543,6 +561,12 @@
 				A00000000000000000000039 /* PdfConvertedDocumentWriter.swift in Sources */,
 				A0000000000000000000003C /* PdfOfficePreviewManager.swift in Sources */,
 				A0000000000000000000003E /* PdfDocumentViewerView.swift in Sources */,
+				B00000000000000000000001 /* HwpApi.g.swift in Sources */,
+				B00000000000000000000002 /* HwpRuntime.swift in Sources */,
+				B00000000000000000000003 /* HwpHostApiImpl.swift in Sources */,
+				B00000000000000000000004 /* HwpDocumentSession.swift in Sources */,
+				B00000000000000000000005 /* HwpRuntimeError.swift in Sources */,
+				B00000000000000000000006 /* RhwpEngineBridge.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				85981249CFB136C42749CB45 /* PdfScanCaptureManager.swift in Sources */,
@@ -650,12 +674,25 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = GY2A643GUN;
+				DEVELOPMENT_TEAM = 556MA7Q94J;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64";
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64-simulator";
+				OTHER_LDFLAGS = "$(inherited)";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64/librhwp_bridge.a",
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64-simulator/librhwp_bridge.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.qa.pdfTool;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -833,12 +870,25 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = GY2A643GUN;
+				DEVELOPMENT_TEAM = 556MA7Q94J;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64";
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64-simulator";
+				OTHER_LDFLAGS = "$(inherited)";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64/librhwp_bridge.a",
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64-simulator/librhwp_bridge.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.qa.pdfTool;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -856,12 +906,25 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = GY2A643GUN;
+				DEVELOPMENT_TEAM = 556MA7Q94J;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = "$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64";
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64-simulator";
+				OTHER_LDFLAGS = "$(inherited)";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64/librhwp_bridge.a",
+				);
+				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"-force_load",
+					"$(PROJECT_DIR)/../packages/rhwp_bridge/ios/Frameworks/RhwpBridge.xcframework/ios-arm64-simulator/librhwp_bridge.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.qa.pdfTool;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -907,7 +970,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
 		};
