@@ -109,7 +109,10 @@ Rust bridge: `rhwp_bridge_insert_text()`
 
 Công dụng:
 - Decode text UTF-8.
+- Lưu snapshot trước khi edit để dùng cho Undo.
 - Gọi `document.insert_text_native(section, paragraph, offset, text)`.
+- Nếu edit thành công: đưa snapshot vào undo stack và xoá redo stack.
+- Nếu edit lỗi: discard snapshot vừa tạo.
 
 Rust core: `insert_text_native()`
 
@@ -142,6 +145,7 @@ Service/native/Rust bridge:
 - Rust core `delete_text_native()`
 
 Công dụng Rust:
+- Lưu snapshot trước khi edit.
 - Xóa text ở paragraph.
 - Reflow/recompose/paginate lại.
 - Cập nhật caret.
@@ -160,6 +164,7 @@ Flutter: `performAction(TextInputAction.newline)` hoặc input chứa `\n`
 - Rust core `split_paragraph_native()`
 
 Công dụng:
+- Lưu snapshot trước khi edit.
 - Tách paragraph tại caret.
 - Paragraph sau nhận phần text phía sau caret.
 - Reflow/recompose/paginate.
@@ -177,6 +182,7 @@ Flutter: `_mergeParagraphAtCaret()`
 - Rust core `merge_paragraph_native()`
 
 Công dụng:
+- Lưu snapshot trước khi edit.
 - Gộp paragraph hiện tại vào paragraph trước.
 - Reflow/recompose/paginate.
 - Trả paragraph/offset mới.
@@ -190,11 +196,31 @@ Công dụng:
 - Xoá toàn bộ cache `_pageSvgs` vì pagination có thể làm nội dung các trang sau thay đổi.
 - Render lại **chỉ active page** bằng `renderPageSvg(activePage)`.
 - Update `_caret`, `_editingPageIndex`, `_pageSvgs`.
+- Query `hwpEditHistoryState()` để cập nhật trạng thái nút Undo/Redo.
 
 Quan trọng: đoạn này hiện **không còn `extractText()` toàn file sau mỗi ký tự**.
 Các trang khác vẫn lazy render khi người dùng chuyển tới, nhưng sẽ render từ trạng thái Rust mới thay vì dùng cache cũ.
 
-**9. Render page**
+**9. Undo/Redo**
+Flutter:
+- `_undo()`
+- `_redo()`
+
+Đi qua:
+- `HwpDocumentService.undoEdit()` / `redoEdit()`
+- `HwpHostApiImpl.undoHwpEdit()` / `redoHwpEdit()`
+- `HwpRuntime.undoEdit()` / `redoEdit()`
+- `RhwpEngineBridge.undo()` / `redo()`
+- Rust bridge `rhwp_bridge_undo()` / `rhwp_bridge_redo()`
+
+Công dụng:
+- Rust bridge giữ `undo_stack` và `redo_stack` bằng snapshot ID của `DocumentCore`.
+- Undo: lưu snapshot trạng thái hiện tại vào redo stack, restore snapshot gần nhất từ undo stack.
+- Redo: lưu snapshot hiện tại vào undo stack, restore snapshot gần nhất từ redo stack.
+- Sau restore, Flutter xoá toàn bộ `_pageSvgs`, render lại active page, clear caret và cập nhật `canUndo/canRedo`.
+- History hiện giới hạn 40 bước trong bridge để không vượt quá snapshot store native.
+
+**10. Render page**
 Flutter: `_renderPage()` hoặc trong edit `_refreshAfterDirectEdit()`
 
 Đi qua:
@@ -210,7 +236,7 @@ Công dụng:
 - Flutter sanitize SVG để bỏ image SVG unsupported.
 - `SvgPicture.string()` hiển thị page.
 
-**10. Save**
+**11. Save**
 Flutter: `_saveEdit()`
 
 Công dụng:

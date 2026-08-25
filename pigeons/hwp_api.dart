@@ -54,6 +54,22 @@ class HwpEditResult {
   bool isDirty;
 }
 
+class HwpEditHistoryState {
+  HwpEditHistoryState({
+    required this.canUndo,
+    required this.canRedo,
+    required this.undoDepth,
+    required this.redoDepth,
+    required this.pageCount,
+  });
+
+  bool canUndo;
+  bool canRedo;
+  int undoDepth;
+  int redoDepth;
+  int pageCount;
+}
+
 class HwpSaveResult {
   HwpSaveResult({
     required this.outputPath,
@@ -109,6 +125,12 @@ abstract class HwpHostApi {
   String mergeHwpParagraph(int sectionIndex, int paragraphIndex);
 
   HwpEditResult replaceHwpText(HwpReplaceTextRequest request);
+
+  HwpEditHistoryState hwpEditHistoryState();
+
+  HwpEditHistoryState undoHwpEdit();
+
+  HwpEditHistoryState redoHwpEdit();
 
   HwpSaveResult saveHwp();
 

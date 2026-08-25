@@ -102,6 +102,18 @@ final class HwpHostApiImpl: HwpHostApi {
     try runtime.replaceText(request)
   }
 
+  func hwpEditHistoryState() throws -> HwpEditHistoryState {
+    try runtime.editHistoryState()
+  }
+
+  func undoHwpEdit() throws -> HwpEditHistoryState {
+    try runtime.undoEdit()
+  }
+
+  func redoHwpEdit() throws -> HwpEditHistoryState {
+    try runtime.redoEdit()
+  }
+
   func saveHwp() throws -> HwpSaveResult {
     try runtime.save()
   }

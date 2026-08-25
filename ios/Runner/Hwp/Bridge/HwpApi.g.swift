@@ -350,6 +350,61 @@ struct HwpEditResult: Hashable, CustomStringConvertible {
 }
 
 /// Generated class from Pigeon that represents data sent in messages.
+struct HwpEditHistoryState: Hashable, CustomStringConvertible {
+  var canUndo: Bool
+  var canRedo: Bool
+  var undoDepth: Int64
+  var redoDepth: Int64
+  var pageCount: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> HwpEditHistoryState? {
+    let canUndo = pigeonVar_list[0] as! Bool
+    let canRedo = pigeonVar_list[1] as! Bool
+    let undoDepth = pigeonVar_list[2] as! Int64
+    let redoDepth = pigeonVar_list[3] as! Int64
+    let pageCount = pigeonVar_list[4] as! Int64
+
+    return HwpEditHistoryState(
+      canUndo: canUndo,
+      canRedo: canRedo,
+      undoDepth: undoDepth,
+      redoDepth: redoDepth,
+      pageCount: pageCount
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      canUndo,
+      canRedo,
+      undoDepth,
+      redoDepth,
+      pageCount,
+    ]
+  }
+  static func == (lhs: HwpEditHistoryState, rhs: HwpEditHistoryState) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return HwpApiPigeonInternal.deepEquals(lhs.canUndo, rhs.canUndo) && HwpApiPigeonInternal.deepEquals(lhs.canRedo, rhs.canRedo) && HwpApiPigeonInternal.deepEquals(lhs.undoDepth, rhs.undoDepth) && HwpApiPigeonInternal.deepEquals(lhs.redoDepth, rhs.redoDepth) && HwpApiPigeonInternal.deepEquals(lhs.pageCount, rhs.pageCount)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("HwpEditHistoryState")
+    HwpApiPigeonInternal.deepHash(value: canUndo, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: canRedo, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: undoDepth, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: redoDepth, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: pageCount, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "HwpEditHistoryState(canUndo: \(String(describing: canUndo)), canRedo: \(String(describing: canRedo)), undoDepth: \(String(describing: undoDepth)), redoDepth: \(String(describing: redoDepth)), pageCount: \(String(describing: pageCount)))"
+  }
+}
+
+/// Generated class from Pigeon that represents data sent in messages.
 struct HwpSaveResult: Hashable, CustomStringConvertible {
   var outputPath: String
   var fileSizeBytes: Int64
@@ -409,6 +464,8 @@ private class HwpApiPigeonCodecReader: FlutterStandardReader {
     case 131:
       return HwpEditResult.fromList(self.readValue() as! [Any?])
     case 132:
+      return HwpEditHistoryState.fromList(self.readValue() as! [Any?])
+    case 133:
       return HwpSaveResult.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
@@ -427,8 +484,11 @@ private class HwpApiPigeonCodecWriter: FlutterStandardWriter {
     } else if let value = value as? HwpEditResult {
       super.writeByte(131)
       super.writeValue(value.toList())
-    } else if let value = value as? HwpSaveResult {
+    } else if let value = value as? HwpEditHistoryState {
       super.writeByte(132)
+      super.writeValue(value.toList())
+    } else if let value = value as? HwpSaveResult {
+      super.writeByte(133)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -465,6 +525,9 @@ protocol HwpHostApi {
   func splitHwpParagraph(sectionIndex: Int64, paragraphIndex: Int64, charOffset: Int64) throws -> String
   func mergeHwpParagraph(sectionIndex: Int64, paragraphIndex: Int64) throws -> String
   func replaceHwpText(request: HwpReplaceTextRequest) throws -> HwpEditResult
+  func hwpEditHistoryState() throws -> HwpEditHistoryState
+  func undoHwpEdit() throws -> HwpEditHistoryState
+  func redoHwpEdit() throws -> HwpEditHistoryState
   func saveHwp() throws -> HwpSaveResult
   func exportHwpCopy(outputPath: String) throws -> HwpSaveResult
 }
@@ -677,6 +740,45 @@ class HwpHostApiSetup {
       }
     } else {
       replaceHwpTextChannel.setMessageHandler(nil)
+    }
+    let hwpEditHistoryStateChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.HwpHostApi.hwpEditHistoryState\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      hwpEditHistoryStateChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.hwpEditHistoryState()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      hwpEditHistoryStateChannel.setMessageHandler(nil)
+    }
+    let undoHwpEditChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.HwpHostApi.undoHwpEdit\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      undoHwpEditChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.undoHwpEdit()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      undoHwpEditChannel.setMessageHandler(nil)
+    }
+    let redoHwpEditChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.HwpHostApi.redoHwpEdit\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      redoHwpEditChannel.setMessageHandler { _, reply in
+        do {
+          let result = try api.redoHwpEdit()
+          reply(wrapResult(result))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      redoHwpEditChannel.setMessageHandler(nil)
     }
     let saveHwpChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.HwpHostApi.saveHwp\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {

@@ -43,6 +43,9 @@ char *rhwp_bridge_replace_text(
     const char *replacement,
     bool case_sensitive,
     bool replace_all);
+char *rhwp_bridge_history_state(uint64_t handle);
+char *rhwp_bridge_undo(uint64_t handle);
+char *rhwp_bridge_redo(uint64_t handle);
 char *rhwp_bridge_export(uint64_t handle, const char *output_path);
 void rhwp_bridge_string_free(char *value);
 

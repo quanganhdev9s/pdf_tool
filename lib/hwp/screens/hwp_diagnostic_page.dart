@@ -36,6 +36,8 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
   String _status = 'Đang mở HWP...';
   bool _busy = false;
   bool _editing = false;
+  bool _canUndo = false;
+  bool _canRedo = false;
   int _editingPageIndex = 0;
   _DirectCaret? _caret;
   final Set<int> _renderingPages = <int>{};
@@ -93,6 +95,8 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
         _info = info;
         _text = text;
         _caret = null;
+        _canUndo = false;
+        _canRedo = false;
         _editingPageIndex = 0;
         _pageSvgs = List<String?>.filled(info.pageCount, null);
         _status = info.pageCount > 0
@@ -204,6 +208,8 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
       setState(() {
         _editing = true;
         _caret = null;
+        _canUndo = false;
+        _canRedo = false;
         _editingPageIndex = activePage;
         _status = 'Chạm vào nội dung để đặt con trỏ';
       });
@@ -224,21 +230,51 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
     setState(() {
       _editing = false;
       _caret = null;
+      _canUndo = false;
+      _canRedo = false;
       _editingPageIndex = 0;
       _status = 'Đã huỷ chỉnh sửa';
     });
     await _openDocument();
   }
 
-  void _undo() {
-    setState(() {
-      _status = 'Undo trực tiếp trên HWP sẽ được nối ở bước tiếp theo.';
+  Future<void> _undo() async {
+    if (_busy || !_canUndo) {
+      return;
+    }
+    await _runDirectEdit(() async {
+      logHwpEvent('undo_edit_start');
+      setState(() {
+        _status = 'Đang undo...';
+      });
+      final HwpEditHistoryState history = await _service.undoEdit();
+      await _refreshAfterHistoryChange(history, status: 'Đã undo');
+      logHwpEvent('undo_edit_done', <String, Object?>{
+        'canUndo': history.canUndo,
+        'canRedo': history.canRedo,
+        'undoDepth': history.undoDepth,
+        'redoDepth': history.redoDepth,
+      });
     });
   }
 
-  void _redo() {
-    setState(() {
-      _status = 'Redo trực tiếp trên HWP sẽ được nối ở bước tiếp theo.';
+  Future<void> _redo() async {
+    if (_busy || !_canRedo) {
+      return;
+    }
+    await _runDirectEdit(() async {
+      logHwpEvent('redo_edit_start');
+      setState(() {
+        _status = 'Đang redo...';
+      });
+      final HwpEditHistoryState history = await _service.redoEdit();
+      await _refreshAfterHistoryChange(history, status: 'Đã redo');
+      logHwpEvent('redo_edit_done', <String, Object?>{
+        'canUndo': history.canUndo,
+        'canRedo': history.canRedo,
+        'undoDepth': history.undoDepth,
+        'redoDepth': history.redoDepth,
+      });
     });
   }
 
@@ -291,6 +327,8 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
         _info = savedInfo;
         _editing = false;
         _caret = null;
+        _canUndo = false;
+        _canRedo = false;
         _editingPageIndex = 0;
         _text = text;
         _pageSvgs = List<String?>.filled(savedInfo.pageCount, null);
@@ -563,6 +601,7 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
       fallbackPageIndex: caret.pageIndex,
     );
     final HwpDocumentInfo info = await _service.currentInfo();
+    final HwpEditHistoryState history = await _service.editHistoryState();
     final int activePage = math.min(
       math.max(updatedCaret.pageIndex, 0),
       math.max(info.pageCount - 1, 0),
@@ -591,6 +630,8 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
     setState(() {
       _info = info;
       _caret = updatedCaret;
+      _canUndo = history.canUndo;
+      _canRedo = history.canRedo;
       _editingPageIndex = activePage;
       _pageSvgs = pages;
       _status = 'Đang chỉnh sửa';
@@ -599,6 +640,47 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
       'page': activePage + 1,
       'pages': info.pageCount,
       'caretOffset': updatedCaret.charOffset,
+      'canUndo': history.canUndo,
+      'canRedo': history.canRedo,
+    });
+  }
+
+  Future<void> _refreshAfterHistoryChange(
+    HwpEditHistoryState history, {
+    required String status,
+  }) async {
+    final HwpDocumentInfo info = await _service.currentInfo();
+    final int activePage = _activeEditPageIndex(info.pageCount);
+    final List<String?> pages = List<String?>.filled(info.pageCount, null);
+    logHwpEvent('edit_invalidate_page_cache', <String, Object?>{
+      'allPages': true,
+      'pages': pages.length,
+      'reason': 'history',
+    });
+    if (pages.isNotEmpty) {
+      logHwpEvent('edit_render_active_page_start', <String, Object?>{
+        'page': activePage + 1,
+        'pages': info.pageCount,
+        'reason': 'history',
+      });
+      pages[activePage] = await _service.renderPageSvg(activePage);
+      logHwpEvent('edit_render_active_page_done', <String, Object?>{
+        'page': activePage + 1,
+        'bytes': pages[activePage]?.length,
+        'reason': 'history',
+      });
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _info = info;
+      _caret = null;
+      _canUndo = history.canUndo;
+      _canRedo = history.canRedo;
+      _editingPageIndex = activePage;
+      _pageSvgs = pages;
+      _status = status;
     });
   }
 
@@ -822,12 +904,12 @@ class _HwpReaderPageState extends State<HwpReaderPage> with TextInputClient {
         children: <Widget>[
           IconButton(
             tooltip: 'Undo',
-            onPressed: _busy ? null : _undo,
+            onPressed: _busy || !_canUndo ? null : () => unawaited(_undo()),
             icon: const Icon(Icons.undo),
           ),
           IconButton(
             tooltip: 'Redo',
-            onPressed: _busy ? null : _redo,
+            onPressed: _busy || !_canRedo ? null : () => unawaited(_redo()),
             icon: const Icon(Icons.redo),
           ),
         ],

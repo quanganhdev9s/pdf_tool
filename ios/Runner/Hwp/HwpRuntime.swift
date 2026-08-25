@@ -169,6 +169,32 @@ final class HwpRuntime {
     return HwpEditResult(replacementCount: outcome.replacementCount, isDirty: currentSession.isDirty)
   }
 
+  func editHistoryState() throws -> HwpEditHistoryState {
+    var currentSession = try requireSession()
+    let outcome = try RhwpEngineBridge.historyState(handle: try requireEngineHandle(from: currentSession))
+    currentSession.pageCount = Int64(outcome.pageCount)
+    session = currentSession
+    return historyState(from: outcome)
+  }
+
+  func undoEdit() throws -> HwpEditHistoryState {
+    var currentSession = try requireSession()
+    let outcome = try RhwpEngineBridge.undo(handle: try requireEngineHandle(from: currentSession))
+    currentSession.isDirty = true
+    currentSession.pageCount = Int64(outcome.pageCount)
+    session = currentSession
+    return historyState(from: outcome)
+  }
+
+  func redoEdit() throws -> HwpEditHistoryState {
+    var currentSession = try requireSession()
+    let outcome = try RhwpEngineBridge.redo(handle: try requireEngineHandle(from: currentSession))
+    currentSession.isDirty = true
+    currentSession.pageCount = Int64(outcome.pageCount)
+    session = currentSession
+    return historyState(from: outcome)
+  }
+
   func save() throws -> HwpSaveResult {
     var currentSession = try requireSession()
     guard currentSession.canOverwriteSource else {
@@ -264,6 +290,16 @@ final class HwpRuntime {
     }
     currentSession.pageCount = Int64(try RhwpEngineBridge.pageCount(handle: handle))
     session = currentSession
+  }
+
+  private func historyState(from outcome: RhwpEngineBridge.HistoryOutcome) -> HwpEditHistoryState {
+    HwpEditHistoryState(
+      canUndo: outcome.canUndo,
+      canRedo: outcome.canRedo,
+      undoDepth: outcome.undoDepth,
+      redoDepth: outcome.redoDepth,
+      pageCount: Int64(outcome.pageCount)
+    )
   }
 
   private func workingDirectory() throws -> URL {

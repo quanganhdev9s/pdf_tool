@@ -296,6 +296,70 @@ class HwpEditResult {
   }
 }
 
+class HwpEditHistoryState {
+  HwpEditHistoryState({
+    required this.canUndo,
+    required this.canRedo,
+    required this.undoDepth,
+    required this.redoDepth,
+    required this.pageCount,
+  });
+
+  bool canUndo;
+
+  bool canRedo;
+
+  int undoDepth;
+
+  int redoDepth;
+
+  int pageCount;
+
+  List<Object?> _toList() {
+    return <Object?>[canUndo, canRedo, undoDepth, redoDepth, pageCount];
+  }
+
+  Object encode() {
+    return _toList();
+  }
+
+  static HwpEditHistoryState decode(Object result) {
+    result as List<Object?>;
+    return HwpEditHistoryState(
+      canUndo: result[0]! as bool,
+      canRedo: result[1]! as bool,
+      undoDepth: result[2]! as int,
+      redoDepth: result[3]! as int,
+      pageCount: result[4]! as int,
+    );
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  bool operator ==(Object other) {
+    if (other is! HwpEditHistoryState || other.runtimeType != runtimeType) {
+      return false;
+    }
+    if (identical(this, other)) {
+      return true;
+    }
+    return _deepEquals(canUndo, other.canUndo) &&
+        _deepEquals(canRedo, other.canRedo) &&
+        _deepEquals(undoDepth, other.undoDepth) &&
+        _deepEquals(redoDepth, other.redoDepth) &&
+        _deepEquals(pageCount, other.pageCount);
+  }
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
+  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
+
+  @override
+  String toString() {
+    return 'HwpEditHistoryState(canUndo: $canUndo, canRedo: $canRedo, undoDepth: $undoDepth, redoDepth: $redoDepth, pageCount: $pageCount)';
+  }
+}
+
 class HwpSaveResult {
   HwpSaveResult({
     required this.outputPath,
@@ -371,8 +435,11 @@ class _PigeonCodec extends StandardMessageCodec {
     } else if (value is HwpEditResult) {
       buffer.putUint8(131);
       writeValue(buffer, value.encode());
-    } else if (value is HwpSaveResult) {
+    } else if (value is HwpEditHistoryState) {
       buffer.putUint8(132);
+      writeValue(buffer, value.encode());
+    } else if (value is HwpSaveResult) {
+      buffer.putUint8(133);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -389,6 +456,8 @@ class _PigeonCodec extends StandardMessageCodec {
       case 131:
         return HwpEditResult.decode(readValue(buffer)!);
       case 132:
+        return HwpEditHistoryState.decode(readValue(buffer)!);
+      case 133:
         return HwpSaveResult.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -698,6 +767,63 @@ class HwpHostApi {
       isNullValid: false,
     );
     return pigeonVar_replyValue! as HwpEditResult;
+  }
+
+  Future<HwpEditHistoryState> hwpEditHistoryState() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.HwpHostApi.hwpEditHistoryState$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as HwpEditHistoryState;
+  }
+
+  Future<HwpEditHistoryState> undoHwpEdit() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.HwpHostApi.undoHwpEdit$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as HwpEditHistoryState;
+  }
+
+  Future<HwpEditHistoryState> redoHwpEdit() async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.HwpHostApi.redoHwpEdit$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
+    return pigeonVar_replyValue! as HwpEditHistoryState;
   }
 
   Future<HwpSaveResult> saveHwp() async {

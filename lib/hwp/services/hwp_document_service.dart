@@ -113,6 +113,12 @@ class HwpDocumentService {
     );
   }
 
+  Future<HwpEditHistoryState> editHistoryState() => _api.hwpEditHistoryState();
+
+  Future<HwpEditHistoryState> undoEdit() => _api.undoHwpEdit();
+
+  Future<HwpEditHistoryState> redoEdit() => _api.redoHwpEdit();
+
   Future<HwpSaveResult> save() async {
     logHwpEvent('save_start');
     final HwpSaveResult result = await _api.saveHwp();

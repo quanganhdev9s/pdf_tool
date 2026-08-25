@@ -11,6 +11,14 @@ enum RhwpEngineBridge {
     let replacementCount: Int64
   }
 
+  struct HistoryOutcome {
+    let canUndo: Bool
+    let canRedo: Bool
+    let undoDepth: Int64
+    let redoDepth: Int64
+    let pageCount: UInt32
+  }
+
   struct SaveOutcome {
     let outputPath: String
     let fileSizeBytes: Int64
@@ -204,6 +212,54 @@ enum RhwpEngineBridge {
     return EditOutcome(replacementCount: Int64(response.replacementCount))
   }
 
+  static func historyState(handle: UInt64) throws -> HistoryOutcome {
+    let response: HistoryResponse = try callStringFunction(
+      "rhwp_bridge_history_state",
+      HistoryStateFunction.self
+    ) { function in
+      function(handle)
+    }
+    return HistoryOutcome(
+      canUndo: response.canUndo,
+      canRedo: response.canRedo,
+      undoDepth: Int64(response.undoDepth),
+      redoDepth: Int64(response.redoDepth),
+      pageCount: response.pageCount
+    )
+  }
+
+  static func undo(handle: UInt64) throws -> HistoryOutcome {
+    let response: HistoryResponse = try callStringFunction(
+      "rhwp_bridge_undo",
+      HistoryStateFunction.self
+    ) { function in
+      function(handle)
+    }
+    return HistoryOutcome(
+      canUndo: response.canUndo,
+      canRedo: response.canRedo,
+      undoDepth: Int64(response.undoDepth),
+      redoDepth: Int64(response.redoDepth),
+      pageCount: response.pageCount
+    )
+  }
+
+  static func redo(handle: UInt64) throws -> HistoryOutcome {
+    let response: HistoryResponse = try callStringFunction(
+      "rhwp_bridge_redo",
+      HistoryStateFunction.self
+    ) { function in
+      function(handle)
+    }
+    return HistoryOutcome(
+      canUndo: response.canUndo,
+      canRedo: response.canRedo,
+      undoDepth: Int64(response.undoDepth),
+      redoDepth: Int64(response.redoDepth),
+      pageCount: response.pageCount
+    )
+  }
+
   static func export(handle: UInt64, outputPath: String) throws -> SaveOutcome {
     let response: SaveResponse = try callStringFunction(
       "rhwp_bridge_export",
@@ -248,6 +304,7 @@ enum RhwpEngineBridge {
       Bool,
       Bool
     ) -> UnsafeMutablePointer<CChar>?
+  private typealias HistoryStateFunction = @convention(c) (UInt64) -> UnsafeMutablePointer<CChar>?
   private typealias ExportFunction =
     @convention(c) (UInt64, UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>?
 
@@ -292,6 +349,16 @@ enum RhwpEngineBridge {
     let ok: Bool
     let error: String?
     let replacementCount: UInt64
+  }
+
+  private struct HistoryResponse: Decodable {
+    let ok: Bool
+    let error: String?
+    let canUndo: Bool
+    let canRedo: Bool
+    let undoDepth: UInt64
+    let redoDepth: UInt64
+    let pageCount: UInt32
   }
 
   private struct SaveResponse: Decodable {

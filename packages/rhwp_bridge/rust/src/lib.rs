@@ -10,9 +10,16 @@ use rhwp_core::wasm_api::HwpDocument;
 use serde::Serialize;
 
 static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
+const MAX_HISTORY_DEPTH: usize = 40;
+
+struct BridgeDocument {
+    document: HwpDocument,
+    undo_stack: Vec<u32>,
+    redo_stack: Vec<u32>,
+}
 
 thread_local! {
-    static DOCUMENTS: RefCell<HashMap<u64, HwpDocument>> = RefCell::new(HashMap::new());
+    static DOCUMENTS: RefCell<HashMap<u64, BridgeDocument>> = RefCell::new(HashMap::new());
 }
 
 #[derive(Serialize)]
@@ -70,6 +77,17 @@ struct EditResponse {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct HistoryResponse {
+    ok: bool,
+    can_undo: bool,
+    can_redo: bool,
+    undo_depth: u64,
+    redo_depth: u64,
+    page_count: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SaveResponse {
     ok: bool,
     output_path: String,
@@ -97,7 +115,14 @@ pub extern "C" fn rhwp_bridge_open_path(input_path: *const c_char) -> *mut c_cha
         let page_count = document.page_count();
         let handle = NEXT_HANDLE.fetch_add(1, Ordering::Relaxed);
         DOCUMENTS.with(|documents| {
-            documents.borrow_mut().insert(handle, document);
+            documents.borrow_mut().insert(
+                handle,
+                BridgeDocument {
+                    document,
+                    undo_stack: Vec::new(),
+                    redo_stack: Vec::new(),
+                },
+            );
         });
         Ok(OpenResponse {
             ok: true,
@@ -222,7 +247,7 @@ pub extern "C" fn rhwp_bridge_insert_text(
 ) -> *mut c_char {
     ffi_result(|| {
         let text = read_utf8(text, "text")?;
-        with_document(handle as u64, |document| {
+        with_undo_snapshot(handle as u64, |document| {
             let json = document
                 .insert_text_native(
                     section_index as usize,
@@ -245,7 +270,7 @@ pub extern "C" fn rhwp_bridge_delete_text(
     count: c_uint,
 ) -> *mut c_char {
     ffi_result(|| {
-        with_document(handle as u64, |document| {
+        with_undo_snapshot(handle as u64, |document| {
             let json = document
                 .delete_text_native(
                     section_index as usize,
@@ -267,7 +292,7 @@ pub extern "C" fn rhwp_bridge_split_paragraph(
     char_offset: c_uint,
 ) -> *mut c_char {
     ffi_result(|| {
-        with_document(handle as u64, |document| {
+        with_undo_snapshot(handle as u64, |document| {
             let json = document
                 .split_paragraph_native(
                     section_index as usize,
@@ -288,7 +313,7 @@ pub extern "C" fn rhwp_bridge_merge_paragraph(
     paragraph_index: c_uint,
 ) -> *mut c_char {
     ffi_result(|| {
-        with_document(handle as u64, |document| {
+        with_undo_snapshot(handle as u64, |document| {
             let json = document
                 .merge_paragraph_native(section_index as usize, paragraph_index as usize)
                 .map_err(|error| format!("Cannot merge paragraph: {}", error))?;
@@ -308,24 +333,93 @@ pub extern "C" fn rhwp_bridge_replace_text(
     ffi_result(|| {
         let find = read_utf8(find, "find")?;
         let replacement = read_utf8(replacement, "replacement")?;
-        with_document(handle as u64, |document| {
-            let raw = if replace_all {
-                document
+        with_session(handle as u64, |session| {
+            let snapshot_id = session.document.save_snapshot_native();
+            let raw = match if replace_all {
+                session
+                    .document
                     .replace_all_native(&find, &replacement, case_sensitive)
-                    .map_err(|error| format!("Cannot replace text: {}", error))?
             } else {
-                document
+                session
+                    .document
                     .replace_one_native(&find, &replacement, case_sensitive)
-                    .map_err(|error| format!("Cannot replace text: {}", error))?
+            } {
+                Ok(raw) => raw,
+                Err(error) => {
+                    session.document.discard_snapshot_native(snapshot_id);
+                    return Err(format!("Cannot replace text: {}", error));
+                }
             };
             let raw_result = serde_json::from_str::<serde_json::Value>(&raw)
                 .unwrap_or_else(|_| serde_json::json!({ "raw": raw }));
             let replacement_count = replacement_count(&raw_result);
+            if replacement_count > 0 {
+                commit_undo_snapshot(session, snapshot_id);
+            } else {
+                session.document.discard_snapshot_native(snapshot_id);
+            }
             Ok(EditResponse {
                 ok: true,
                 replacement_count,
                 raw_result,
             })
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn rhwp_bridge_history_state(handle: c_ulonglong) -> *mut c_char {
+    ffi_result(|| {
+        with_session(handle as u64, |session| Ok(history_response(session)))
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn rhwp_bridge_undo(handle: c_ulonglong) -> *mut c_char {
+    ffi_result(|| {
+        with_session(handle as u64, |session| {
+            let restore_id = session
+                .undo_stack
+                .pop()
+                .ok_or_else(|| "No undo history.".to_string())?;
+            let redo_id = session.document.save_snapshot_native();
+            match session.document.restore_snapshot_native(restore_id) {
+                Ok(_) => {
+                    session.document.discard_snapshot_native(restore_id);
+                    push_redo_snapshot(session, redo_id);
+                    Ok(history_response(session))
+                }
+                Err(error) => {
+                    session.document.discard_snapshot_native(redo_id);
+                    session.undo_stack.push(restore_id);
+                    Err(format!("Cannot undo HWP edit: {}", error))
+                }
+            }
+        })
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn rhwp_bridge_redo(handle: c_ulonglong) -> *mut c_char {
+    ffi_result(|| {
+        with_session(handle as u64, |session| {
+            let restore_id = session
+                .redo_stack
+                .pop()
+                .ok_or_else(|| "No redo history.".to_string())?;
+            let undo_id = session.document.save_snapshot_native();
+            match session.document.restore_snapshot_native(restore_id) {
+                Ok(_) => {
+                    session.document.discard_snapshot_native(restore_id);
+                    push_undo_snapshot(session, undo_id);
+                    Ok(history_response(session))
+                }
+                Err(error) => {
+                    session.document.discard_snapshot_native(undo_id);
+                    session.redo_stack.push(restore_id);
+                    Err(format!("Cannot redo HWP edit: {}", error))
+                }
+            }
         })
     })
 }
@@ -376,13 +470,78 @@ fn with_document<T>(
     handle: u64,
     f: impl FnOnce(&mut HwpDocument) -> Result<T, String>,
 ) -> Result<T, String> {
+    with_session(handle, |session| f(&mut session.document))
+}
+
+fn with_session<T>(
+    handle: u64,
+    f: impl FnOnce(&mut BridgeDocument) -> Result<T, String>,
+) -> Result<T, String> {
     DOCUMENTS.with(|documents| {
         let mut documents = documents.borrow_mut();
-        let document = documents
+        let session = documents
             .get_mut(&handle)
             .ok_or_else(|| format!("HWP document handle {} is not open.", handle))?;
-        f(document)
+        f(session)
     })
+}
+
+fn with_undo_snapshot<T>(
+    handle: u64,
+    f: impl FnOnce(&mut HwpDocument) -> Result<T, String>,
+) -> Result<T, String> {
+    with_session(handle, |session| {
+        let snapshot_id = session.document.save_snapshot_native();
+        match f(&mut session.document) {
+            Ok(value) => {
+                commit_undo_snapshot(session, snapshot_id);
+                Ok(value)
+            }
+            Err(error) => {
+                session.document.discard_snapshot_native(snapshot_id);
+                Err(error)
+            }
+        }
+    })
+}
+
+fn commit_undo_snapshot(session: &mut BridgeDocument, snapshot_id: u32) {
+    clear_redo_stack(session);
+    push_undo_snapshot(session, snapshot_id);
+}
+
+fn push_undo_snapshot(session: &mut BridgeDocument, snapshot_id: u32) {
+    session.undo_stack.push(snapshot_id);
+    trim_history_stack(&mut session.document, &mut session.undo_stack);
+}
+
+fn push_redo_snapshot(session: &mut BridgeDocument, snapshot_id: u32) {
+    session.redo_stack.push(snapshot_id);
+    trim_history_stack(&mut session.document, &mut session.redo_stack);
+}
+
+fn clear_redo_stack(session: &mut BridgeDocument) {
+    for snapshot_id in session.redo_stack.drain(..) {
+        session.document.discard_snapshot_native(snapshot_id);
+    }
+}
+
+fn trim_history_stack(document: &mut HwpDocument, stack: &mut Vec<u32>) {
+    while stack.len() > MAX_HISTORY_DEPTH {
+        let snapshot_id = stack.remove(0);
+        document.discard_snapshot_native(snapshot_id);
+    }
+}
+
+fn history_response(session: &BridgeDocument) -> HistoryResponse {
+    HistoryResponse {
+        ok: true,
+        can_undo: !session.undo_stack.is_empty(),
+        can_redo: !session.redo_stack.is_empty(),
+        undo_depth: session.undo_stack.len() as u64,
+        redo_depth: session.redo_stack.len() as u64,
+        page_count: session.document.page_count(),
+    }
 }
 
 fn ffi_result<T: Serialize>(f: impl FnOnce() -> Result<T, String>) -> *mut c_char {
