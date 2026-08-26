@@ -844,7 +844,24 @@ function checkFont(position) {
   post('hwp_font_check', `${report} fallback=${fallback}`);
 }
 
+/// Vết của mọi lần con trỏ đổi chỗ, kèm tên hàm đã gọi tới. Tạm thời.
+function traceCaret(how, position) {
+  // Kéo bôi đen bắn `extendTo` mỗi khung hình, để vào log là chôn mất dòng khác.
+  if (!editing || selecting) return;
+  // JSC không có dòng tiêu đề trong `stack`, khung [1] là người gọi.
+  const frames = (new Error().stack || '').split('\n').slice(1, 3)
+    .map((line) => line.split('@')[0].trim())
+    .filter(Boolean)
+    .join('<-');
+  post(
+    'hwp_caret_trace',
+    `${how} para=${position ? position.paragraphIndex : -1}`
+      + ` off=${position ? position.charOffset : -1} by=${frames}`,
+  );
+}
+
 function setCaret(position, keepColumn = false) {
+  traceCaret('setCaret', position);
   if (position) checkFont(position);
   anchor = position ? { ...position } : null;
   focus = position ? { ...position } : null;
@@ -857,6 +874,7 @@ function setCaret(position, keepColumn = false) {
 }
 
 function extendTo(position, keepColumn = false) {
+  traceCaret('extendTo', position);
   if (!anchor) anchor = { ...position };
   // Vùng chọn không bắc qua hai vùng được: `deleteRange*` chỉ nhận một vùng.
   if (!sameRegion(position, anchor)) return;
@@ -1691,12 +1709,20 @@ function moveInputToCaret() {
   input.style.top = `${geom.rect.top + rect.y * geom.scale}px`;
 }
 
+/// Phần chừa chỗ của lần trước, để biết nó đang phình ra hay co lại.
+let appliedInset = 0;
+
 /// Chừa chỗ ở đáy đúng bằng phần bị che. Web view không tự co khi bàn phím lên
 /// (`resizeToAvoidBottomInset: false`), nên phải tự bù.
 function applyBottomInset() {
   const inset = keyboardInset + chromeInset;
+  const grew = inset > appliedInset;
+  appliedInset = inset;
   pagesEl.style.paddingBottom = inset > 0 ? `${12 + inset}px` : '';
-  scrollCaretIntoView();
+
+  // Chỉ cuộn khi phần che phình ra. Co lại là chỗ trống nhiều hơn, không có gì
+  // phải tránh — cuộn ở đó chỉ làm trang giật.
+  if (grew) scrollCaretIntoView();
 }
 
 function scrollCaretIntoView() {
@@ -1795,8 +1821,46 @@ function wordAt(position) {
   };
 }
 
+/// Cú chạm bắt đầu ở khoảng trống quanh trang, để lúc nhả phân biệt được chạm
+/// với cuộn.
+let blankPress = null;
+
+/// Chạm vào chỗ trống là ẩn bàn phím. Đặt trên `document` vì chỗ trống rộng hơn
+/// khung trang: lề hai bên, khe giữa các trang, phần đáy sau trang cuối.
+function onBlankPointerDown(event) {
+  blankPress = null;
+  if (!editing || !input) return;
+  // Dải đáy là thanh công cụ và bàn phím, không phải chỗ trống.
+  if (event.clientY > visibleBottom()) return;
+  if (event.target.closest && event.target.closest('.page')) return;
+  blankPress = { x: event.clientX, y: event.clientY, scrollY: window.scrollY };
+}
+
+function onBlankPointerUp(event) {
+  const press = blankPress;
+  blankPress = null;
+  if (!press || event.type === 'pointercancel') return;
+  if (document.activeElement !== input) return;
+  // Kéo hoặc cuộn không phải là chạm.
+  if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10) return;
+  if (Math.abs(window.scrollY - press.scrollY) > 4) return;
+
+  input.blur();
+  post('hwp_keyboard_dismissed', 'blank_tap');
+}
+
 function onPointerDown(event) {
   if (!editing || !doc) return;
+
+  // Dải đáy bị bàn phím và thanh công cụ che vẫn là web view và vẫn nhận chạm,
+  // nhưng không thuộc về tài liệu. Bấm một nút trên thanh công cụ cũng là một
+  // `pointerdown`, mà `pointerup` thì Flutter giữ lại — bộ đếm giữ-lâu nổ và
+  // đặt con trỏ vào chữ nằm khuất bên dưới.
+  if (event.clientY > visibleBottom()) {
+    post('hwp_touch_ignored', `y=${Math.round(event.clientY)} bottom=${Math.round(visibleBottom())}`);
+    return;
+  }
+
   const wrap = event.target.closest && event.target.closest('.page');
   if (!wrap) return;
 
@@ -1829,6 +1893,73 @@ function hitAtAnyPage(event) {
   return wrap ? hitAt(wrap, event) : null;
 }
 
+/// Kéo tới sát mép chừng này thì trang bắt đầu tự cuộn.
+const EDGE_ZONE = 72;
+
+/// Cuộn nhanh nhất bao nhiêu px mỗi khung hình, khi ngón tay ở sát rìa hẳn.
+const EDGE_SPEED = 20;
+
+/// Toạ độ ngón tay lần cuối, hệ viewport. Vòng tự cuộn dò lại vị trí từ đây.
+let dragPoint = null;
+
+/// `requestAnimationFrame` của vòng tự cuộn, `null` là đang không cuộn.
+let edgeScroll = null;
+
+/// Mép dưới còn nhìn thấy được — bàn phím và thanh công cụ ăn mất phần đáy.
+function visibleBottom() {
+  return window.innerHeight - keyboardInset - chromeInset;
+}
+
+/// Ngón tay đang ở rìa thì trả về tốc độ cuộn, ở giữa thì trả về 0.
+function edgeSpeedFor(y) {
+  const bottom = visibleBottom();
+  if (y > bottom - EDGE_ZONE) {
+    const depth = Math.min(EDGE_ZONE, y - (bottom - EDGE_ZONE));
+    return Math.ceil((depth / EDGE_ZONE) * EDGE_SPEED);
+  }
+  if (y < EDGE_ZONE) {
+    const depth = Math.min(EDGE_ZONE, EDGE_ZONE - y);
+    return -Math.ceil((depth / EDGE_ZONE) * EDGE_SPEED);
+  }
+  return 0;
+}
+
+/// Cuộn dần khi ngón tay giữ ở rìa, và kéo vùng chọn theo. Phải dò lại vị trí
+/// mỗi khung hình: ngón tay đứng im nhưng chữ trượt bên dưới.
+function runEdgeScroll() {
+  edgeScroll = null;
+  if (!selecting || !dragPoint) return;
+
+  const speed = edgeSpeedFor(dragPoint.clientY);
+  // Rời khỏi rìa thì dừng hẳn; `pointermove` bật lại khi nó quay ra.
+  if (speed === 0) return;
+
+  const before = window.scrollY;
+  window.scrollBy(0, speed);
+  // Đụng đầu hoặc đáy tài liệu: cuộn nữa cũng không đi đâu.
+  if (window.scrollY !== before) {
+    const position = hitAtAnyPage(dragPoint);
+    if (position) extendTo(position);
+  }
+  edgeScroll = requestAnimationFrame(runEdgeScroll);
+}
+
+function startEdgeScroll() {
+  if (edgeScroll === null) edgeScroll = requestAnimationFrame(runEdgeScroll);
+}
+
+function stopEdgeScroll() {
+  if (edgeScroll !== null) cancelAnimationFrame(edgeScroll);
+  edgeScroll = null;
+  dragPoint = null;
+}
+
+/// Giữ trang đứng yên khi đang bôi đen. `pointermove` không chặn được cuộn của
+/// iOS: Safari tự cuộn rồi bắn `pointercancel`, đứt luôn vùng chọn.
+function onTouchMove(event) {
+  if (selecting) event.preventDefault();
+}
+
 function onPointerMove(event) {
   if (!pressStart) return;
   if (pressTimer) {
@@ -1841,6 +1972,10 @@ function onPointerMove(event) {
     return;
   }
   if (!selecting) return;
+
+  dragPoint = { clientX: event.clientX, clientY: event.clientY };
+  if (edgeSpeedFor(event.clientY) !== 0) startEdgeScroll();
+
   // Tìm trang dưới ngón tay trước — `hitTest` với toạ độ ngoài trang trả về vị
   // trí sai chứ không phải null.
   const position = hitAtAnyPage(event) || hitAt(pressStart.wrap, event);
@@ -1851,10 +1986,14 @@ function onPointerUp(event) {
   if (!pressStart) return;
   const { wrap } = pressStart;
 
+  // Cử chỉ bị huỷ giữa chừng thì người dùng chưa hoàn tất cú chạm nào; đặt con
+  // trỏ ở đây là dời nó tới chỗ ngón tay tình cờ đi qua.
+  const cancelled = event.type === 'pointercancel';
+
   if (pressTimer) {
     clearTimeout(pressTimer);
     pressTimer = null;
-    const position = hitAt(wrap, event);
+    const position = cancelled ? null : hitAt(wrap, event);
     if (position) {
       focusInput();
       setCaret(position);
@@ -1864,6 +2003,7 @@ function onPointerUp(event) {
   if (selecting) {
     try { wrap.releasePointerCapture(event.pointerId); } catch (_) {}
     selecting = false;
+    stopEdgeScroll();
     moveInputToCaret();
   }
   pressStart = null;
@@ -1906,18 +2046,13 @@ function exportDocument() {
 
 // ----------------------------------------------------------------- công khai
 
-/// Vẽ lại sau khi xoay xong. Giữ tham chiếu để `detach` gỡ được — một hàm ẩn
-/// danh thì `removeEventListener` không có gì để gỡ, và mỗi lần mở tệp lại
-/// chồng thêm một listener nữa lên `window`.
+/// Có tên để `detach` còn gỡ được — hàm ẩn danh thì không gỡ nổi.
 function onOrientationChange() {
   setTimeout(drawOverlays, 250);
 }
 
-/// Gỡ trình soạn thảo khỏi tài liệu đang mở và trả mọi trạng thái về mặc định.
-///
-/// Có mặt vì trang vỏ **được dùng lại**: mở tệp thứ hai không nạp lại trang,
-/// nên nếu không dọn ở đây thì listener, khung trang, ngăn xếp hoàn tác và con
-/// trỏ của tệp cũ sẽ đi theo sang tệp mới.
+/// Gỡ trình soạn thảo khỏi tài liệu đang mở. Trang vỏ được dùng lại cho tệp
+/// sau, nên không dọn ở đây là trạng thái tệp cũ đi theo sang tệp mới.
 export function detach() {
   if (!pagesEl) return;
 
@@ -1925,6 +2060,10 @@ export function detach() {
   pagesEl.removeEventListener('pointermove', onPointerMove);
   pagesEl.removeEventListener('pointerup', onPointerUp);
   pagesEl.removeEventListener('pointercancel', onPointerUp);
+  pagesEl.removeEventListener('touchmove', onTouchMove, { passive: false });
+  document.removeEventListener('pointerdown', onBlankPointerDown);
+  document.removeEventListener('pointerup', onBlankPointerUp);
+  document.removeEventListener('pointercancel', onBlankPointerUp);
   window.removeEventListener('resize', drawOverlays);
   window.removeEventListener('orientationchange', onOrientationChange);
 
@@ -1935,7 +2074,6 @@ export function detach() {
   mounted.clear();
   pagesEl.replaceChildren();
   pagesEl.style.paddingBottom = '';
-  // Tệp mới phải mở ở trang đầu, chứ không phải ở chỗ đang cuộn dở của tệp cũ.
   window.scrollTo(0, 0);
 
   if (statePending) {
@@ -1947,7 +2085,9 @@ export function detach() {
     pressTimer = null;
   }
   pressStart = null;
+  blankPress = null;
   selecting = false;
+  stopEdgeScroll();
 
   editing = false;
   document.body.classList.remove('editing');
@@ -1960,6 +2100,7 @@ export function detach() {
   preedit = '';
   keyboardInset = 0;
   chromeInset = 0;
+  appliedInset = 0;
   cursorModel = null;
   caretAfterCommit = null;
   fontChecked = false;
@@ -1967,15 +2108,13 @@ export function detach() {
   undoStack.length = 0;
   redoStack.length = 0;
 
-  // Ô nhập sống lâu hơn tài liệu — dựng lại nó là mất bàn phím đang lên — nên
-  // chỉ đưa về trạng thái sạch.
+  // Ô nhập sống lâu hơn tài liệu: dựng lại là mất bàn phím đang lên.
   if (input) {
     input.blur();
     resetInput();
   }
 
-  // `HwpDocument` giữ bộ nhớ bên trong WASM; bỏ tham chiếu JS thôi thì phần đó
-  // không được thu hồi. Tệp 8MB mở vài lần là đủ để bị hệ thống kết liễu.
+  // `HwpDocument` giữ bộ nhớ trong WASM; bỏ tham chiếu JS thôi không thu hồi nó.
   const stale = doc;
   doc = null;
   try {
@@ -1987,8 +2126,7 @@ export function detach() {
   delete window.__rhwpEditor;
 }
 
-/// Gắn trình soạn thảo vào tài liệu đã parse. Gọi lại được: mỗi lần mở tệp mới
-/// trên cùng trang vỏ, nó tự dọn tài liệu trước đó.
+/// Gắn trình soạn thảo vào tài liệu đã parse. Gọi lại được — tự dọn tệp trước.
 export function attach(hwpDocument, container, reporter) {
   detach();
 
@@ -2000,6 +2138,11 @@ export function attach(hwpDocument, container, reporter) {
   pagesEl.addEventListener('pointermove', onPointerMove);
   pagesEl.addEventListener('pointerup', onPointerUp);
   pagesEl.addEventListener('pointercancel', onPointerUp);
+  // `passive: false`: mặc định của iOS là thụ động, `preventDefault` vô hiệu.
+  pagesEl.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('pointerdown', onBlankPointerDown);
+  document.addEventListener('pointerup', onBlankPointerUp);
+  document.addEventListener('pointercancel', onBlankPointerUp);
   window.addEventListener('resize', drawOverlays);
   window.addEventListener('orientationchange', onOrientationChange);
 
@@ -2044,12 +2187,14 @@ export function attach(hwpDocument, container, reporter) {
     goToPage(index) {
       showPage(index);
     },
-    setKeyboardInset(pixels) {
+      setKeyboardInset(pixels) {
       keyboardInset = Number(pixels) || 0;
+      post('hwp_inset', `keyboard=${keyboardInset} chrome=${chromeInset} scrollY=${Math.round(window.scrollY)}`);
       applyBottomInset();
     },
     setChromeInset(pixels) {
       chromeInset = Number(pixels) || 0;
+      post('hwp_inset', `keyboard=${keyboardInset} chrome=${chromeInset} scrollY=${Math.round(window.scrollY)}`);
       applyBottomInset();
     },
     export: exportDocument,

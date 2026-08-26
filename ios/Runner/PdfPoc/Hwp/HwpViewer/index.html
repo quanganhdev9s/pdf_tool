@@ -11,9 +11,8 @@
 
   /* Mỗi trang là svg + một lớp phủ chồng khít lên nó. Lớp phủ giữ con trỏ và
      vệt bôi đen, nên chúng di chuyển được mà không phải vẽ lại svg. */
-  /* Nền trắng phải nằm ở đây chứ không chỉ ở `svg` bên trong: trang chưa dựng
-     là một khung rỗng, và nếu để trống thì nó lộ nền xám của body — nhìn ra
-     thành một dãy hộp xám thay vì những trang giấy chưa vẽ xong. */
+  /* Nền trắng ở đây chứ không chỉ ở `svg`: trang chưa dựng là khung rỗng, để
+     trống thì nó lộ nền xám của body. */
   .page {
     position: relative; width: 100%; max-width: 900px;
     background: #fff;
@@ -106,12 +105,9 @@ function fail(message, error) {
   report('hwp_viewer_failed', error?.stack || error || message);
 }
 
-/// Runtime của rhwp: mô-đun WASM và trình soạn thảo. Không phụ thuộc tài liệu
-/// nào, nên khởi động **một lần** rồi dùng lại cho mọi tệp mở sau đó.
-///
-/// Tách khỏi phần nạp tài liệu để native hâm nóng trước được: dựng
-/// `WKWebView` và biên dịch WASM tốn ~1.8s, và đó là phần lớn thời gian chờ
-/// khi mở tệp đầu tiên.
+/// Runtime của rhwp: WASM và trình soạn thảo. Không phụ thuộc tài liệu nào nên
+/// khởi động một lần rồi dùng lại — tách ra để native hâm nóng trước được, chỗ
+/// đó tốn ~1.8s và là phần lớn thời gian chờ khi mở tệp.
 let runtimeReady = null;
 let rhwp = null;
 let editorModule = null;
@@ -137,15 +133,11 @@ function bootRuntime() {
   return runtimeReady;
 }
 
-/// Nạp tệp mà native đang phục vụ ở `/document` và vẽ ra.
-///
-/// Gọi lại được: `attach` tự dọn tài liệu trước đó, nên mở tệp thứ hai không
-/// cần nạp lại trang — đó chính là chỗ tiết kiệm được toàn bộ thời gian dựng
-/// web view và biên dịch WASM.
+/// Nạp tệp native đang phục vụ ở `/document` và vẽ ra. Gọi lại được — `attach`
+/// tự dọn tài liệu trước đó, nên mở tệp sau không phải nạp lại trang.
 async function loadDocument() {
   try {
     const started = performance.now();
-    // Runtime đã sẵn sàng nghĩa là lượt mở này ăn theo phần hâm nóng trước đó.
     const warm = runtimeReady !== null;
     statusEl.hidden = false;
     statusEl.className = '';
@@ -189,8 +181,7 @@ async function loadDocument() {
 /// đó chỉ tồn tại khi đang có tài liệu mở.
 window.__rhwpHost = {
   loadDocument,
-  /// Đóng tài liệu nhưng **giữ** runtime. Native gọi khi rời trình xem: process
-  /// WebKit và WASM đã biên dịch ở lại, chỉ bộ nhớ của tài liệu được trả về.
+  /// Đóng tài liệu nhưng giữ runtime: process WebKit và WASM đã biên dịch ở lại.
   unload() {
     editorModule?.detach();
     statusEl.hidden = true;

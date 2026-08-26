@@ -35,9 +35,8 @@ final class HwpViewerSchemeHandler: NSObject, WKURLSchemeHandler {
     super.init()
   }
 
-  /// URL trang vỏ. `prewarm` là nạp trang mà **không** mở tệp nào: trang chỉ
-  /// biên dịch WASM rồi đứng chờ, để lượt mở thật sau đó không phải trả lại
-  /// khoản đó nữa.
+  /// URL trang vỏ. `prewarm` là nạp trang mà không mở tệp nào — chỉ biên dịch
+  /// WASM rồi đứng chờ.
   static func pageURL(prewarm: Bool = false) -> URL? {
     URL(string: "\(scheme)://\(host)/index.html\(prewarm ? "?prewarm=1" : "")")
   }
@@ -180,8 +179,8 @@ final class HwpViewerLogRelay: NSObject, WKScriptMessageHandler {
   /// Runtime của trang vỏ đã biên dịch xong và đang chờ tài liệu.
   var onRuntimeReady: (() -> Void)?
 
-  /// Tài liệu đã vẽ xong. Đường dùng lại trang vỏ không có navigation nào nên
-  /// đây là tín hiệu "mở xong" duy nhất.
+  /// Tài liệu đã vẽ xong. Đường dùng lại trang vỏ không có navigation nên đây
+  /// là tín hiệu "mở xong" duy nhất.
   var onRendered: (() -> Void)?
 
   /// Trạng thái con trỏ/vùng chọn, nguyên văn JSON. Swift không đọc vào trong:
