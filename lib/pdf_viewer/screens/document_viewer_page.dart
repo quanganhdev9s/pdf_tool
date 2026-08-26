@@ -59,7 +59,9 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _bloc?.add(const PdfViewerCloseDocumentViewerRequested());
+    if (_bloc?.isClosed == false) {
+      _bloc?.add(const PdfViewerCloseDocumentViewerRequested());
+    }
     super.dispose();
   }
 

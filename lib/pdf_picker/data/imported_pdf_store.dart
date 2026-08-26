@@ -5,7 +5,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../pdf_viewer/data/pdf_event_log.dart';
 
-/// A PDF the user brought in from Files, as it sits on disk.
+/// A document the user brought in from Files, as it sits on disk.
 class ImportedPdf {
   const ImportedPdf({
     required this.path,
@@ -16,15 +16,21 @@ class ImportedPdf {
 
   final String path;
 
-  /// Without the extension: it is the same for every entry and only makes the
-  /// list harder to scan.
+  /// Includes the extension because downstream viewers use it to choose the
+  /// correct renderer/editor.
   final String fileName;
 
   final int fileSizeBytes;
   final DateTime modifiedAt;
+
+  String get extension => ImportedPdfStore._extension(path);
+
+  bool get isPdf => extension == 'pdf';
+
+  bool get isHwp => extension == 'hwp' || extension == 'hwpx';
 }
 
-/// The imported-PDF directory, and the operations over it.
+/// The imported-document directory, and the operations over it.
 ///
 /// All Dart: picking a file, copying it somewhere the app owns and listing that
 /// directory are things the platform channels give nothing extra for, so this
@@ -52,14 +58,14 @@ class ImportedPdfStore {
     final List<ImportedPdf> results = <ImportedPdf>[];
 
     for (final FileSystemEntity entity in imported.listSync()) {
-      if (entity is! File || !entity.path.toLowerCase().endsWith('.pdf')) {
+      if (entity is! File || !_supportedExtension(_extension(entity.path))) {
         continue;
       }
       final FileStat stat = entity.statSync();
       results.add(
         ImportedPdf(
           path: entity.path,
-          fileName: _baseName(entity.path),
+          fileName: _fileName(entity.path),
           fileSizeBytes: stat.size,
           modifiedAt: stat.modified,
         ),
@@ -78,30 +84,35 @@ class ImportedPdfStore {
   /// own copy sits in a temporary inbox the system may clear. The copy in
   /// [directory] is what makes an import still be there next launch.
   Future<ImportedPdf?> importFromFiles() async {
-    logPdfEvent('pdf_import_pick_present');
+    logPdfEvent('document_import_pick_present');
     final PlatformFile? picked = await FilePicker.pickFile(
       type: FileType.custom,
-      allowedExtensions: <String>['pdf'],
+      allowedExtensions: <String>['pdf', 'hwp', 'hwpx'],
     );
 
     final String? sourcePath = picked?.path;
     if (sourcePath == null) {
-      logPdfEvent('pdf_import_pick_cancelled');
+      logPdfEvent('document_import_pick_cancelled');
       return null;
     }
 
     final File source = File(sourcePath);
+    final String extension = _extension(sourcePath);
+    if (!_supportedExtension(extension)) {
+      throw StateError('Unsupported document type: .$extension');
+    }
     final String destinationPath = await _freePath(for_: sourcePath);
     await source.copy(destinationPath);
 
     final FileStat stat = File(destinationPath).statSync();
-    logPdfEvent('pdf_import_success', <String, Object?>{
-      'file': _baseName(destinationPath),
+    logPdfEvent('document_import_success', <String, Object?>{
+      'file': _fileName(destinationPath),
+      'type': _extension(destinationPath),
       'bytes': stat.size,
     });
     return ImportedPdf(
       path: destinationPath,
-      fileName: _baseName(destinationPath),
+      fileName: _fileName(destinationPath),
       fileSizeBytes: stat.size,
       modifiedAt: stat.modified,
     );
@@ -111,7 +122,9 @@ class ImportedPdfStore {
     final File file = File(document.path);
     if (file.existsSync()) {
       await file.delete();
-      logPdfEvent('pdf_import_delete', <String, Object?>{'file': document.fileName});
+      logPdfEvent('document_import_delete', <String, Object?>{
+        'file': document.fileName,
+      });
     }
   }
 
@@ -120,11 +133,12 @@ class ImportedPdfStore {
   Future<String> _freePath({required String for_}) async {
     final Directory imported = await directory();
     final String base = _baseName(for_).isEmpty ? 'Imported' : _baseName(for_);
+    final String extension = _extension(for_);
 
-    String candidate = '${imported.path}/$base.pdf';
+    String candidate = '${imported.path}/$base.$extension';
     int suffix = 2;
     while (File(candidate).existsSync()) {
-      candidate = '${imported.path}/$base ($suffix).pdf';
+      candidate = '${imported.path}/$base ($suffix).$extension';
       suffix += 1;
     }
     return candidate;
@@ -132,8 +146,21 @@ class ImportedPdfStore {
 
   static String _baseName(String path) {
     final String last = path.split('/').last;
-    return last.toLowerCase().endsWith('.pdf')
-        ? last.substring(0, last.length - 4)
+    final String extension = _extension(last);
+    return _supportedExtension(extension)
+        ? last.substring(0, last.length - extension.length - 1)
         : last;
+  }
+
+  static String _fileName(String path) => path.split('/').last;
+
+  static String _extension(String path) {
+    final String last = path.split('/').last;
+    final int dot = last.lastIndexOf('.');
+    return dot < 0 ? '' : last.substring(dot + 1).toLowerCase();
+  }
+
+  static bool _supportedExtension(String extension) {
+    return extension == 'pdf' || extension == 'hwp' || extension == 'hwpx';
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../../pdf_viewer/data/pdf_assets.dart';
 import '../data/imported_pdf_store.dart';
 
 /// What the picker shows: the PDFs bundled with the build, and the ones the
@@ -8,13 +7,16 @@ import '../data/imported_pdf_store.dart';
 @immutable
 class PdfAssetPickerState {
   const PdfAssetPickerState({
-    this.assets = pocPdfAssets,
+    this.pdfAssets = const <String>[],
+    this.hwpAssets = const <String>[],
     this.imported = const <ImportedPdf>[],
     this.importing = false,
     this.error,
   });
 
-  final List<String> assets;
+  final List<String> pdfAssets;
+
+  final List<String> hwpAssets;
 
   /// Newest first.
   final List<ImportedPdf> imported;
@@ -27,13 +29,16 @@ class PdfAssetPickerState {
   final String? error;
 
   PdfAssetPickerState copyWith({
+    List<String>? pdfAssets,
+    List<String>? hwpAssets,
     List<ImportedPdf>? imported,
     bool? importing,
     String? error,
     bool clearError = false,
   }) {
     return PdfAssetPickerState(
-      assets: assets,
+      pdfAssets: pdfAssets ?? this.pdfAssets,
+      hwpAssets: hwpAssets ?? this.hwpAssets,
       imported: imported ?? this.imported,
       importing: importing ?? this.importing,
       error: clearError ? null : (error ?? this.error),

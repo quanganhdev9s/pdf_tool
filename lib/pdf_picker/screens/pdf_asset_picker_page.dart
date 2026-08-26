@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../pdf_poc_api.g.dart';
+import '../../pdf_viewer/bloc/pdf_viewer_bloc.dart';
 import '../../pdf_viewer/data/pdf_assets.dart';
+import '../../pdf_viewer/screens/document_viewer_page.dart';
 import '../../pdf_viewer/screens/pdf_viewer_page.dart';
 import '../../scan/scan_flow.dart';
 import '../../scan/screens/scan_library_page.dart';
@@ -14,7 +17,7 @@ class PdfAssetPickerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<PdfAssetPickerCubit>(
-      create: (_) => PdfAssetPickerCubit()..loadImported(),
+      create: (_) => PdfAssetPickerCubit()..loadDocuments(),
       child: const _PdfAssetPickerView(),
     );
   }
@@ -37,10 +40,10 @@ class _PdfAssetPickerView extends StatelessWidget {
         final PdfAssetPickerCubit cubit = context.read<PdfAssetPickerCubit>();
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Chọn PDF'),
+            title: const Text('Chọn tài liệu'),
             actions: <Widget>[
               IconButton(
-                tooltip: 'Mở PDF từ tệp',
+                tooltip: 'Mở PDF/HWP từ tệp',
                 icon: const Icon(Icons.file_open_outlined),
                 onPressed: state.importing ? null : () => _import(context),
               ),
@@ -62,12 +65,12 @@ class _PdfAssetPickerView extends StatelessWidget {
           ),
           body: SafeArea(
             child: RefreshIndicator(
-              onRefresh: cubit.loadImported,
+              onRefresh: cubit.loadDocuments,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: <Widget>[
                   if (state.importing) const LinearProgressIndicator(),
-                  const _SectionHeader(title: 'PDF của bạn'),
+                  const _SectionHeader(title: 'Tài liệu của bạn'),
                   if (state.imported.isEmpty)
                     const _EmptyImports()
                   else
@@ -76,13 +79,24 @@ class _PdfAssetPickerView extends StatelessWidget {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _ImportedTile(document: document),
                       ),
-                  const SizedBox(height: 16),
-                  const _SectionHeader(title: 'PDF mẫu'),
-                  for (final String assetKey in state.assets)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _AssetTile(assetKey: assetKey),
-                    ),
+                  if (state.pdfAssets.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 16),
+                    const _SectionHeader(title: 'PDF mẫu'),
+                    for (final String assetKey in state.pdfAssets)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _AssetTile(assetKey: assetKey),
+                      ),
+                  ],
+                  if (state.hwpAssets.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 16),
+                    const _SectionHeader(title: 'HWP mẫu'),
+                    for (final String assetKey in state.hwpAssets)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _AssetTile(assetKey: assetKey),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -96,18 +110,11 @@ class _PdfAssetPickerView extends StatelessWidget {
   /// of having asked for a file; the entry stays in the list for next time.
   Future<void> _import(BuildContext context) async {
     final PdfAssetPickerCubit cubit = context.read<PdfAssetPickerCubit>();
-    final NavigatorState navigator = Navigator.of(context);
     final ImportedPdf? document = await cubit.importFromFiles();
     if (document == null) return;
 
-    await navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => PdfViewerPage(
-          assetKey: document.fileName,
-          initialFilePath: document.path,
-        ),
-      ),
-    );
+    if (!context.mounted) return;
+    await _openImportedDocument(context, document);
   }
 }
 
@@ -133,11 +140,14 @@ class _EmptyImports extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: <Widget>[
-            Icon(Icons.picture_as_pdf_outlined, color: Theme.of(context).disabledColor),
+            Icon(
+              Icons.picture_as_pdf_outlined,
+              color: Theme.of(context).disabledColor,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Chưa có PDF nào. Thêm một tệp từ Files, iCloud Drive hoặc '
+                'Chưa có tài liệu nào. Thêm PDF hoặc HWP từ Files, iCloud Drive hoặc '
                 'ứng dụng khác — bản sao sẽ nằm lại đây.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
@@ -159,7 +169,11 @@ class _ImportedTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
-        leading: const Icon(Icons.picture_as_pdf_outlined),
+        leading: Icon(
+          document.isHwp
+              ? Icons.description_outlined
+              : Icons.picture_as_pdf_outlined,
+        ),
         title: Text(document.fileName),
         subtitle: Text(_subtitle(document)),
         trailing: IconButton(
@@ -168,14 +182,7 @@ class _ImportedTile extends StatelessWidget {
           onPressed: () =>
               context.read<PdfAssetPickerCubit>().deleteImported(document),
         ),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => PdfViewerPage(
-              assetKey: document.fileName,
-              initialFilePath: document.path,
-            ),
-          ),
-        ),
+        onTap: () => _openImportedDocument(context, document),
       ),
     );
   }
@@ -195,6 +202,90 @@ class _ImportedTile extends StatelessWidget {
   }
 }
 
+Future<void> _openDocumentViewer(
+  NavigatorState navigator,
+  PdfViewableDocument document,
+) async {
+  final PdfViewerBloc bloc = PdfViewerBloc(assetKey: document.fileName);
+  try {
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => BlocProvider<PdfViewerBloc>.value(
+          value: bloc,
+          child: DocumentViewerPage(document: document),
+        ),
+      ),
+    );
+  } finally {
+    if (!bloc.isClosed) {
+      bloc.add(const PdfViewerCloseDocumentViewerRequested());
+      await Future<void>.delayed(Duration.zero);
+      await bloc.close();
+    }
+  }
+}
+
+Future<void> _openImportedDocument(
+  BuildContext context,
+  ImportedPdf document,
+) async {
+  final NavigatorState navigator = Navigator.of(context);
+  if (document.isHwp) {
+    await _openDocumentViewer(
+      navigator,
+      PdfViewableDocument(
+        path: document.path,
+        fileName: document.fileName,
+        fileFormat: document.extension,
+        fileSizeBytes: document.fileSizeBytes,
+      ),
+    );
+    return;
+  }
+
+  await navigator.push(
+    MaterialPageRoute<void>(
+      builder: (_) => PdfViewerPage(
+        assetKey: document.fileName,
+        initialFilePath: document.path,
+      ),
+    ),
+  );
+}
+
+Future<void> _openBundledDocument(BuildContext context, String assetKey) async {
+  final NavigatorState navigator = Navigator.of(context);
+  if (isHwpAsset(assetKey)) {
+    try {
+      final BundledDocumentFile file = await materializeBundledDocumentAsset(
+        assetKey,
+      );
+      if (!context.mounted) return;
+      await _openDocumentViewer(
+        navigator,
+        PdfViewableDocument(
+          path: file.path,
+          fileName: file.fileName,
+          fileFormat: file.extension,
+          fileSizeBytes: file.fileSizeBytes,
+        ),
+      );
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Không mở được tài liệu mẫu: $error')),
+        );
+    }
+    return;
+  }
+
+  await navigator.push(
+    MaterialPageRoute<void>(builder: (_) => PdfViewerPage(assetKey: assetKey)),
+  );
+}
+
 class _AssetTile extends StatelessWidget {
   const _AssetTile({required this.assetKey});
 
@@ -205,17 +296,17 @@ class _AssetTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
-        leading: const Icon(Icons.picture_as_pdf_outlined),
+        leading: Icon(
+          isHwpAsset(assetKey)
+              ? Icons.description_outlined
+              : Icons.picture_as_pdf_outlined,
+        ),
         title: Text(assetName(assetKey)),
         subtitle: Text(assetDescription(assetKey)),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           context.read<PdfAssetPickerCubit>().selectAsset(assetKey);
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => PdfViewerPage(assetKey: assetKey),
-            ),
-          );
+          _openBundledDocument(context, assetKey);
         },
       ),
     );
