@@ -299,62 +299,122 @@ function selectionRange() {
 
 // -------------------------------------------------------------- vẽ trang
 
-/// Trang đang hiển thị. DOM chỉ chứa đúng một nút `.page`.
-/// Đừng cache SVG rồi dừng sớm ở trang "không đổi" — đã thử và làm mất chữ, vì
-/// hai trang khác nhau có thể cho ra SVG y hệt.
-let currentPage = 0;
+/// Dựng trước/sau khung nhìn chừng này để cuộn nhanh không thấy trang trống.
+const MOUNT_MARGIN = '120%';
+
+/// Những trang đang có nội dung thật. Trang không nằm trong đây chỉ là khung
+/// rỗng giữ đúng chỗ, chưa tốn gì.
+const mounted = new Set();
+
+let pageObserver = null;
 
 function pageTotal() {
   return Math.max(1, count(() => doc.pageCount(), 1));
 }
 
-/// Vẽ trang `index` và trả về tổng số trang. Giữ tên cũ vì `index.html` và
-/// [commit] đều gọi qua đây.
-function renderPages(index = currentPage) {
-  const total = pageTotal();
-  currentPage = Math.min(Math.max(0, index), total - 1);
-  paintPage(currentPage);
-  publishState();
-  return total;
+/// Tạo/bỏ khung cho khớp số trang, và đặt đúng tỉ lệ để thanh cuộn dài đúng
+/// ngay từ đầu — `getPageInfo` cho kích thước mà không phải dựng hình.
+function syncPageFrames(total) {
+  while (pagesEl.children.length > total) {
+    const gone = pagesEl.lastElementChild;
+    mounted.delete(Number(gone.dataset.page));
+    if (pageObserver) pageObserver.unobserve(gone);
+    gone.remove();
+  }
+  for (let i = pagesEl.children.length; i < total; i += 1) {
+    const frame = document.createElement('div');
+    frame.className = 'page';
+    frame.dataset.page = String(i);
+    const info = ask(() => doc.getPageInfo(i), null);
+    if (info && info.width > 0 && info.height > 0) {
+      frame.style.aspectRatio = `${info.width} / ${info.height}`;
+    }
+    pagesEl.appendChild(frame);
+    if (pageObserver) pageObserver.observe(frame);
+  }
 }
 
-function paintPage(index) {
+/// Dựng nội dung thật vào khung. Gọi lại được — dùng cả cho việc vẽ lại sau khi
+/// sửa.
+function mountPage(index) {
+  const frame = pagesEl.children[index];
+  if (!frame) return;
   const holder = document.createElement('div');
   holder.innerHTML = doc.renderPageSvg(index);
   const svg = holder.firstElementChild;
 
   // svg + lớp phủ riêng: con trỏ và vệt bôi đen di chuyển được mà không phải
   // vẽ lại svg.
-  const wrap = document.createElement('div');
-  wrap.className = 'page';
-  wrap.dataset.page = String(index);
   const overlay = document.createElement('div');
   overlay.className = 'ov';
-  wrap.append(svg, overlay);
-
-  pagesEl.replaceChildren(wrap);
+  frame.replaceChildren(svg, overlay);
+  mounted.add(index);
 }
 
-/// Nút DOM của trang `index`, `null` nếu đó không phải trang đang xem — chuyện
-/// bình thường khi con trỏ ở trang khác.
+/// Trả khung về rỗng. Phải **xoá hẳn** nội dung chứ không ẩn đi: giữ lại nút cũ
+/// là đúng cách sinh ra lỗi hiển thị nội dung lỗi thời.
+function unmountPage(index) {
+  const frame = pagesEl.children[index];
+  if (!frame) return;
+  frame.replaceChildren();
+  mounted.delete(index);
+}
+
+/// Vẽ lại từ trang `from` trở đi, và đồng bộ số khung.
+///
+/// Chỉ dựng lại những trang **đang hiển thị**. Trang chưa dựng thì không cần
+/// làm gì — lúc cuộn tới nó sẽ dựng từ trạng thái mới nhất.
+///
+/// **Không** bỏ qua trang đang hiển thị vì "trông không đổi". Đã thử so chuỗi
+/// SVG rồi dừng sớm và cách đó làm **mất chữ**: chữ lặp lại khiến hai trang
+/// khác nhau cho ra SVG y hệt.
+function renderPages(from = 0) {
+  const total = pageTotal();
+  syncPageFrames(total);
+  for (const index of [...mounted]) {
+    if (index >= from && index < total) mountPage(index);
+  }
+  // Trang chứa con trỏ phải có mặt để còn vẽ con trỏ lên.
+  if (focus) {
+    const page = pageOf(focus);
+    if (page < total && !mounted.has(page)) mountPage(page);
+  }
+  publishState();
+  return total;
+}
+
+/// Nút DOM của trang `index`, chỉ khi nó đã dựng — trang mới là khung rỗng thì
+/// chưa có hình học để vẽ đè lên.
 function pageWrap(index) {
-  const wrap = pagesEl.firstElementChild;
-  return wrap && wrap.dataset.page === String(index) ? wrap : null;
+  const frame = pagesEl.children[index];
+  return frame && frame.firstElementChild ? frame : null;
 }
 
-/// Chuyển sang trang khác. Không kèm việc gì của tài liệu — chỉ đổi cái đang
-/// nhìn thấy.
+/// Cuộn trang `index` vào tầm nhìn.
 function showPage(index) {
   const total = pageTotal();
-  const next = Math.min(Math.max(0, Math.trunc(Number(index) || 0)), total - 1);
-  if (next === currentPage && pageWrap(currentPage)) return;
-  currentPage = next;
-  paintPage(currentPage);
-  drawOverlays();
-  moveInputToCaret();
-  window.scrollTo(0, 0);
-  publishState();
-  post('hwp_page_shown', `page=${currentPage + 1}/${total}`);
+  const i = Math.min(Math.max(0, Math.trunc(Number(index) || 0)), total - 1);
+  const frame = pagesEl.children[i];
+  if (frame) frame.scrollIntoView({ block: 'start' });
+}
+
+/// Dựng trang khi nó sắp vào khung nhìn, bỏ khi đã cuộn qua xa.
+function observePages() {
+  pageObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const index = Number(entry.target.dataset.page);
+      if (!Number.isFinite(index)) continue;
+      if (entry.isIntersecting) {
+        if (!mounted.has(index)) mountPage(index);
+      } else if (mounted.has(index)) {
+        // Giữ lại trang có con trỏ, nếu không vệt bôi đen và caret biến mất.
+        if (!focus || pageOf(focus) !== index) unmountPage(index);
+      }
+    }
+    drawOverlays();
+    post('hwp_pages_mounted', `${mounted.size}/${pagesEl.children.length}`);
+  }, { root: null, rootMargin: `${MOUNT_MARGIN} 0px` });
+  for (const frame of pagesEl.children) pageObserver.observe(frame);
 }
 
 /// Tỉ lệ px trang / px màn hình. Tính lại mỗi lần — xoay máy và bàn phím đều
@@ -378,10 +438,12 @@ function pagePoint(wrap, event) {
 // ------------------------------------------------------------- lớp phủ
 
 function clearOverlays() {
-  const wrap = pagesEl.firstElementChild;
-  const overlay = wrap && wrap.lastElementChild;
-  if (overlay && overlay.classList && overlay.classList.contains('ov')) {
-    overlay.replaceChildren();
+  for (const wrap of pagesEl.children) {
+    const overlay = wrap.lastElementChild;
+    if (overlay === wrap.firstElementChild) continue;
+    if (overlay && overlay.classList && overlay.classList.contains('ov')) {
+      overlay.replaceChildren();
+    }
   }
 }
 
@@ -487,9 +549,10 @@ function commit(at, fn) {
     post('hwp_objects_before', objectsBefore);
     post('hwp_objects_after', objectsOn(pageAfter));
   }
-  // Vẽ trang chứa con trỏ chứ không giữ `currentPage`: gõ Enter cuối trang có
-  // thể đẩy con trỏ sang trang sau.
-  const total = renderPages(pageAfter);
+  // Lùi lại một trang cho an toàn ở ranh giới: sửa ở đầu trang N có thể kéo
+  // dòng cuối của trang N-1 xuống.
+  const from = Math.max(0, Math.min(pageBefore, pageAfter) - 1);
+  const total = renderPages(from);
 
   dirty = true;
   post(
@@ -1429,8 +1492,7 @@ function sendState() {
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
     dirty,
-    // Đi kèm cả khi **không** sửa: thanh lật trang phải dùng được lúc chỉ xem.
-    pageIndex: currentPage,
+    pageIndex: focus ? pageOf(focus) : 0,
     pageCount: pageTotal(),
   };
 
@@ -1827,7 +1889,6 @@ export function attach(hwpDocument, container, reporter) {
   doc = hwpDocument;
   pagesEl = container;
   report = reporter || (() => {});
-  currentPage = 0;
 
   pagesEl.addEventListener('pointerdown', onPointerDown);
   pagesEl.addEventListener('pointermove', onPointerMove);
@@ -1888,5 +1949,6 @@ export function attach(hwpDocument, container, reporter) {
     export: exportDocument,
   };
 
+  observePages();
   return { renderPages };
 }

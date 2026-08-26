@@ -7,9 +7,7 @@
 <style>
   :root { color-scheme: light dark; }
   html, body { margin: 0; padding: 0; background: #8e8e93; -webkit-text-size-adjust: 100%; }
-  /* Chế độ một trang: `#pages` luôn chỉ có đúng một nút con, nên `gap` không
-     còn việc gì. Giữ flex để trang nằm giữa theo chiều ngang. */
-  #pages { display: flex; flex-direction: column; align-items: center; padding: 12px; }
+  #pages { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; }
 
   /* Mỗi trang là svg + một lớp phủ chồng khít lên nó. Lớp phủ giữ con trỏ và
      vệt bôi đen, nên chúng di chuyển được mà không phải vẽ lại svg. */
@@ -114,19 +112,25 @@ try {
   const response = await fetch('./document');
   if (!response.ok) throw new Error(`document fetch ${response.status}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
+  const fetched = performance.now();
 
   // Đúng một `HwpDocument` cho cả xem lẫn sửa. Tuyệt đối không dựng
   // `HwpViewer` quanh nó: constructor của lớp đó **tiêu huỷ** document và ta
   // mất sạch API soạn thảo.
   const doc = new HwpDocument(bytes);
-  report('hwp_document_parsed', `pages=${doc.pageCount()} bytes=${bytes.length}`);
+  const parsed = performance.now();
+  report(
+    'hwp_document_parsed',
+    `pages=${doc.pageCount()} bytes=${bytes.length}`
+      + ` fetch=${Math.round(fetched - ready)}ms parse=${Math.round(parsed - fetched)}ms`,
+  );
 
   const { attach } = await import('./editor.js');
   const editor = attach(doc, pagesEl, report);
 
   statusEl.hidden = true;
   const total = editor.renderPages(0);
-  report('hwp_render_done', `pages=${total} in=${Math.round(performance.now() - ready)}ms`);
+  report('hwp_render_done', `pages=${total} in=${Math.round(performance.now() - parsed)}ms`);
 } catch (error) {
   fail('Không mở được tệp HWP này.', error);
 }

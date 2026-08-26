@@ -27,9 +27,6 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		A00000000000000000000001 /* PdfPocApi.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000011 /* PdfPocApi.g.swift */; };
 		A00000000000000000000002 /* PdfPocRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* PdfPocRuntime.swift */; };
-		A00000000000000000000102 /* HwpViewerSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* HwpViewerSchemeHandler.swift */; };
-		A00000000000000000000202 /* WKWebView+InputAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000201 /* WKWebView+InputAccessory.swift */; };
-		A00000000000000000000104 /* HwpViewer in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103 /* HwpViewer */; };
 		A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* PdfWorkspaceView.swift */; };
 		A00000000000000000000004 /* PdfPlatformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* PdfPlatformView.swift */; };
 		A00000000000000000000005 /* PdfPocHostApiImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* PdfPocHostApiImpl.swift */; };
@@ -50,6 +47,9 @@
 		A00000000000000000000039 /* PdfConvertedDocumentWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */; };
 		A0000000000000000000003C /* PdfOfficePreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003D /* PdfOfficePreviewManager.swift */; };
 		A0000000000000000000003E /* PdfDocumentViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003F /* PdfDocumentViewerView.swift */; };
+		A00000000000000000000102 /* HwpViewerSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* HwpViewerSchemeHandler.swift */; };
+		A00000000000000000000104 /* HwpViewer in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103 /* HwpViewer */; };
+		A00000000000000000000202 /* WKWebView+InputAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000201 /* WKWebView+InputAccessory.swift */; };
 		A92CDF412A7146A739AE80A8 /* PdfScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79EC57B8280E2778BF0FB5B1 /* PdfScanCoordinator.swift */; };
 		A991EF704F42578B73547AAC /* PdfScanLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D6AE2785230FAEFFCC1C17 /* PdfScanLibrary.swift */; };
 		B7FFB09DD7777E71BE70CB6D /* PdfScanSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F05CC37A9C78A97B58BEBCF /* PdfScanSession.swift */; };
@@ -118,9 +118,6 @@
 		9F05CC37A9C78A97B58BEBCF /* PdfScanSession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanSession.swift; sourceTree = "<group>"; };
 		A00000000000000000000011 /* PdfPocApi.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocApi.g.swift; sourceTree = "<group>"; };
 		A00000000000000000000012 /* PdfPocRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocRuntime.swift; sourceTree = "<group>"; };
-		A00000000000000000000101 /* HwpViewerSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hwp/HwpViewerSchemeHandler.swift; sourceTree = "<group>"; };
-		A00000000000000000000201 /* WKWebView+InputAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hwp/WKWebView+InputAccessory.swift"; sourceTree = "<group>"; };
-		A00000000000000000000103 /* HwpViewer */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Hwp/HwpViewer; sourceTree = "<group>"; };
 		A00000000000000000000013 /* PdfWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfWorkspaceView.swift; sourceTree = "<group>"; };
 		A00000000000000000000014 /* PdfPlatformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPlatformView.swift; sourceTree = "<group>"; };
 		A00000000000000000000015 /* PdfPocHostApiImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfPocHostApiImpl.swift; sourceTree = "<group>"; };
@@ -141,6 +138,9 @@
 		A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfConvertedDocumentWriter.swift; sourceTree = "<group>"; };
 		A0000000000000000000003D /* PdfOfficePreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfOfficePreviewManager.swift; sourceTree = "<group>"; };
 		A0000000000000000000003F /* PdfDocumentViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfDocumentViewerView.swift; sourceTree = "<group>"; };
+		A00000000000000000000101 /* HwpViewerSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hwp/HwpViewerSchemeHandler.swift; sourceTree = "<group>"; };
+		A00000000000000000000103 /* HwpViewer */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Hwp/HwpViewer; sourceTree = "<group>"; };
+		A00000000000000000000201 /* WKWebView+InputAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hwp/WKWebView+InputAccessory.swift"; sourceTree = "<group>"; };
 		AEB4071C99F34CFABD2FEB23 /* PdfScanDocumentDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanDocumentDetector.swift; sourceTree = "<group>"; };
 		C125B92E8B33108035AAB6F1 /* PdfScanReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanReviewView.swift; sourceTree = "<group>"; };
 		D1B1C307861DB0F64455722A /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -344,7 +344,6 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
-				4F795C7CFFB047FD9EA315EA /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -438,23 +437,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
-		};
-		4F795C7CFFB047FD9EA315EA /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
 		};
 		89715A6C2EF664FB1845B5E0 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

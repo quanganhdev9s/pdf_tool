@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../pdf_poc_api.g.dart';
 import '../bloc/pdf_viewer_bloc.dart';
 import '../widgets/hwp_editor_tool_bar.dart';
-import '../widgets/hwp_page_bar.dart';
 
 enum _ViewerMenuAction { search, details, share }
 
@@ -112,13 +111,6 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
               Column(
                 children: <Widget>[
                   if (_showDetails) _DetailsBar(document: widget.document),
-                  // Chỉ tài liệu HWP mới dựng từng trang một; PDF vẫn cuộn liên
-                  // tục nên không có gì để lật ở đây.
-                  if (_editable)
-                    HwpPageBar(
-                      state: editor,
-                      onGoToPage: (page) => _bloc?.hwpGoToPage(page),
-                    ),
                   Expanded(
                     child: _NativeDocumentViewer(path: widget.document.path),
                   ),
