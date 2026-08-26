@@ -11,8 +11,12 @@
 
   /* Mỗi trang là svg + một lớp phủ chồng khít lên nó. Lớp phủ giữ con trỏ và
      vệt bôi đen, nên chúng di chuyển được mà không phải vẽ lại svg. */
+  /* Nền trắng phải nằm ở đây chứ không chỉ ở `svg` bên trong: trang chưa dựng
+     là một khung rỗng, và nếu để trống thì nó lộ nền xám của body — nhìn ra
+     thành một dãy hộp xám thay vì những trang giấy chưa vẽ xong. */
   .page {
     position: relative; width: 100%; max-width: 900px;
+    background: #fff;
     box-shadow: 0 1px 4px rgba(0,0,0,.3);
   }
   .page svg { display: block; width: 100%; height: auto; background: #fff; }
@@ -102,38 +106,114 @@ function fail(message, error) {
   report('hwp_viewer_failed', error?.stack || error || message);
 }
 
-try {
-  const started = performance.now();
-  const { default: init, HwpDocument } = await import('./rhwp.js');
-  await init({ module_or_path: './rhwp_bg.wasm' });
-  const ready = performance.now();
-  report('hwp_wasm_ready', `in=${Math.round(ready - started)}ms`);
+/// Runtime của rhwp: mô-đun WASM và trình soạn thảo. Không phụ thuộc tài liệu
+/// nào, nên khởi động **một lần** rồi dùng lại cho mọi tệp mở sau đó.
+///
+/// Tách khỏi phần nạp tài liệu để native hâm nóng trước được: dựng
+/// `WKWebView` và biên dịch WASM tốn ~1.8s, và đó là phần lớn thời gian chờ
+/// khi mở tệp đầu tiên.
+let runtimeReady = null;
+let rhwp = null;
+let editorModule = null;
 
-  const response = await fetch('./document');
-  if (!response.ok) throw new Error(`document fetch ${response.status}`);
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  const fetched = performance.now();
-
-  // Đúng một `HwpDocument` cho cả xem lẫn sửa. Tuyệt đối không dựng
-  // `HwpViewer` quanh nó: constructor của lớp đó **tiêu huỷ** document và ta
-  // mất sạch API soạn thảo.
-  const doc = new HwpDocument(bytes);
-  const parsed = performance.now();
-  report(
-    'hwp_document_parsed',
-    `pages=${doc.pageCount()} bytes=${bytes.length}`
-      + ` fetch=${Math.round(fetched - ready)}ms parse=${Math.round(parsed - fetched)}ms`,
-  );
-
-  const { attach } = await import('./editor.js');
-  const editor = attach(doc, pagesEl, report);
-
-  statusEl.hidden = true;
-  const total = editor.renderPages(0);
-  report('hwp_render_done', `pages=${total} in=${Math.round(performance.now() - parsed)}ms`);
-} catch (error) {
-  fail('Không mở được tệp HWP này.', error);
+function bootRuntime() {
+  if (runtimeReady) return runtimeReady;
+  runtimeReady = (async () => {
+    const started = performance.now();
+    report('hwp_boot_start', '');
+    const module = await import('./rhwp.js');
+    const imported = performance.now();
+    await module.default({ module_or_path: './rhwp_bg.wasm' });
+    const ready = performance.now();
+    report(
+      'hwp_wasm_ready',
+      `import=${Math.round(imported - started)}ms compile=${Math.round(ready - imported)}ms`
+        + ` in=${Math.round(ready - started)}ms`,
+    );
+    rhwp = module;
+    editorModule = await import('./editor.js');
+    report('hwp_runtime_ready', `in=${Math.round(performance.now() - started)}ms`);
+  })();
+  return runtimeReady;
 }
+
+/// Nạp tệp mà native đang phục vụ ở `/document` và vẽ ra.
+///
+/// Gọi lại được: `attach` tự dọn tài liệu trước đó, nên mở tệp thứ hai không
+/// cần nạp lại trang — đó chính là chỗ tiết kiệm được toàn bộ thời gian dựng
+/// web view và biên dịch WASM.
+async function loadDocument() {
+  try {
+    const started = performance.now();
+    // Runtime đã sẵn sàng nghĩa là lượt mở này ăn theo phần hâm nóng trước đó.
+    const warm = runtimeReady !== null;
+    statusEl.hidden = false;
+    statusEl.className = '';
+    statusEl.textContent = 'Đang tải…';
+
+    await bootRuntime();
+    const ready = performance.now();
+
+    const response = await fetch('./document', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`document fetch ${response.status}`);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const fetched = performance.now();
+
+    // Đúng một `HwpDocument` cho cả xem lẫn sửa. Tuyệt đối không dựng
+    // `HwpViewer` quanh nó: constructor của lớp đó **tiêu huỷ** document và ta
+    // mất sạch API soạn thảo.
+    const doc = new rhwp.HwpDocument(bytes);
+    const parsed = performance.now();
+    report(
+      'hwp_document_parsed',
+      `pages=${doc.pageCount()} bytes=${bytes.length}`
+        + ` fetch=${Math.round(fetched - ready)}ms parse=${Math.round(parsed - fetched)}ms`,
+    );
+
+    const editor = editorModule.attach(doc, pagesEl, report);
+
+    statusEl.hidden = true;
+    const total = editor.renderPages(0);
+    const done = performance.now();
+    report(
+      'hwp_render_done',
+      `pages=${total} frames=${Math.round(done - parsed)}ms`
+        + ` boot=${Math.round(done - started)}ms warm=${warm ? 1 : 0}`,
+    );
+  } catch (error) {
+    fail('Không mở được tệp HWP này.', error);
+  }
+}
+
+/// Native gọi xuống qua `evaluateJavaScript`. Tách khỏi `__rhwpEditor` vì cái
+/// đó chỉ tồn tại khi đang có tài liệu mở.
+window.__rhwpHost = {
+  loadDocument,
+  /// Đóng tài liệu nhưng **giữ** runtime. Native gọi khi rời trình xem: process
+  /// WebKit và WASM đã biên dịch ở lại, chỉ bộ nhớ của tài liệu được trả về.
+  unload() {
+    editorModule?.detach();
+    statusEl.hidden = true;
+    report('hwp_document_unloaded', '');
+  },
+  /// Khởi động runtime mà không mở tệp nào, để lần mở thật chỉ còn phần parse.
+  prewarm() {
+    bootRuntime().then(
+      () => report('hwp_prewarm_ready', ''),
+      (error) => report('hwp_prewarm_failed', String((error && error.stack) || error)),
+    );
+  },
+};
+
+// Trang vỏ được nạp với `?prewarm=1` khi native chỉ muốn hâm nóng: chưa có tệp
+// nào ở `/document`, nên đừng đi tìm.
+if (new URLSearchParams(location.search).get('prewarm') === '1') {
+  statusEl.hidden = true;
+  window.__rhwpHost.prewarm();
+} else {
+  loadDocument();
+}
+
 </script>
 </body>
 </html>

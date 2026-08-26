@@ -13,17 +13,106 @@ final class PdfDocumentViewerPlatformViewFactory: NSObject, FlutterPlatformViewF
   }
 }
 
+/// Giữ một `PdfDocumentViewerView` sống ngoài vòng đời của platform view.
+///
+/// Dựng `WKWebView` là bắt WebKit spawn cả một cụm process, và đo được ~1.7s ở
+/// lượt đầu — nhiều hơn toàn bộ phần parse và vẽ tài liệu cộng lại. Flutter thì
+/// mount rồi unmount platform view mỗi lần mở tài liệu, nên nếu view chết theo
+/// thì lần mở nào cũng trả lại khoản đó từ đầu.
+///
+/// Bể chỉ giữ **một** bản rảnh: mở hai trình xem cùng lúc là chuyện không có
+/// trong app này, và giữ nhiều web view ẩn thì tốn bộ nhớ hơn là tiết kiệm
+/// thời gian.
+final class PdfDocumentViewerViewPool {
+  static let shared = PdfDocumentViewerViewPool()
+
+  private var idle: PdfDocumentViewerView?
+
+  /// Bản rảnh đỗ ngoài mép cửa sổ: 1pt, không nhận chạm, không ai thấy.
+  private static let parkedFrame = CGRect(x: -2, y: -2, width: 1, height: 1)
+
+  /// Dựng sẵn web view và hâm nóng trang vỏ HWP. Gọi lúc khởi động app.
+  func prewarm() {
+    let view = idle ?? PdfDocumentViewerView(frame: Self.parkedFrame)
+    idle = view
+    park(view)
+    view.prewarmHwpShell()
+  }
+
+  /// View cho Flutter gắn vào — bản đã hâm nóng nếu có.
+  func acquire(frame: CGRect) -> PdfDocumentViewerView {
+    if let view = idle {
+      idle = nil
+      view.removeFromSuperview()
+      view.isUserInteractionEnabled = true
+      view.frame = frame
+      logPdfEvent("document_viewer_reused", nil)
+      return view
+    }
+    return PdfDocumentViewerView(frame: frame)
+  }
+
+  /// Nhận view về sau khi Flutter bỏ nó, và hâm nóng lại cho lượt mở sau.
+  func release(_ view: PdfDocumentViewerView) {
+    view.removeFromSuperview()
+    // Đã có bản rảnh rồi thì để bản này chết: hai web view ẩn không nhanh hơn
+    // một cái.
+    guard idle == nil else { return }
+    idle = view
+    park(view)
+    view.prewarmHwpShell()
+  }
+
+  /// Gắn bản rảnh vào cửa sổ.
+  ///
+  /// Bắt buộc, không phải cho đẹp: `WKWebView` không nằm trong cửa sổ nào thì
+  /// WebKit coi là ẩn và hãm tiến trình web của nó lại — trang vỏ sẽ nằm im
+  /// giữa chừng và phần hâm nóng thành công cốc.
+  private func park(_ view: PdfDocumentViewerView) {
+    guard view.superview == nil else { return }
+    guard let window = Self.keyWindow() else {
+      // Cửa sổ chưa có lúc app vừa khởi động. Thử lại một lần, rồi thôi: hâm
+      // nóng là tối ưu, hỏng thì chỉ chậm như cũ chứ không sai.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self, weak view] in
+        guard let self, let view, view === self.idle, view.superview == nil else { return }
+        guard let window = Self.keyWindow() else {
+          logPdfEvent("document_viewer_prewarm_no_window", nil)
+          return
+        }
+        view.frame = Self.parkedFrame
+        view.isUserInteractionEnabled = false
+        window.addSubview(view)
+      }
+      return
+    }
+    view.frame = Self.parkedFrame
+    view.isUserInteractionEnabled = false
+    window.addSubview(view)
+  }
+
+  private static func keyWindow() -> UIWindow? {
+    UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap(\.windows)
+      .first { $0.isKeyWindow } ?? UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap(\.windows)
+      .first
+  }
+}
+
 final class PdfDocumentViewerPlatformView: NSObject, FlutterPlatformView {
   private let viewerView: PdfDocumentViewerView
 
   init(frame: CGRect) {
-    viewerView = PdfDocumentViewerView(frame: frame)
+    viewerView = PdfDocumentViewerViewPool.shared.acquire(frame: frame)
     super.init()
     PdfPocRuntime.shared.attach(documentViewerView: viewerView)
   }
 
   deinit {
     PdfPocRuntime.shared.detach(documentViewerView: viewerView)
+    PdfDocumentViewerViewPool.shared.release(viewerView)
   }
 
   func view() -> UIView {
@@ -65,6 +154,31 @@ final class PdfDocumentViewerView: UIView {
   /// Tài liệu đang mở trong trình soạn thảo, nếu có. `nil` là đang chỉ xem.
   private var editingURL: URL?
 
+  /// Mốc bắt đầu nạp, để đo riêng khoảng dựng trang vỏ.
+  private var shellStart: CFTimeInterval = 0
+
+  /// Trang vỏ HWP đang ở đâu trong vòng đời của nó.
+  ///
+  /// Có mặt để mở tệp thứ hai **không** phải nạp lại trang: nạp lại là dựng
+  /// lại JS context, tức biên dịch lại 7.7MB WASM, cho một runtime hoàn toàn
+  /// không phụ thuộc tệp nào.
+  private enum ShellState {
+    /// Web view đang trống, hoặc đang giữ một định dạng khác (Office, PDF).
+    case cold
+    /// Đang nạp trang vỏ ở chế độ hâm nóng; runtime chưa sẵn sàng.
+    case warming
+    /// Runtime đã biên dịch xong và đang chờ tài liệu.
+    case warm
+    /// Đang có tài liệu mở trên trang vỏ.
+    case document
+  }
+
+  private var shellState: ShellState = .cold
+
+  /// Người dùng mở tệp trong lúc trang vỏ còn đang hâm nóng. Không thúc được
+  /// gì thêm — chỉ đợi `hwp_runtime_ready` rồi nạp ngay.
+  private var documentLoadPending = false
+
   weak var delegate: PdfDocumentViewerViewDelegate?
 
   /// Theo dõi bàn phím để đẩy chiều cao của nó xuống trang vỏ.
@@ -78,8 +192,13 @@ final class PdfDocumentViewerView: UIView {
     // dựng, nên sửa bản gốc sau đó không tới được web view — log của trang vỏ
     // sẽ im lặng biến mất, mà đó lại là thứ duy nhất cho biết rhwp đang làm gì.
     configuration.userContentController.add(relay, name: HwpViewerLogRelay.name)
+    let webViewStart = CACurrentMediaTime()
     webView = WKWebView(frame: frame, configuration: configuration)
     super.init(frame: frame)
+    logPdfEvent(
+      "document_viewer_webview_built",
+      "in=\(Int(((CACurrentMediaTime() - webViewStart) * 1000).rounded()))ms"
+    )
     configureRelay()
     configureSubviews()
     observeKeyboard()
@@ -112,6 +231,7 @@ final class PdfDocumentViewerView: UIView {
       )
     }
     loadedURL = sourceURL
+    shellStart = CACurrentMediaTime()
     // Nạp tệp khác là trang vỏ mới: chế độ sửa của tệp cũ không còn nữa.
     editingURL = nil
     showMessage(nil)
@@ -131,14 +251,44 @@ final class PdfDocumentViewerView: UIView {
         )
       }
       logPdfEvent("hwp_viewer_load", "file=\(sourceURL.lastPathComponent)")
-      webView.load(URLRequest(url: pageURL))
+
+      switch shellState {
+      case .warm, .document:
+        // Trang vỏ còn nguyên và runtime đã chạy: chỉ cần bảo nó đi lấy tệp
+        // mới ở `/document`. Bỏ qua toàn bộ phần dựng web view và biên dịch
+        // WASM.
+        shellState = .document
+        logPdfEvent("hwp_shell_reused", "file=\(sourceURL.lastPathComponent)")
+        runHost("loadDocument()")
+      case .warming:
+        documentLoadPending = true
+        logPdfEvent("hwp_shell_warming", "file=\(sourceURL.lastPathComponent)")
+      case .cold:
+        shellState = .document
+        webView.load(URLRequest(url: pageURL))
+      }
       return
     }
 
+    // Định dạng khác nạp thẳng vào web view, nên trang vỏ HWP mất chỗ.
+    shellState = .cold
     webView.loadFileURL(
       sourceURL,
       allowingReadAccessTo: sourceURL.deletingLastPathComponent()
     )
+  }
+
+  /// Nạp trước trang vỏ HWP mà chưa mở tệp nào.
+  ///
+  /// Đây là phần tiết kiệm chính: lúc người dùng chọn tệp thì cụm process của
+  /// WebKit đã chạy, `rhwp_bg.wasm` đã biên dịch, và lượt mở chỉ còn phần parse
+  /// tài liệu.
+  func prewarmHwpShell() {
+    guard shellState == .cold, loadedURL == nil else { return }
+    guard let pageURL = HwpViewerSchemeHandler.pageURL(prewarm: true) else { return }
+    shellState = .warming
+    logPdfEvent("hwp_prewarm_start", nil)
+    webView.load(URLRequest(url: pageURL))
   }
 
   /// `window.find` selects the match but WebKit paints that selection faintly,
@@ -296,6 +446,12 @@ final class PdfDocumentViewerView: UIView {
     webView.evaluateJavaScript("window.__rhwpEditor?.\(call)", completionHandler: nil)
   }
 
+  /// Gọi xuống phần trang vỏ **không** phụ thuộc tài liệu. Tách khỏi
+  /// `__rhwpEditor` vì cái đó chỉ tồn tại khi đang có tệp mở.
+  private func runHost(_ call: String) {
+    webView.evaluateJavaScript("window.__rhwpHost?.\(call)", completionHandler: nil)
+  }
+
   /// Một literal chuỗi JavaScript chứa JSON.
   ///
   /// Nối chuỗi vào `evaluateJavaScript` bằng tay là chỗ dễ hỏng nhất; để
@@ -340,6 +496,24 @@ final class PdfDocumentViewerView: UIView {
 
     relay.onExportFailed = { [weak self] message in
       self?.reportSave(error: message)
+    }
+
+    relay.onRuntimeReady = { [weak self] in
+      guard let self else { return }
+      guard self.shellState == .warming else { return }
+      self.shellState = .warm
+      guard self.documentLoadPending else { return }
+      // Người dùng đã chọn tệp trong lúc hâm nóng: nạp ngay, không đợi thêm.
+      self.documentLoadPending = false
+      self.shellState = .document
+      logPdfEvent("hwp_shell_reused", "file=\(self.loadedURL?.lastPathComponent ?? "")")
+      self.runHost("loadDocument()")
+    }
+
+    relay.onRendered = { [weak self] in
+      // Đường dùng lại trang vỏ không có navigation nào, nên `didFinish` không
+      // chạy và vòng quay phải dừng ở đây.
+      self?.activityIndicator.stopAnimating()
     }
 
     relay.onStateChanged = { [weak self] json in
@@ -435,7 +609,20 @@ final class PdfDocumentViewerView: UIView {
   func close() {
     logPdfEvent("document_viewer_close", "file=\(loadedURL?.lastPathComponent ?? "")")
     webView.stopLoading()
-    webView.loadHTMLString("", baseURL: nil)
+    switch shellState {
+    case .document, .warm:
+      // Đóng tài liệu chứ **không** nạp trang trắng: trang trắng vứt luôn cả
+      // runtime, và lần mở sau lại phải biên dịch WASM từ đầu. `unload()` chỉ
+      // trả lại bộ nhớ của tài liệu.
+      documentLoadPending = false
+      shellState = .warm
+      hwpHandler.documentURL = nil
+      runHost("unload()")
+    case .warming:
+      documentLoadPending = false
+    case .cold:
+      webView.loadHTMLString("", baseURL: nil)
+    }
     activityIndicator.stopAnimating()
     if let loadedURL {
       try? FileManager.default.removeItem(at: loadedURL)
@@ -473,7 +660,19 @@ extension PdfDocumentViewerView: WKNavigationDelegate {
     // Bỏ thanh phụ trợ bàn phím của iOS. Phải đợi tới đây: view nhận bàn phím
     // chỉ tồn tại sau khi trang đã nạp. Xem `WKWebView+InputAccessory.swift`.
     webView.removeInputAccessoryView()
-    logPdfEvent("document_viewer_loaded", "file=\(loadedURL?.lastPathComponent ?? "")")
+    // Lượt hâm nóng chưa mở tệp nào, nên nó không phải một lượt mở tài liệu —
+    // đo nó chung với các lượt kia thì con số mất nghĩa.
+    if shellState == .warming {
+      logPdfEvent("hwp_prewarm_shell_loaded", nil)
+      return
+    }
+    let shellMs = Int(((CACurrentMediaTime() - shellStart) * 1000).rounded())
+    logPdfEvent(
+      "document_viewer_loaded",
+      "file=\(loadedURL?.lastPathComponent ?? "") shell=\(shellMs)ms"
+    )
+    // HWP còn parse và vẽ tiếp; các định dạng khác thì nạp xong là hết lượt mở.
+    if let loadedURL, !HwpFileType.handles(loadedURL) { PdfEventClock.stop() }
   }
 
   func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -490,6 +689,9 @@ extension PdfDocumentViewerView: WKNavigationDelegate {
 
   private func handleFailure(_ error: Error) {
     activityIndicator.stopAnimating()
+    // Trang vỏ không nạp được thì không còn gì để dùng lại.
+    shellState = .cold
+    documentLoadPending = false
     logPdfEvent("document_viewer_failed", "error=\(error.localizedDescription)")
     showMessage("This file could not be displayed.\n\(error.localizedDescription)")
   }

@@ -315,6 +315,9 @@ function pageTotal() {
 /// Tạo/bỏ khung cho khớp số trang, và đặt đúng tỉ lệ để thanh cuộn dài đúng
 /// ngay từ đầu — `getPageInfo` cho kích thước mà không phải dựng hình.
 function syncPageFrames(total) {
+  const started = performance.now();
+  let infoMs = 0;
+  let added = 0;
   while (pagesEl.children.length > total) {
     const gone = pagesEl.lastElementChild;
     mounted.delete(Number(gone.dataset.page));
@@ -325,12 +328,22 @@ function syncPageFrames(total) {
     const frame = document.createElement('div');
     frame.className = 'page';
     frame.dataset.page = String(i);
+    const infoStart = performance.now();
     const info = ask(() => doc.getPageInfo(i), null);
+    infoMs += performance.now() - infoStart;
     if (info && info.width > 0 && info.height > 0) {
       frame.style.aspectRatio = `${info.width} / ${info.height}`;
     }
     pagesEl.appendChild(frame);
     if (pageObserver) pageObserver.observe(frame);
+    added += 1;
+  }
+  if (added > 0) {
+    post(
+      'hwp_frames_synced',
+      `total=${total} added=${added} getPageInfo=${Math.round(infoMs)}ms`
+        + ` in=${Math.round(performance.now() - started)}ms`,
+    );
   }
 }
 
@@ -339,9 +352,13 @@ function syncPageFrames(total) {
 function mountPage(index) {
   const frame = pagesEl.children[index];
   if (!frame) return;
+  const started = performance.now();
   const holder = document.createElement('div');
-  holder.innerHTML = doc.renderPageSvg(index);
+  const markup = doc.renderPageSvg(index);
+  const rendered = performance.now();
+  holder.innerHTML = markup;
   const svg = holder.firstElementChild;
+  const parsed = performance.now();
 
   // svg + lớp phủ riêng: con trỏ và vệt bôi đen di chuyển được mà không phải
   // vẽ lại svg.
@@ -349,6 +366,11 @@ function mountPage(index) {
   overlay.className = 'ov';
   frame.replaceChildren(svg, overlay);
   mounted.add(index);
+  post(
+    'hwp_page_mounted',
+    `page=${index} bytes=${markup.length} svg=${Math.round(rendered - started)}ms`
+      + ` dom=${Math.round(parsed - rendered)}ms in=${Math.round(performance.now() - started)}ms`,
+  );
 }
 
 /// Trả khung về rỗng. Phải **xoá hẳn** nội dung chứ không ẩn đi: giữ lại nút cũ
@@ -1884,8 +1906,92 @@ function exportDocument() {
 
 // ----------------------------------------------------------------- công khai
 
-/// Gắn trình soạn thảo vào tài liệu đã parse. Gọi một lần, ngay sau khi mở tệp.
+/// Vẽ lại sau khi xoay xong. Giữ tham chiếu để `detach` gỡ được — một hàm ẩn
+/// danh thì `removeEventListener` không có gì để gỡ, và mỗi lần mở tệp lại
+/// chồng thêm một listener nữa lên `window`.
+function onOrientationChange() {
+  setTimeout(drawOverlays, 250);
+}
+
+/// Gỡ trình soạn thảo khỏi tài liệu đang mở và trả mọi trạng thái về mặc định.
+///
+/// Có mặt vì trang vỏ **được dùng lại**: mở tệp thứ hai không nạp lại trang,
+/// nên nếu không dọn ở đây thì listener, khung trang, ngăn xếp hoàn tác và con
+/// trỏ của tệp cũ sẽ đi theo sang tệp mới.
+export function detach() {
+  if (!pagesEl) return;
+
+  pagesEl.removeEventListener('pointerdown', onPointerDown);
+  pagesEl.removeEventListener('pointermove', onPointerMove);
+  pagesEl.removeEventListener('pointerup', onPointerUp);
+  pagesEl.removeEventListener('pointercancel', onPointerUp);
+  window.removeEventListener('resize', drawOverlays);
+  window.removeEventListener('orientationchange', onOrientationChange);
+
+  if (pageObserver) {
+    pageObserver.disconnect();
+    pageObserver = null;
+  }
+  mounted.clear();
+  pagesEl.replaceChildren();
+  pagesEl.style.paddingBottom = '';
+  // Tệp mới phải mở ở trang đầu, chứ không phải ở chỗ đang cuộn dở của tệp cũ.
+  window.scrollTo(0, 0);
+
+  if (statePending) {
+    clearTimeout(statePending);
+    statePending = null;
+  }
+  if (pressTimer) {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+  pressStart = null;
+  selecting = false;
+
+  editing = false;
+  document.body.classList.remove('editing');
+  dirty = false;
+  anchor = null;
+  focus = null;
+  preferredX = -1;
+  pendingCharFormat = null;
+  composing = false;
+  preedit = '';
+  keyboardInset = 0;
+  chromeInset = 0;
+  cursorModel = null;
+  caretAfterCommit = null;
+  fontChecked = false;
+  objectsLogged = false;
+  undoStack.length = 0;
+  redoStack.length = 0;
+
+  // Ô nhập sống lâu hơn tài liệu — dựng lại nó là mất bàn phím đang lên — nên
+  // chỉ đưa về trạng thái sạch.
+  if (input) {
+    input.blur();
+    resetInput();
+  }
+
+  // `HwpDocument` giữ bộ nhớ bên trong WASM; bỏ tham chiếu JS thôi thì phần đó
+  // không được thu hồi. Tệp 8MB mở vài lần là đủ để bị hệ thống kết liễu.
+  const stale = doc;
+  doc = null;
+  try {
+    stale?.free?.();
+  } catch (error) {
+    report('hwp_document_free_failed', String((error && error.message) || error));
+  }
+
+  delete window.__rhwpEditor;
+}
+
+/// Gắn trình soạn thảo vào tài liệu đã parse. Gọi lại được: mỗi lần mở tệp mới
+/// trên cùng trang vỏ, nó tự dọn tài liệu trước đó.
 export function attach(hwpDocument, container, reporter) {
+  detach();
+
   doc = hwpDocument;
   pagesEl = container;
   report = reporter || (() => {});
@@ -1895,7 +2001,7 @@ export function attach(hwpDocument, container, reporter) {
   pagesEl.addEventListener('pointerup', onPointerUp);
   pagesEl.addEventListener('pointercancel', onPointerUp);
   window.addEventListener('resize', drawOverlays);
-  window.addEventListener('orientationchange', () => setTimeout(drawOverlays, 250));
+  window.addEventListener('orientationchange', onOrientationChange);
 
   // Swift gọi xuống qua `evaluateJavaScript`.
   window.__rhwpEditor = {

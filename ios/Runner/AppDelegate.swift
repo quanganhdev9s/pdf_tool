@@ -31,5 +31,15 @@ import UIKit
       PdfScanReviewPlatformViewFactory(coordinator: PdfScanCoordinator.shared),
       withId: "pdf_scan_review_view"
     )
+
+    // Hâm nóng trình xem ngay từ lúc khởi động. WebKit spawn process ở tiến
+    // trình khác nên nó chạy song song với phần còn lại của lượt khởi động,
+    // và tới lúc người dùng chọn được tệp thì trang vỏ đã sẵn sàng.
+    //
+    // `async` chứ không gọi thẳng: dựng `WKWebView` ngay trong lượt khởi động
+    // là chen vào trước khung hình đầu tiên của Flutter.
+    DispatchQueue.main.async {
+      PdfDocumentViewerViewPool.shared.prewarm()
+    }
   }
 }

@@ -1260,6 +1260,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   Future<void> loadPickedDocumentIntoViewer(String path) async {
     logPdfEvent('load_document_into_viewer', <String, Object?>{'path': path});
     await _api.loadDocumentIntoViewer(path);
+    // Từ đây trở đi là việc của native, nó có đồng hồ riêng.
+    stopPdfEventClock();
   }
 
   void _onNativeHwpEditorStateChanged(
@@ -2303,6 +2305,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
 
   @override
   void onDocumentForViewingPicked(PdfViewableDocument document) {
+    startPdfEventClock();
     logPdfEvent('callback_document_for_viewing_picked', <String, Object?>{
       'fileName': document.fileName,
       'fileFormat': document.fileFormat,

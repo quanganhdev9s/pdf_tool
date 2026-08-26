@@ -47,6 +47,7 @@ extension PdfOfficePreviewManager: UIDocumentPickerDelegate {
       onCancelled?()
       return
     }
+    PdfEventClock.start()
     let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path)
     let document = PdfViewableDocument(
       path: sourceURL.path,

@@ -4,9 +4,29 @@ import UIKit
 
 let pdfEventTag = "PDF Event"
 
+/// Trục thời gian của một lượt mở tệp. Mốc 0 là lúc chọn xong tệp, và mọi dòng
+/// log của native tự đóng dấu `t=` theo nó. Chỉ chạm từ luồng chính.
+enum PdfEventClock {
+  private static var origin: CFTimeInterval = 0
+
+  static func start() {
+    origin = CACurrentMediaTime()
+  }
+
+  static var elapsedMs: Int? {
+    guard origin > 0 else { return nil }
+    return Int(((CACurrentMediaTime() - origin) * 1000).rounded())
+  }
+
+  static func stop() {
+    origin = 0
+  }
+}
+
 func logPdfEvent(_ event: String, _ details: String? = nil) {
   let suffix = details.map { " | \($0)" } ?? ""
-  print("\(pdfEventTag) | native | \(event)\(suffix)")
+  let stamp = PdfEventClock.elapsedMs.map { " | t=\($0)ms" } ?? ""
+  print("\(pdfEventTag) | native | \(event)\(suffix)\(stamp)")
 }
 
 protocol PdfWorkspaceViewDelegate: AnyObject {

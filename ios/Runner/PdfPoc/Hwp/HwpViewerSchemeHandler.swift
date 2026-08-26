@@ -1,4 +1,5 @@
 import Foundation
+import QuartzCore
 import UniformTypeIdentifiers
 import WebKit
 
@@ -34,8 +35,11 @@ final class HwpViewerSchemeHandler: NSObject, WKURLSchemeHandler {
     super.init()
   }
 
-  static func pageURL() -> URL? {
-    URL(string: "\(scheme)://\(host)/index.html")
+  /// URL trang vỏ. `prewarm` là nạp trang mà **không** mở tệp nào: trang chỉ
+  /// biên dịch WASM rồi đứng chờ, để lượt mở thật sau đó không phải trả lại
+  /// khoản đó nữa.
+  static func pageURL(prewarm: Bool = false) -> URL? {
+    URL(string: "\(scheme)://\(host)/index.html\(prewarm ? "?prewarm=1" : "")")
   }
 
   func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
@@ -48,7 +52,13 @@ final class HwpViewerSchemeHandler: NSObject, WKURLSchemeHandler {
     // `WKURLSchemeTask` bắt buộc mọi lời gọi phải trên cùng luồng đã bắt đầu nó.
     // Nhảy sang luồng khác rồi gọi `didReceive` là cách chắc chắn để crash.
     do {
+      let readStart = CACurrentMediaTime()
       let (data, mimeType) = try payload(for: url)
+      logPdfEvent(
+        "hwp_asset_served",
+        "path=\(url.path) bytes=\(data.count)"
+          + " read=\(Int(((CACurrentMediaTime() - readStart) * 1000).rounded()))ms"
+      )
       // `HTTPURLResponse` chứ không phải `URLResponse`.
       //
       // `URLResponse(url:mimeType:...)` đặt được thuộc tính `mimeType`, nhưng
@@ -167,6 +177,13 @@ final class HwpViewerLogRelay: NSObject, WKScriptMessageHandler {
   /// Trình soạn thảo không dựng nổi tệp. Chưa có gì được ghi xuống đĩa.
   var onExportFailed: ((String) -> Void)?
 
+  /// Runtime của trang vỏ đã biên dịch xong và đang chờ tài liệu.
+  var onRuntimeReady: (() -> Void)?
+
+  /// Tài liệu đã vẽ xong. Đường dùng lại trang vỏ không có navigation nào nên
+  /// đây là tín hiệu "mở xong" duy nhất.
+  var onRendered: (() -> Void)?
+
   /// Trạng thái con trỏ/vùng chọn, nguyên văn JSON. Swift không đọc vào trong:
   /// hình dạng của nó thuộc về trang vỏ và Flutter, không thuộc về đây.
   var onStateChanged: ((String) -> Void)?
@@ -198,8 +215,16 @@ final class HwpViewerLogRelay: NSObject, WKScriptMessageHandler {
       // mọi dòng log khác.
       guard let detail else { return }
       onStateChanged?(detail)
+    case "hwp_runtime_ready":
+      logPdfEvent(event, detail)
+      onRuntimeReady?()
     default:
       logPdfEvent(event, detail)
+      // Tài liệu đã vẽ xong: log về sau là cuộn và sửa, không thuộc lượt mở.
+      if event == "hwp_render_done" {
+        onRendered?()
+        PdfEventClock.stop()
+      }
     }
   }
 }
