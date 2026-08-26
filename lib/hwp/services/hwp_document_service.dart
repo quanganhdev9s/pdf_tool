@@ -177,13 +177,74 @@ class HwpDocumentService {
       ),
       '',
     );
-    return withoutClosedImages.replaceAll(
+    final String withoutInlineSvgImages = withoutClosedImages.replaceAll(
       RegExp(
         r'''<image\b[^>]*(?:href|xlink:href)=["']data:image/svg\+xml[^"']*["'][^>]*/?>''',
         caseSensitive: false,
         dotAll: true,
       ),
       '',
+    );
+
+    // Font fallback trên iOS có thể cao/rộng hơn metric mà Rust dùng để đặt
+    // glyph. Các clip rect của ô bảng HWP rất sát nội dung, nên Flutter có thể
+    // cắt mất chữ/số trong cột hẹp. Nới nhẹ clip của cell để giữ dữ liệu nhìn
+    // thấy, nhưng vẫn giữ clip body/page lớn như cũ.
+    final String withRelaxedCellClips = _relaxFlutterTableCellClipRects(
+      withoutInlineSvgImages,
+    );
+
+    // Flutter SVG/vector_graphics xử lý text transform trong clipPath chưa ổn định.
+    // SVG HWP đặt từng glyph bằng `transform="translate(x,y) scale(...)"`; trong ô
+    // bảng hẹp, pipeline này có thể làm text biến mất. Chuyển translate về x/y
+    // tuyệt đối để Flutter coi mỗi text node như text SVG cơ bản.
+    final String withSimpleTextPosition = withRelaxedCellClips.replaceAllMapped(
+      RegExp(
+        r'''<text\b([^>]*?)\s+transform=(["'])translate\(\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s*,\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\s*\)(?:\s+scale\(\s*[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?\s*,\s*[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?\s*\))?\2([^>]*)>''',
+        caseSensitive: false,
+      ),
+      (Match match) {
+        final String before = match.group(1) ?? '';
+        final String quote = match.group(2) ?? '"';
+        final String x = match.group(3) ?? '0';
+        final String y = match.group(4) ?? '0';
+        final String after = match.group(5) ?? '';
+        return '<text$before x=$quote$x$quote y=$quote$y$quote$after>';
+      },
+    );
+
+    // Flutter SVG/vector_graphics chưa render ổn định textLength/lengthAdjust
+    // trên các run chữ HWP đã được đặt tọa độ sẵn. Với cột bảng hẹp, thuộc tính
+    // này có thể làm text bị biến mất hoặc dính chữ; bỏ nó để Flutter dùng glyph
+    // bình thường tại đúng x/y mà Rust renderer đã tính.
+    return withSimpleTextPosition
+        .replaceAll(RegExp(r'''\s+textLength=(["']).*?\1'''), '')
+        .replaceAll(RegExp(r'''\s+lengthAdjust=(["']).*?\1'''), '');
+  }
+
+  String _relaxFlutterTableCellClipRects(String svg) {
+    return svg.replaceAllMapped(
+      RegExp(
+        r'''<clipPath id=(["'])(cell-clip-[^"']+)\1><rect x=(["'])([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\3 y=(["'])([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\5 width=(["'])([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\7 height=(["'])([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)\9/></clipPath>''',
+        caseSensitive: false,
+      ),
+      (Match match) {
+        final String idQuote = match.group(1) ?? '"';
+        final String id = match.group(2) ?? '';
+        final String numberQuote = match.group(3) ?? '"';
+        final double x = double.tryParse(match.group(4) ?? '') ?? 0;
+        final double y = double.tryParse(match.group(6) ?? '') ?? 0;
+        final double width = double.tryParse(match.group(8) ?? '') ?? 0;
+        final double height = double.tryParse(match.group(10) ?? '') ?? 0;
+        const double horizontalPad = 3;
+        const double verticalPad = 4;
+        return '<clipPath id=$idQuote$id$idQuote>'
+            '<rect x=$numberQuote${x - horizontalPad}$numberQuote '
+            'y=$numberQuote${y - verticalPad}$numberQuote '
+            'width=$numberQuote${width + horizontalPad * 2}$numberQuote '
+            'height=$numberQuote${height + verticalPad * 2}$numberQuote/>'
+            '</clipPath>';
+      },
     );
   }
 }
