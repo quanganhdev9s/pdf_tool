@@ -3,39 +3,33 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../pdf_poc_api.g.dart';
-import '../bloc/pdf_viewer_bloc.dart';
+import '../bloc/hwp_viewer_cubit.dart';
+import '../hwp_api.g.dart';
 import '../widgets/hwp_editor_tool_bar.dart';
 
 enum _ViewerMenuAction { search, details, share }
 
-/// Đuôi tệp mà trình soạn thảo HWP nhận. Khớp với `HwpFileType` bên native.
-const Set<String> _editableExtensions = <String>{'hwp', 'hwpx'};
-
-/// Hosts the native document viewer inside a normal Flutter route, so the whole
-/// screen around the document is ours to style: app bar, menu, search bar.
+/// Đặt trình xem HWP native trong một route Flutter bình thường, nên cả màn
+/// hình quanh tài liệu là của ta: app bar, menu, thanh tìm kiếm.
 ///
-/// The native side only renders; every control here is Flutter.
-class DocumentViewerPage extends StatefulWidget {
-  const DocumentViewerPage({super.key, required this.document});
+/// Native chỉ vẽ; mọi thứ bấm được ở đây là Flutter. Trạng thái nằm trong
+/// [HwpViewerCubit]; `State` ở đây chỉ giữ controller, focus node và key đo
+/// thanh công cụ.
+class HwpViewerPage extends StatefulWidget {
+  const HwpViewerPage({super.key, required this.document});
 
-  final PdfViewableDocument document;
+  final HwpDocument document;
 
   @override
-  State<DocumentViewerPage> createState() => _DocumentViewerPageState();
+  State<HwpViewerPage> createState() => _HwpViewerPageState();
 }
 
-class _DocumentViewerPageState extends State<DocumentViewerPage> {
+class _HwpViewerPageState extends State<HwpViewerPage> {
   // Captured while the element tree is still stable: `dispose` runs after this
   // widget is deactivated, when ancestor lookups are no longer allowed.
-  PdfViewerBloc? _bloc;
+  HwpViewerCubit? _cubit;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  bool _showDetails = false;
-  bool _searching = false;
-  bool? _lastSearchFound;
-  bool _editing = false;
-  bool _busy = false;
 
   /// Đo chiều cao thật của thanh công cụ thay vì đoán: nó đổi theo vùng an
   /// toàn của máy, và khi đang lưu thì có thêm thanh tiến trình.
@@ -44,23 +38,18 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   /// Số đã báo xuống native lần gần nhất, để không bắn lại cùng một giá trị.
   double _reportedChromeInset = -1;
 
-  /// Tệp này có sửa được không. Chỉ HWP — mọi định dạng khác chỉ xem.
-  bool get _editable => _editableExtensions.contains(
-    widget.document.fileName.split('.').last.toLowerCase(),
-  );
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _bloc = context.read<PdfViewerBloc>();
+    _cubit = context.read<HwpViewerCubit>();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
-    if (_bloc?.isClosed == false) {
-      _bloc?.add(const PdfViewerCloseDocumentViewerRequested());
+    if (_cubit?.isClosed == false) {
+      _cubit?.closeViewer();
     }
     super.dispose();
   }
@@ -73,21 +62,18 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   void _syncChromeInset() {
     if (!mounted) return;
     final box = _toolBarKey.currentContext?.findRenderObject() as RenderBox?;
-    final inset = _editing && box != null && box.hasSize
-        ? box.size.height
-        : 0.0;
+    final editing = _cubit?.state.editing ?? false;
+    final inset = editing && box != null && box.hasSize ? box.size.height : 0.0;
     if ((inset - _reportedChromeInset).abs() < 0.5) return;
     _reportedChromeInset = inset;
-    _bloc?.setViewerChromeInset(inset);
+    _cubit?.setChromeInset(inset);
   }
 
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) => _syncChromeInset());
-    return BlocBuilder<PdfViewerBloc, PdfViewerState>(
-      buildWhen: (previous, current) => previous.hwpEditor != current.hwpEditor,
+    return BlocBuilder<HwpViewerCubit, HwpViewerState>(
       builder: (context, state) {
-        final editor = state.hwpEditor;
         return Scaffold(
           // Đừng co màn hình khi bàn phím lên.
           //
@@ -102,9 +88,7 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
           //
           // Màn PDF cũng đặt như vậy, cùng một lý do.
           resizeToAvoidBottomInset: false,
-          appBar: _searching
-              ? _buildSearchAppBar()
-              : _buildDefaultAppBar(editor),
+          appBar: state.searching ? _buildSearchAppBar(state) : _buildDefaultAppBar(state),
           // Thanh công cụ **nổi** trên web view, không phải `bottomNavigationBar`.
           // Đáy Scaffold không nhúc nhích khi bàn phím lên, nên đặt ở đó là bị
           // bàn phím phủ mất. Ở đây nó tự nâng theo `viewInsets`.
@@ -112,25 +96,23 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
             children: <Widget>[
               Column(
                 children: <Widget>[
-                  if (_showDetails) _DetailsBar(document: widget.document),
-                  Expanded(
-                    child: _NativeDocumentViewer(path: widget.document.path),
-                  ),
+                  if (state.showDetails) _DetailsBar(document: widget.document),
+                  Expanded(child: const _NativeHwpViewer()),
                 ],
               ),
-              if (_editing)
+              if (state.editing)
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: MediaQuery.of(context).viewInsets.bottom,
                   child: HwpEditorToolBar(
                     key: _toolBarKey,
-                    state: editor,
-                    busy: _busy,
-                    onCharFormat: (format) => _bloc?.applyHwpCharFormat(format),
-                    onParaFormat: (format) => _bloc?.applyHwpParaFormat(format),
-                    onUndo: () => _bloc?.hwpUndo(),
-                    onRedo: () => _bloc?.hwpRedo(),
+                    state: state.editor,
+                    busy: state.busy,
+                    onCharFormat: (format) => _cubit?.applyCharFormat(format),
+                    onParaFormat: (format) => _cubit?.applyParaFormat(format),
+                    onUndo: () => _cubit?.undo(),
+                    onRedo: () => _cubit?.redo(),
                   ),
                 ),
             ],
@@ -140,28 +122,28 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
     );
   }
 
-  PreferredSizeWidget _buildDefaultAppBar(HwpEditorState? editor) {
-    final dirty = editor?.dirty ?? false;
+  PreferredSizeWidget _buildDefaultAppBar(HwpViewerState state) {
+    final dirty = state.dirty;
     return AppBar(
       title: Text(
         dirty ? '${widget.document.fileName} •' : widget.document.fileName,
         overflow: TextOverflow.ellipsis,
       ),
       actions: <Widget>[
-        if (_editable && _editing) ...<Widget>[
+        if (state.editing) ...<Widget>[
           IconButton(
             tooltip: 'Lưu',
-            onPressed: _busy || !dirty ? null : _saveEdits,
+            onPressed: state.busy || !dirty ? null : _saveEdits,
             icon: const Icon(Icons.save_outlined),
           ),
           TextButton(
-            onPressed: _busy ? null : () => _leaveEditing(dirty),
+            onPressed: state.busy ? null : () => _leaveEditing(dirty),
             child: const Text('Xong'),
           ),
-        ] else if (_editable)
+        ] else
           IconButton(
             tooltip: 'Sửa',
-            onPressed: _busy ? null : () => _setEditing(true),
+            onPressed: state.busy ? null : () => _cubit?.setEditing(true),
             icon: const Icon(Icons.edit_outlined),
           ),
         PopupMenuButton<_ViewerMenuAction>(
@@ -183,8 +165,8 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
               child: ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(_showDetails ? Icons.info : Icons.info_outline),
-                title: Text(_showDetails ? 'Hide details' : 'File details'),
+                leading: Icon(state.showDetails ? Icons.info : Icons.info_outline),
+                title: Text(state.showDetails ? 'Hide details' : 'File details'),
               ),
             ),
             const PopupMenuItem<_ViewerMenuAction>(
@@ -202,7 +184,7 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
     );
   }
 
-  PreferredSizeWidget _buildSearchAppBar() {
+  PreferredSizeWidget _buildSearchAppBar(HwpViewerState state) {
     return AppBar(
       leading: IconButton(
         tooltip: 'Close search',
@@ -218,7 +200,7 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
         decoration: InputDecoration(
           hintText: 'Search in document',
           border: InputBorder.none,
-          errorText: _lastSearchFound == false ? 'No match' : null,
+          errorText: state.lastSearchFound == false ? 'No match' : null,
         ),
         onSubmitted: (_) => _find(forward: true),
       ),
@@ -240,40 +222,25 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
   void _handleMenuAction(_ViewerMenuAction action) {
     switch (action) {
       case _ViewerMenuAction.search:
-        setState(() => _searching = true);
+        _cubit?.startSearch();
       case _ViewerMenuAction.details:
-        setState(() => _showDetails = !_showDetails);
+        _cubit?.toggleDetails();
       case _ViewerMenuAction.share:
-        _bloc?.shareViewerDocument();
-    }
-  }
-
-  Future<void> _setEditing(bool editing) async {
-    setState(() => _busy = true);
-    try {
-      await _bloc?.setViewerEditing(editing);
-      if (mounted) setState(() => _editing = editing);
-    } on Object catch (_) {
-      // Lỗi đã vào log ở bloc; giữ nguyên trạng thái trước đó.
-    } finally {
-      if (mounted) setState(() => _busy = false);
+        _cubit?.share();
     }
   }
 
   Future<void> _saveEdits() async {
-    setState(() => _busy = true);
     try {
-      final result = await _bloc?.saveViewerEdits();
+      final result = await _cubit?.saveEdits();
       if (!mounted || result == null) return;
       _showSaveResult(result);
     } on Object catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không gửi được yêu cầu lưu.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Không gửi được yêu cầu lưu.')));
       }
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -281,9 +248,7 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
     final messenger = ScaffoldMessenger.of(context);
     if (!result.ok) {
       messenger.showSnackBar(
-        SnackBar(
-          content: Text('Lưu hỏng: ${result.error ?? "không rõ lý do"}'),
-        ),
+        SnackBar(content: Text('Lưu hỏng: ${result.error ?? "không rõ lý do"}')),
       );
       return;
     }
@@ -294,13 +259,8 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
     if (loss != null && loss.isNotEmpty) {
       messenger.showSnackBar(
         SnackBar(
-          content: const Text(
-            'Đã lưu, nhưng một phần nội dung không ghi được.',
-          ),
-          action: SnackBarAction(
-            label: 'Chi tiết',
-            onPressed: () => _showContentLoss(loss),
-          ),
+          content: const Text('Đã lưu, nhưng một phần nội dung không ghi được.'),
+          action: SnackBarAction(label: 'Chi tiết', onPressed: () => _showContentLoss(loss)),
         ),
       );
       return;
@@ -315,10 +275,7 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
         title: const Text('Nội dung không ghi được'),
         content: SingleChildScrollView(child: Text(report)),
         actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Đóng'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Đóng')),
         ],
       ),
     );
@@ -332,9 +289,7 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Bỏ thay đổi?'),
-          content: const Text(
-            'Có thay đổi chưa lưu. Thoát chế độ sửa sẽ bỏ hết.',
-          ),
+          content: const Text('Có thay đổi chưa lưu. Thoát chế độ sửa sẽ bỏ hết.'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -349,34 +304,24 @@ class _DocumentViewerPageState extends State<DocumentViewerPage> {
       );
       if (discard != true) return;
     }
-    await _setEditing(false);
+    await _cubit?.setEditing(false);
   }
 
-  Future<void> _find({required bool forward}) async {
-    final found = await _bloc?.findInViewer(
-      _searchController.text,
-      forward: forward,
-    );
-    if (mounted) {
-      setState(() => _lastSearchFound = found);
-    }
+  Future<void> _find({required bool forward}) {
+    return _cubit?.find(_searchController.text, forward: forward) ?? Future<void>.value();
   }
 
   void _stopSearching() {
-    _bloc?.clearViewerSearch();
     _searchFocusNode.unfocus();
-    setState(() {
-      _searching = false;
-      _lastSearchFound = null;
-      _searchController.clear();
-    });
+    _searchController.clear();
+    _cubit?.stopSearch();
   }
 }
 
 class _DetailsBar extends StatelessWidget {
   const _DetailsBar({required this.document});
 
-  final PdfViewableDocument document;
+  final HwpDocument document;
 
   @override
   Widget build(BuildContext context) {
@@ -401,27 +346,20 @@ class _DetailsBar extends StatelessWidget {
   }
 }
 
-class _NativeDocumentViewer extends StatefulWidget {
-  const _NativeDocumentViewer({required this.path});
+class _NativeHwpViewer extends StatelessWidget {
+  const _NativeHwpViewer();
 
-  final String path;
-
-  @override
-  State<_NativeDocumentViewer> createState() => _NativeDocumentViewerState();
-}
-
-class _NativeDocumentViewerState extends State<_NativeDocumentViewer> {
   @override
   Widget build(BuildContext context) {
     if (!Platform.isIOS) {
       return const Center(child: Text('This technical POC supports iOS only.'));
     }
     return UiKitView(
-      viewType: 'pdf_poc_document_viewer_view',
-      // The native view only exists once the platform view is created, so the
-      // document is loaded from this callback rather than from initState.
+      viewType: 'hwp_viewer_view',
+      // View native chỉ tồn tại sau khi platform view được dựng, nên tài liệu
+      // nạp từ callback này chứ không phải từ `initState`.
       onPlatformViewCreated: (_) {
-        context.read<PdfViewerBloc>().loadPickedDocumentIntoViewer(widget.path);
+        context.read<HwpViewerCubit>().loadIntoViewer();
       },
     );
   }

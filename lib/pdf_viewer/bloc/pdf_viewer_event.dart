@@ -1,7 +1,28 @@
 import '../../pdf_poc_api.g.dart';
+import 'pdf_viewer_state.dart';
 
 sealed class PdfViewerEvent {
   const PdfViewerEvent();
+}
+
+final class PdfViewerPanelModeToggled extends PdfViewerEvent {
+  const PdfViewerPanelModeToggled(this.mode);
+
+  final PdfControlPanelMode mode;
+}
+
+final class PdfViewerCompressionSettingsChanged extends PdfViewerEvent {
+  const PdfViewerCompressionSettingsChanged({this.dpi, this.jpegQuality});
+
+  final double? dpi;
+  final double? jpegQuality;
+}
+
+final class PdfViewerConversionSettingsChanged extends PdfViewerEvent {
+  const PdfViewerConversionSettingsChanged({this.pageSize, this.imageQuality});
+
+  final PdfConvertPageSize? pageSize;
+  final PdfScanQuality? imageQuality;
 }
 
 final class PdfViewerOpenRequested extends PdfViewerEvent {
@@ -55,29 +76,23 @@ final class PdfViewerMarkupSelectionRequested extends PdfViewerEvent {
 }
 
 final class PdfViewerAddFixedFreeTextRequested extends PdfViewerEvent {
-  const PdfViewerAddFixedFreeTextRequested({
-    required this.pageText,
-    required this.text,
-  });
+  const PdfViewerAddFixedFreeTextRequested({required this.pageText, required this.text});
 
   final String pageText;
   final String text;
 }
 
-final class PdfViewerBeginFreeTextAreaSelectionRequested
-    extends PdfViewerEvent {
+final class PdfViewerBeginFreeTextAreaSelectionRequested extends PdfViewerEvent {
   const PdfViewerBeginFreeTextAreaSelectionRequested();
 }
 
-final class PdfViewerCommitSelectedFreeTextAreaRequested
-    extends PdfViewerEvent {
+final class PdfViewerCommitSelectedFreeTextAreaRequested extends PdfViewerEvent {
   const PdfViewerCommitSelectedFreeTextAreaRequested(this.text);
 
   final String text;
 }
 
-final class PdfViewerCancelSelectedFreeTextAreaRequested
-    extends PdfViewerEvent {
+final class PdfViewerCancelSelectedFreeTextAreaRequested extends PdfViewerEvent {
   const PdfViewerCancelSelectedFreeTextAreaRequested();
 }
 
@@ -195,19 +210,12 @@ final class PdfViewerShowOcrResultRequested extends PdfViewerEvent {
   final PdfOcrBlock block;
 }
 
-final class PdfViewerRunPreservationCompressionRequested
-    extends PdfViewerEvent {
+final class PdfViewerRunPreservationCompressionRequested extends PdfViewerEvent {
   const PdfViewerRunPreservationCompressionRequested();
 }
 
 final class PdfViewerRunRasterizedCompressionRequested extends PdfViewerEvent {
-  const PdfViewerRunRasterizedCompressionRequested({
-    required this.dpi,
-    required this.jpegQuality,
-  });
-
-  final int dpi;
-  final double jpegQuality;
+  const PdfViewerRunRasterizedCompressionRequested();
 }
 
 final class PdfViewerCancelCompressionRequested extends PdfViewerEvent {
@@ -235,55 +243,13 @@ final class PdfViewerCancelMergeRequested extends PdfViewerEvent {
 }
 
 final class PdfViewerPickFileForPdfConversionRequested extends PdfViewerEvent {
-  const PdfViewerPickFileForPdfConversionRequested({
-    required this.pageSize,
-    required this.imageQuality,
-  });
-
-  final PdfConvertPageSize pageSize;
-  final PdfScanQuality imageQuality;
+  const PdfViewerPickFileForPdfConversionRequested();
 }
 
 final class PdfViewerConvertUrlToPdfRequested extends PdfViewerEvent {
-  const PdfViewerConvertUrlToPdfRequested({
-    required this.url,
-    required this.pageSize,
-  });
+  const PdfViewerConvertUrlToPdfRequested(this.url);
 
   final String url;
-  final PdfConvertPageSize pageSize;
-}
-
-final class PdfViewerPickDocumentForViewingRequested extends PdfViewerEvent {
-  const PdfViewerPickDocumentForViewingRequested();
-}
-
-final class PdfViewerCloseDocumentViewerRequested extends PdfViewerEvent {
-  const PdfViewerCloseDocumentViewerRequested();
-}
-
-final class PdfViewerNativeDocumentForViewingPicked extends PdfViewerEvent {
-  const PdfViewerNativeDocumentForViewingPicked(this.document);
-
-  final PdfViewableDocument document;
-}
-
-final class PdfViewerNativeDocumentForViewingCancelled extends PdfViewerEvent {
-  const PdfViewerNativeDocumentForViewingCancelled();
-}
-
-/// Con trỏ, vùng chọn hoặc nội dung trong trình soạn thảo HWP vừa đổi.
-final class PdfViewerNativeHwpEditorStateChanged extends PdfViewerEvent {
-  const PdfViewerNativeHwpEditorStateChanged(this.state);
-
-  final HwpEditorState state;
-}
-
-/// Một lần ghi tài liệu HWP đã xong.
-final class PdfViewerNativeHwpEditsSaved extends PdfViewerEvent {
-  const PdfViewerNativeHwpEditsSaved(this.result);
-
-  final HwpSaveResult result;
 }
 
 final class PdfViewerCancelPdfConversionRequested extends PdfViewerEvent {
@@ -307,10 +273,7 @@ final class PdfViewerShareGeneratedOutputRequested extends PdfViewerEvent {
 }
 
 final class PdfViewerNativePageChanged extends PdfViewerEvent {
-  const PdfViewerNativePageChanged({
-    required this.pageIndex,
-    required this.pageCount,
-  });
+  const PdfViewerNativePageChanged({required this.pageIndex, required this.pageCount});
 
   final int pageIndex;
   final int pageCount;
@@ -377,20 +340,14 @@ final class PdfViewerNativeOcrProgress extends PdfViewerEvent {
 }
 
 final class PdfViewerNativeOcrResult extends PdfViewerEvent {
-  const PdfViewerNativeOcrResult({
-    required this.operationId,
-    required this.block,
-  });
+  const PdfViewerNativeOcrResult({required this.operationId, required this.block});
 
   final String operationId;
   final PdfOcrBlock block;
 }
 
 final class PdfViewerNativeOcrCompleted extends PdfViewerEvent {
-  const PdfViewerNativeOcrCompleted({
-    required this.operationId,
-    required this.cancelled,
-  });
+  const PdfViewerNativeOcrCompleted({required this.operationId, required this.cancelled});
 
   final String operationId;
   final bool cancelled;

@@ -2,12 +2,27 @@ import '../../pdf_poc_api.g.dart';
 
 const Object _unset = Object();
 
+/// Which control panel the bottom tool bar has open.
+enum PdfControlPanelMode {
+  pages,
+  search,
+  ink,
+  freeText,
+  signature,
+  pageOperations,
+  ocr,
+  compression,
+  splitMerge,
+  status,
+}
+
 class PdfViewerState {
   PdfViewerState({
     this.documentInfo,
     this.searchState,
     this.pendingFreeTextArea,
     this.selectedText,
+    this.activePanelMode,
     this.status = 'Đang chuẩn bị viewer...',
     this.busy = false,
     this.openedOnce = false,
@@ -34,15 +49,19 @@ class PdfViewerState {
     this.conversionResult,
     this.generatedOutputs = const <PdfGeneratedOutput>[],
     this.generatedOutputsLoading = false,
-    this.viewableDocument,
-    this.viewablePickPending = false,
-    this.hwpEditor,
+    this.compressionDpi = 120,
+    this.compressionJpegQuality = 0.6,
+    this.convertPageSize = PdfConvertPageSize.a4,
+    this.convertImageQuality = PdfScanQuality.standard,
   });
 
   final PdfDocumentInfo? documentInfo;
   final PdfSearchState? searchState;
   final PdfFreeTextAreaSelection? pendingFreeTextArea;
   final String? selectedText;
+
+  /// `null` là không mở panel nào.
+  final PdfControlPanelMode? activePanelMode;
   final String status;
   final bool busy;
   final bool openedOnce;
@@ -70,12 +89,13 @@ class PdfViewerState {
   final PdfConvertToPdfResult? conversionResult;
   final List<PdfGeneratedOutput> generatedOutputs;
   final bool generatedOutputsLoading;
-  final PdfViewableDocument? viewableDocument;
-  final bool viewablePickPending;
 
-  /// Con trỏ và định dạng trong trình soạn thảo HWP. `null` khi chưa bật chế
-  /// độ sửa, hoặc khi tệp đang mở không phải HWP.
-  final HwpEditorState? hwpEditor;
+  // Cài đặt của panel nén và panel chuyển đổi. Ở đây chứ không ở trong widget:
+  // panel bị tháo ra mỗi lần đổi chế độ.
+  final double compressionDpi;
+  final double compressionJpegQuality;
+  final PdfConvertPageSize convertPageSize;
+  final PdfScanQuality convertImageQuality;
 
   bool get hasSelection => selectedText?.trim().isNotEmpty ?? false;
 
@@ -84,6 +104,7 @@ class PdfViewerState {
     Object? searchState = _unset,
     Object? pendingFreeTextArea = _unset,
     Object? selectedText = _unset,
+    Object? activePanelMode = _unset,
     String? status,
     bool? busy,
     bool? openedOnce,
@@ -110,23 +131,21 @@ class PdfViewerState {
     Object? conversionResult = _unset,
     List<PdfGeneratedOutput>? generatedOutputs,
     bool? generatedOutputsLoading,
-    Object? viewableDocument = _unset,
-    bool? viewablePickPending,
-    Object? hwpEditor = _unset,
+    double? compressionDpi,
+    double? compressionJpegQuality,
+    PdfConvertPageSize? convertPageSize,
+    PdfScanQuality? convertImageQuality,
   }) {
     return PdfViewerState(
-      documentInfo: documentInfo == _unset
-          ? this.documentInfo
-          : documentInfo as PdfDocumentInfo?,
-      searchState: searchState == _unset
-          ? this.searchState
-          : searchState as PdfSearchState?,
+      documentInfo: documentInfo == _unset ? this.documentInfo : documentInfo as PdfDocumentInfo?,
+      searchState: searchState == _unset ? this.searchState : searchState as PdfSearchState?,
       pendingFreeTextArea: pendingFreeTextArea == _unset
           ? this.pendingFreeTextArea
           : pendingFreeTextArea as PdfFreeTextAreaSelection?,
-      selectedText: selectedText == _unset
-          ? this.selectedText
-          : selectedText as String?,
+      selectedText: selectedText == _unset ? this.selectedText : selectedText as String?,
+      activePanelMode: activePanelMode == _unset
+          ? this.activePanelMode
+          : activePanelMode as PdfControlPanelMode?,
       status: status ?? this.status,
       busy: busy ?? this.busy,
       openedOnce: openedOnce ?? this.openedOnce,
@@ -136,42 +155,31 @@ class PdfViewerState {
       ocrTotalPages: ocrTotalPages ?? this.ocrTotalPages,
       ocrResults: ocrResults ?? this.ocrResults,
       compressionRunning: compressionRunning ?? this.compressionRunning,
-      compressionCompletedPages:
-          compressionCompletedPages ?? this.compressionCompletedPages,
-      compressionTotalPages:
-          compressionTotalPages ?? this.compressionTotalPages,
+      compressionCompletedPages: compressionCompletedPages ?? this.compressionCompletedPages,
+      compressionTotalPages: compressionTotalPages ?? this.compressionTotalPages,
       compressionResult: compressionResult == _unset
           ? this.compressionResult
           : compressionResult as PdfCompressionResult?,
       splitRunning: splitRunning ?? this.splitRunning,
       splitCompletedPages: splitCompletedPages ?? this.splitCompletedPages,
       splitTotalPages: splitTotalPages ?? this.splitTotalPages,
-      splitResult: splitResult == _unset
-          ? this.splitResult
-          : splitResult as PdfSplitResult?,
+      splitResult: splitResult == _unset ? this.splitResult : splitResult as PdfSplitResult?,
       mergeRunning: mergeRunning ?? this.mergeRunning,
       mergeCompletedPages: mergeCompletedPages ?? this.mergeCompletedPages,
       mergeTotalPages: mergeTotalPages ?? this.mergeTotalPages,
-      mergeResult: mergeResult == _unset
-          ? this.mergeResult
-          : mergeResult as PdfMergeResult?,
+      mergeResult: mergeResult == _unset ? this.mergeResult : mergeResult as PdfMergeResult?,
       conversionRunning: conversionRunning ?? this.conversionRunning,
-      conversionCompletedPages:
-          conversionCompletedPages ?? this.conversionCompletedPages,
+      conversionCompletedPages: conversionCompletedPages ?? this.conversionCompletedPages,
       conversionTotalPages: conversionTotalPages ?? this.conversionTotalPages,
       conversionResult: conversionResult == _unset
           ? this.conversionResult
           : conversionResult as PdfConvertToPdfResult?,
       generatedOutputs: generatedOutputs ?? this.generatedOutputs,
-      generatedOutputsLoading:
-          generatedOutputsLoading ?? this.generatedOutputsLoading,
-      viewableDocument: viewableDocument == _unset
-          ? this.viewableDocument
-          : viewableDocument as PdfViewableDocument?,
-      viewablePickPending: viewablePickPending ?? this.viewablePickPending,
-      hwpEditor: hwpEditor == _unset
-          ? this.hwpEditor
-          : hwpEditor as HwpEditorState?,
+      generatedOutputsLoading: generatedOutputsLoading ?? this.generatedOutputsLoading,
+      compressionDpi: compressionDpi ?? this.compressionDpi,
+      compressionJpegQuality: compressionJpegQuality ?? this.compressionJpegQuality,
+      convertPageSize: convertPageSize ?? this.convertPageSize,
+      convertImageQuality: convertImageQuality ?? this.convertImageQuality,
     );
   }
 }

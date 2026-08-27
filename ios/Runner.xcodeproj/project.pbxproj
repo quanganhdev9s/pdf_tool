@@ -45,11 +45,13 @@
 		A00000000000000000000035 /* PdfImageDocumentWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000037 /* PdfImageDocumentWriter.swift */; };
 		A00000000000000000000038 /* PdfFileConversionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003A /* PdfFileConversionManager.swift */; };
 		A00000000000000000000039 /* PdfConvertedDocumentWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */; };
-		A0000000000000000000003C /* PdfOfficePreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003D /* PdfOfficePreviewManager.swift */; };
-		A0000000000000000000003E /* PdfDocumentViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003F /* PdfDocumentViewerView.swift */; };
+		A0000000000000000000003E /* HwpViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003F /* HwpViewerView.swift */; };
 		A00000000000000000000102 /* HwpViewerSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000101 /* HwpViewerSchemeHandler.swift */; };
 		A00000000000000000000104 /* HwpViewer in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000103 /* HwpViewer */; };
 		A00000000000000000000202 /* WKWebView+InputAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000201 /* WKWebView+InputAccessory.swift */; };
+		A00000000000000000000302 /* HwpApi.g.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000301 /* HwpApi.g.swift */; };
+		A00000000000000000000402 /* AppEventLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000401 /* AppEventLog.swift */; };
+		A00000000000000000000304 /* HwpRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000303 /* HwpRuntime.swift */; };
 		A92CDF412A7146A739AE80A8 /* PdfScanCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79EC57B8280E2778BF0FB5B1 /* PdfScanCoordinator.swift */; };
 		A991EF704F42578B73547AAC /* PdfScanLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D6AE2785230FAEFFCC1C17 /* PdfScanLibrary.swift */; };
 		B7FFB09DD7777E71BE70CB6D /* PdfScanSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F05CC37A9C78A97B58BEBCF /* PdfScanSession.swift */; };
@@ -136,11 +138,13 @@
 		A00000000000000000000037 /* PdfImageDocumentWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfImageDocumentWriter.swift; sourceTree = "<group>"; };
 		A0000000000000000000003A /* PdfFileConversionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfFileConversionManager.swift; sourceTree = "<group>"; };
 		A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfConvertedDocumentWriter.swift; sourceTree = "<group>"; };
-		A0000000000000000000003D /* PdfOfficePreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfOfficePreviewManager.swift; sourceTree = "<group>"; };
-		A0000000000000000000003F /* PdfDocumentViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PdfDocumentViewerView.swift; sourceTree = "<group>"; };
-		A00000000000000000000101 /* HwpViewerSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hwp/HwpViewerSchemeHandler.swift; sourceTree = "<group>"; };
-		A00000000000000000000103 /* HwpViewer */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Hwp/HwpViewer; sourceTree = "<group>"; };
-		A00000000000000000000201 /* WKWebView+InputAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Hwp/WKWebView+InputAccessory.swift"; sourceTree = "<group>"; };
+		A0000000000000000000003F /* HwpViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpViewerView.swift; sourceTree = "<group>"; };
+		A00000000000000000000101 /* HwpViewerSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpViewerSchemeHandler.swift; sourceTree = "<group>"; };
+		A00000000000000000000103 /* HwpViewer */ = {isa = PBXFileReference; lastKnownFileType = folder; path = HwpViewer; sourceTree = "<group>"; };
+		A00000000000000000000201 /* WKWebView+InputAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WKWebView+InputAccessory.swift"; sourceTree = "<group>"; };
+		A00000000000000000000301 /* HwpApi.g.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpApi.g.swift; sourceTree = "<group>"; };
+		A00000000000000000000401 /* AppEventLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEventLog.swift; sourceTree = "<group>"; };
+		A00000000000000000000303 /* HwpRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HwpRuntime.swift; sourceTree = "<group>"; };
 		AEB4071C99F34CFABD2FEB23 /* PdfScanDocumentDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanDocumentDetector.swift; sourceTree = "<group>"; };
 		C125B92E8B33108035AAB6F1 /* PdfScanReviewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PdfScanReviewView.swift; sourceTree = "<group>"; };
 		D1B1C307861DB0F64455722A /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -265,6 +269,8 @@
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				A00000000000000000000020 /* PdfPoc */,
+				A00000000000000000000300 /* Hwp */,
+				A00000000000000000000400 /* Common */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -274,9 +280,6 @@
 			children = (
 				A00000000000000000000021 /* Bridge */,
 				A00000000000000000000012 /* PdfPocRuntime.swift */,
-				A00000000000000000000101 /* HwpViewerSchemeHandler.swift */,
-				A00000000000000000000201 /* WKWebView+InputAccessory.swift */,
-				A00000000000000000000103 /* HwpViewer */,
 				A00000000000000000000013 /* PdfWorkspaceView.swift */,
 				A00000000000000000000016 /* PdfWorkspaceSupport.swift */,
 				A00000000000000000000017 /* PdfSignatureViews.swift */,
@@ -293,13 +296,40 @@
 				A00000000000000000000037 /* PdfImageDocumentWriter.swift */,
 				A0000000000000000000003A /* PdfFileConversionManager.swift */,
 				A0000000000000000000003B /* PdfConvertedDocumentWriter.swift */,
-				A0000000000000000000003D /* PdfOfficePreviewManager.swift */,
-				A0000000000000000000003F /* PdfDocumentViewerView.swift */,
 				A00000000000000000000014 /* PdfPlatformView.swift */,
 				A00000000000000000000015 /* PdfPocHostApiImpl.swift */,
 				57A4941E44020AEEB883580B /* Scan */,
 			);
 			path = PdfPoc;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000400 /* Common */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000401 /* AppEventLog.swift */,
+			);
+			path = Common;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000300 /* Hwp */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000305 /* Bridge */,
+				A00000000000000000000303 /* HwpRuntime.swift */,
+				A0000000000000000000003F /* HwpViewerView.swift */,
+				A00000000000000000000101 /* HwpViewerSchemeHandler.swift */,
+				A00000000000000000000201 /* WKWebView+InputAccessory.swift */,
+				A00000000000000000000103 /* HwpViewer */,
+			);
+			path = Hwp;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000305 /* Bridge */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000301 /* HwpApi.g.swift */,
+			);
+			path = Bridge;
 			sourceTree = "<group>";
 		};
 		A00000000000000000000021 /* Bridge */ = {
@@ -517,6 +547,9 @@
 				A00000000000000000000002 /* PdfPocRuntime.swift in Sources */,
 				A00000000000000000000102 /* HwpViewerSchemeHandler.swift in Sources */,
 				A00000000000000000000202 /* WKWebView+InputAccessory.swift in Sources */,
+				A00000000000000000000302 /* HwpApi.g.swift in Sources */,
+				A00000000000000000000402 /* AppEventLog.swift in Sources */,
+				A00000000000000000000304 /* HwpRuntime.swift in Sources */,
 				A00000000000000000000003 /* PdfWorkspaceView.swift in Sources */,
 				A00000000000000000000004 /* PdfPlatformView.swift in Sources */,
 				A00000000000000000000005 /* PdfPocHostApiImpl.swift in Sources */,
@@ -535,8 +568,7 @@
 				A00000000000000000000035 /* PdfImageDocumentWriter.swift in Sources */,
 				A00000000000000000000038 /* PdfFileConversionManager.swift in Sources */,
 				A00000000000000000000039 /* PdfConvertedDocumentWriter.swift in Sources */,
-				A0000000000000000000003C /* PdfOfficePreviewManager.swift in Sources */,
-				A0000000000000000000003E /* PdfDocumentViewerView.swift in Sources */,
+				A0000000000000000000003E /* HwpViewerView.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				85981249CFB136C42749CB45 /* PdfScanCaptureManager.swift in Sources */,

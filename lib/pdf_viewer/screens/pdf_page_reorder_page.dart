@@ -35,25 +35,15 @@ class _PdfPageReorderPageState extends State<PdfPageReorderPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reorder pages'),
-        leading: IconButton(
-          tooltip: 'Cancel',
-          onPressed: _cancel,
-          icon: const Icon(Icons.close),
-        ),
+        leading: IconButton(tooltip: 'Cancel', onPressed: _cancel, icon: const Icon(Icons.close)),
         actions: <Widget>[
-          IconButton(
-            tooltip: 'Apply',
-            onPressed: _apply,
-            icon: const Icon(Icons.check),
-          ),
+          IconButton(tooltip: 'Apply', onPressed: _apply, icon: const Icon(Icons.check)),
         ],
       ),
       body: SafeArea(
         child: Platform.isIOS
             ? const UiKitView(viewType: 'pdf_poc_page_reorder_view')
-            : const Center(
-                child: Text('This technical POC supports iOS only.'),
-              ),
+            : const Center(child: Text('This technical POC supports iOS only.')),
       ),
     );
   }

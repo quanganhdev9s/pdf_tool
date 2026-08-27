@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../pdf_viewer/data/pdf_event_log.dart';
+import '../../common/event_log.dart';
 
 /// A document the user brought in from Files, as it sits on disk.
 class ImportedPdf {
@@ -83,11 +83,16 @@ class ImportedPdfStore {
   /// another app's container is not this app's to hold open, and the picker's
   /// own copy sits in a temporary inbox the system may clear. The copy in
   /// [directory] is what makes an import still be there next launch.
-  Future<ImportedPdf?> importFromFiles() async {
-    logPdfEvent('document_import_pick_present');
+  /// [allowedExtensions] hẹp danh sách bộ chọn nhận — tab HWP chỉ muốn HWP.
+  Future<ImportedPdf?> importFromFiles({
+    List<String> allowedExtensions = const <String>['pdf', 'hwp', 'hwpx'],
+  }) async {
+    logPdfEvent('document_import_pick_present', <String, Object?>{
+      'types': allowedExtensions.join(','),
+    });
     final PlatformFile? picked = await FilePicker.pickFile(
       type: FileType.custom,
-      allowedExtensions: <String>['pdf', 'hwp', 'hwpx'],
+      allowedExtensions: allowedExtensions,
     );
 
     final String? sourcePath = picked?.path;
@@ -98,7 +103,7 @@ class ImportedPdfStore {
 
     final File source = File(sourcePath);
     final String extension = _extension(sourcePath);
-    if (!_supportedExtension(extension)) {
+    if (!_supportedExtension(extension) || !allowedExtensions.contains(extension)) {
       throw StateError('Unsupported document type: .$extension');
     }
     final String destinationPath = await _freePath(for_: sourcePath);
@@ -122,9 +127,7 @@ class ImportedPdfStore {
     final File file = File(document.path);
     if (file.existsSync()) {
       await file.delete();
-      logPdfEvent('document_import_delete', <String, Object?>{
-        'file': document.fileName,
-      });
+      logPdfEvent('document_import_delete', <String, Object?>{'file': document.fileName});
     }
   }
 

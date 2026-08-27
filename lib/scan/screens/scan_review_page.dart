@@ -22,8 +22,7 @@ class ScanReviewPage extends StatelessWidget {
       listenWhen: (ScanReviewState previous, ScanReviewState current) =>
           previous.errorMessage != current.errorMessage ||
           previous.exportResult != current.exportResult ||
-          (previous.status != current.status &&
-              current.status == ScanReviewStatus.idle),
+          (previous.status != current.status && current.status == ScanReviewStatus.idle),
       listener: _handleSideEffects,
       builder: (BuildContext context, ScanReviewState state) {
         return Scaffold(
@@ -40,9 +39,9 @@ class ScanReviewPage extends StatelessWidget {
                 icon: const Icon(Icons.rotate_90_degrees_cw_outlined),
                 onPressed: state.isBusy || state.currentPage == null
                     ? null
-                    : () => context
-                        .read<ScanReviewBloc>()
-                        .add(ScanPageRotateRequested(state.currentPage!.pageId)),
+                    : () => context.read<ScanReviewBloc>().add(
+                        ScanPageRotateRequested(state.currentPage!.pageId),
+                      ),
               ),
               IconButton(
                 tooltip: 'Delete page',
@@ -97,17 +96,14 @@ class ScanReviewPage extends StatelessWidget {
           ),
           if (state.isBusy)
             TextButton(
-              onPressed: () => context
-                  .read<ScanReviewBloc>()
-                  .add(const ScanOperationCancelRequested()),
+              onPressed: () =>
+                  context.read<ScanReviewBloc>().add(const ScanOperationCancelRequested()),
               child: const Text('Cancel'),
             ),
           const SizedBox(width: 8),
           FilledButton.icon(
             onPressed: canExport
-                ? () => context
-                    .read<ScanReviewBloc>()
-                    .add(const ScanExportRequested())
+                ? () => context.read<ScanReviewBloc>().add(const ScanExportRequested())
                 : null,
             icon: const Icon(Icons.picture_as_pdf_outlined),
             label: const Text('Export PDF'),
@@ -152,9 +148,7 @@ class ScanReviewPage extends StatelessWidget {
       // going "back" into it after export would offer a second export of the
       // same pages.
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => ScanLibraryPage(highlightPath: result.outputPath),
-        ),
+        MaterialPageRoute<void>(builder: (_) => ScanLibraryPage(highlightPath: result.outputPath)),
       );
       messenger.showSnackBar(
         SnackBar(
@@ -193,10 +187,7 @@ class ScanReviewPage extends StatelessWidget {
     }
   }
 
-  Future<void> _confirmDeletePage(
-    BuildContext context,
-    PdfScanPageInfo page,
-  ) async {
+  Future<void> _confirmDeletePage(BuildContext context, PdfScanPageInfo page) async {
     final ScanReviewBloc bloc = context.read<ScanReviewBloc>();
     final bool? delete = await showDialog<bool>(
       context: context,

@@ -5,20 +5,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../pdf_poc_api.g.dart';
-import '../data/pdf_assets.dart';
-import '../data/pdf_event_log.dart';
+import '../../common/bundled_assets.dart';
+import '../../common/event_log.dart';
 import 'pdf_viewer_event.dart';
 import 'pdf_viewer_state.dart';
 
 export 'pdf_viewer_event.dart';
 export 'pdf_viewer_state.dart';
 
-class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
-    implements PdfPocFlutterApi {
-  PdfViewerBloc({required this.assetKey, this.initialFilePath})
-    : super(PdfViewerState()) {
+class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState> implements PdfPocFlutterApi {
+  PdfViewerBloc({required this.assetKey, this.initialFilePath}) : super(PdfViewerState()) {
     logPdfEvent('viewer_bloc_init', <String, Object?>{'asset': assetKey});
     PdfPocFlutterApi.setUp(this);
+
+    on<PdfViewerPanelModeToggled>(_onPanelModeToggled);
+    on<PdfViewerCompressionSettingsChanged>(_onCompressionSettingsChanged);
+    on<PdfViewerConversionSettingsChanged>(_onConversionSettingsChanged);
 
     on<PdfViewerOpenRequested>(_onOpenRequested);
     on<PdfViewerResetRequested>(_onResetRequested);
@@ -26,108 +28,54 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     on<PdfViewerNextPageRequested>(_onNextPageRequested);
     on<PdfViewerJumpToPageRequested>(_onJumpToPageRequested);
     on<PdfViewerSearchRequested>(_onSearchRequested);
-    on<PdfViewerPreviousSearchResultRequested>(
-      _onPreviousSearchResultRequested,
-    );
+    on<PdfViewerPreviousSearchResultRequested>(_onPreviousSearchResultRequested);
     on<PdfViewerNextSearchResultRequested>(_onNextSearchResultRequested);
     on<PdfViewerClearSearchRequested>(_onClearSearchRequested);
     on<PdfViewerCopySelectionRequested>(_onCopySelectionRequested);
     on<PdfViewerMarkupSelectionRequested>(_onMarkupSelectionRequested);
     on<PdfViewerAddFixedFreeTextRequested>(_onAddFixedFreeTextRequested);
-    on<PdfViewerBeginFreeTextAreaSelectionRequested>(
-      _onBeginFreeTextAreaSelectionRequested,
-    );
-    on<PdfViewerCommitSelectedFreeTextAreaRequested>(
-      _onCommitSelectedFreeTextAreaRequested,
-    );
-    on<PdfViewerCancelSelectedFreeTextAreaRequested>(
-      _onCancelSelectedFreeTextAreaRequested,
-    );
+    on<PdfViewerBeginFreeTextAreaSelectionRequested>(_onBeginFreeTextAreaSelectionRequested);
+    on<PdfViewerCommitSelectedFreeTextAreaRequested>(_onCommitSelectedFreeTextAreaRequested);
+    on<PdfViewerCancelSelectedFreeTextAreaRequested>(_onCancelSelectedFreeTextAreaRequested);
     on<PdfViewerSaveRequested>(_onSaveRequested);
     on<PdfViewerInkModeChanged>(_onInkModeChanged);
     on<PdfViewerClearInkRequested>(_onClearInkRequested);
     on<PdfViewerCommitInkRequested>(_onCommitInkRequested);
-    on<PdfViewerDeleteSelectedAnnotationRequested>(
-      _onDeleteSelectedAnnotationRequested,
-    );
+    on<PdfViewerDeleteSelectedAnnotationRequested>(_onDeleteSelectedAnnotationRequested);
     on<PdfViewerCaptureSignatureRequested>(_onCaptureSignatureRequested);
-    on<PdfViewerClearSignatureCaptureRequested>(
-      _onClearSignatureCaptureRequested,
-    );
-    on<PdfViewerConfirmSignatureCaptureRequested>(
-      _onConfirmSignatureCaptureRequested,
-    );
-    on<PdfViewerBeginSignaturePlacementRequested>(
-      _onBeginSignaturePlacementRequested,
-    );
-    on<PdfViewerResizeSignaturePlacementRequested>(
-      _onResizeSignaturePlacementRequested,
-    );
-    on<PdfViewerCommitSignaturePlacementRequested>(
-      _onCommitSignaturePlacementRequested,
-    );
-    on<PdfViewerCancelSignaturePlacementRequested>(
-      _onCancelSignaturePlacementRequested,
-    );
-    on<PdfViewerDeleteSelectedSignatureRequested>(
-      _onDeleteSelectedSignatureRequested,
-    );
+    on<PdfViewerClearSignatureCaptureRequested>(_onClearSignatureCaptureRequested);
+    on<PdfViewerConfirmSignatureCaptureRequested>(_onConfirmSignatureCaptureRequested);
+    on<PdfViewerBeginSignaturePlacementRequested>(_onBeginSignaturePlacementRequested);
+    on<PdfViewerResizeSignaturePlacementRequested>(_onResizeSignaturePlacementRequested);
+    on<PdfViewerCommitSignaturePlacementRequested>(_onCommitSignaturePlacementRequested);
+    on<PdfViewerCancelSignaturePlacementRequested>(_onCancelSignaturePlacementRequested);
+    on<PdfViewerDeleteSelectedSignatureRequested>(_onDeleteSelectedSignatureRequested);
     on<PdfViewerExportFlattenedCopyRequested>(_onExportFlattenedCopyRequested);
     on<PdfViewerRotateCurrentPageRequested>(_onRotateCurrentPageRequested);
     on<PdfViewerDeleteCurrentPageRequested>(_onDeleteCurrentPageRequested);
-    on<PdfViewerDuplicateCurrentPageRequested>(
-      _onDuplicateCurrentPageRequested,
-    );
+    on<PdfViewerDuplicateCurrentPageRequested>(_onDuplicateCurrentPageRequested);
     on<PdfViewerMoveCurrentPageRequested>(_onMoveCurrentPageRequested);
-    on<PdfViewerCommitPendingPageReorderRequested>(
-      _onCommitPendingPageReorderRequested,
-    );
-    on<PdfViewerCancelPendingPageReorderRequested>(
-      _onCancelPendingPageReorderRequested,
-    );
+    on<PdfViewerCommitPendingPageReorderRequested>(_onCommitPendingPageReorderRequested);
+    on<PdfViewerCancelPendingPageReorderRequested>(_onCancelPendingPageReorderRequested);
     on<PdfViewerCropCurrentPageRequested>(_onCropCurrentPageRequested);
-    on<PdfViewerSavePageOperationsCopyRequested>(
-      _onSavePageOperationsCopyRequested,
-    );
+    on<PdfViewerSavePageOperationsCopyRequested>(_onSavePageOperationsCopyRequested);
     on<PdfViewerRunOcrCurrentPageRequested>(_onRunOcrCurrentPageRequested);
     on<PdfViewerRunOcrAllPagesRequested>(_onRunOcrAllPagesRequested);
     on<PdfViewerCancelOcrRequested>(_onCancelOcrRequested);
     on<PdfViewerShowOcrResultRequested>(_onShowOcrResultRequested);
-    on<PdfViewerRunPreservationCompressionRequested>(
-      _onRunPreservationCompressionRequested,
-    );
-    on<PdfViewerRunRasterizedCompressionRequested>(
-      _onRunRasterizedCompressionRequested,
-    );
+    on<PdfViewerRunPreservationCompressionRequested>(_onRunPreservationCompressionRequested);
+    on<PdfViewerRunRasterizedCompressionRequested>(_onRunRasterizedCompressionRequested);
     on<PdfViewerCancelCompressionRequested>(_onCancelCompressionRequested);
     on<PdfViewerRunSplitRequested>(_onRunSplitRequested);
     on<PdfViewerCancelSplitRequested>(_onCancelSplitRequested);
     on<PdfViewerRunMergeRequested>(_onRunMergeRequested);
     on<PdfViewerCancelMergeRequested>(_onCancelMergeRequested);
-    on<PdfViewerPickFileForPdfConversionRequested>(
-      _onPickFileForPdfConversionRequested,
-    );
+    on<PdfViewerPickFileForPdfConversionRequested>(_onPickFileForPdfConversionRequested);
     on<PdfViewerConvertUrlToPdfRequested>(_onConvertUrlToPdfRequested);
-    on<PdfViewerPickDocumentForViewingRequested>(
-      _onPickDocumentForViewingRequested,
-    );
-    on<PdfViewerCloseDocumentViewerRequested>(_onCloseDocumentViewerRequested);
-    on<PdfViewerNativeDocumentForViewingPicked>(
-      _onNativeDocumentForViewingPicked,
-    );
-    on<PdfViewerNativeDocumentForViewingCancelled>(
-      _onNativeDocumentForViewingCancelled,
-    );
-    on<PdfViewerNativeHwpEditorStateChanged>(_onNativeHwpEditorStateChanged);
-    on<PdfViewerNativeHwpEditsSaved>(_onNativeHwpEditsSaved);
     on<PdfViewerCancelPdfConversionRequested>(_onCancelPdfConversionRequested);
-    on<PdfViewerLoadGeneratedOutputsRequested>(
-      _onLoadGeneratedOutputsRequested,
-    );
+    on<PdfViewerLoadGeneratedOutputsRequested>(_onLoadGeneratedOutputsRequested);
     on<PdfViewerOpenGeneratedOutputRequested>(_onOpenGeneratedOutputRequested);
-    on<PdfViewerShareGeneratedOutputRequested>(
-      _onShareGeneratedOutputRequested,
-    );
+    on<PdfViewerShareGeneratedOutputRequested>(_onShareGeneratedOutputRequested);
     on<PdfViewerNativePageChanged>(_onNativePageChanged);
     on<PdfViewerNativeDirtyStateChanged>(_onNativeDirtyStateChanged);
     on<PdfViewerNativeDocumentClosed>(_onNativeDocumentClosed);
@@ -157,10 +105,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   final String? initialFilePath;
   final PdfPocHostApi _api = PdfPocHostApi();
 
-  Future<void> _onOpenRequested(
-    PdfViewerOpenRequested event,
-    Emitter<PdfViewerState> emit,
-  ) async {
+  Future<void> _onOpenRequested(PdfViewerOpenRequested event, Emitter<PdfViewerState> emit) async {
     if (!Platform.isIOS) {
       logPdfEvent('open_skip_non_ios');
       return;
@@ -176,9 +121,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       final PdfDocumentInfo info;
       final String? filePath = initialFilePath;
       if (filePath != null) {
-        logPdfEvent('reset_external_document', <String, Object?>{
-          'path': filePath,
-        });
+        logPdfEvent('reset_external_document', <String, Object?>{'path': filePath});
         info = await _api.openExternalDocument(filePath);
       } else {
         final bytes = await _loadAssetBytes(assetKey);
@@ -240,9 +183,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   ) async {
     final pageIndex = int.tryParse(event.pageText.trim());
     if (pageIndex == null) {
-      logPdfEvent('jump_invalid_page', <String, Object?>{
-        'input': event.pageText,
-      });
+      logPdfEvent('jump_invalid_page', <String, Object?>{'input': event.pageText});
       emit(state.copyWith(status: 'Enter a zero-based page index.'));
       return;
     }
@@ -254,15 +195,9 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     Emitter<PdfViewerState> emit,
   ) async {
     await _run(emit, 'search', () async {
-      logPdfEvent('search_request', <String, Object?>{
-        'query': event.query.trim(),
-      });
+      logPdfEvent('search_request', <String, Object?>{'query': event.query.trim()});
       final searchState = await _api.search(
-        PdfSearchRequest(
-          query: event.query.trim(),
-          caseSensitive: false,
-          wholeWord: false,
-        ),
+        PdfSearchRequest(query: event.query.trim(), caseSensitive: false, wholeWord: false),
       );
       emit(state.copyWith(searchState: searchState));
     });
@@ -305,9 +240,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     await _run(emit, 'copy selection', () async {
       await _api.copySelectedText();
       final text = await _api.getSelectedText();
-      logPdfEvent('copy_selected_text', <String, Object?>{
-        'length': text?.length ?? 0,
-      });
+      logPdfEvent('copy_selected_text', <String, Object?>{'length': text?.length ?? 0});
       emit(state.copyWith(selectedText: text, status: 'Copied selected text.'));
     });
   }
@@ -317,9 +250,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     Emitter<PdfViewerState> emit,
   ) async {
     await _run(emit, '${event.type.name} selection', () async {
-      logPdfEvent('add_selection_markup_request', <String, Object?>{
-        'type': event.type.name,
-      });
+      logPdfEvent('add_selection_markup_request', <String, Object?>{'type': event.type.name});
       await _api.addMarkupFromCurrentSelection(event.type);
     });
   }
@@ -331,13 +262,9 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     await _run(emit, 'add free text', () async {
       final info = state.documentInfo;
       if (info == null) {
-        throw PlatformException(
-          code: 'document_not_open',
-          message: 'Open a document first.',
-        );
+        throw PlatformException(code: 'document_not_open', message: 'Open a document first.');
       }
-      final pageIndex =
-          int.tryParse(event.pageText.trim()) ?? info.currentPageIndex;
+      final pageIndex = int.tryParse(event.pageText.trim()) ?? info.currentPageIndex;
       logPdfEvent('add_free_text_fixed_request', <String, Object?>{
         'pageIndex': pageIndex,
         'textLength': event.text.trim().length,
@@ -358,12 +285,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerBeginFreeTextAreaSelectionRequested event,
     Emitter<PdfViewerState> emit,
   ) async {
-    emit(
-      state.copyWith(
-        busy: true,
-        status: 'Starting free-text area selection...',
-      ),
-    );
+    emit(state.copyWith(busy: true, status: 'Starting free-text area selection...'));
     try {
       logPdfEvent('begin_free_text_area_selection');
       await _api.beginFreeTextAreaSelection();
@@ -438,18 +360,10 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     Emitter<PdfViewerState> emit,
   ) {
     logPdfEvent('cancel_selected_free_text_area');
-    emit(
-      state.copyWith(
-        pendingFreeTextArea: null,
-        status: 'Cancelled selected free-text area.',
-      ),
-    );
+    emit(state.copyWith(pendingFreeTextArea: null, status: 'Cancelled selected free-text area.'));
   }
 
-  Future<void> _onSaveRequested(
-    PdfViewerSaveRequested event,
-    Emitter<PdfViewerState> emit,
-  ) async {
+  Future<void> _onSaveRequested(PdfViewerSaveRequested event, Emitter<PdfViewerState> emit) async {
     await _run(emit, 'save', () async {
       logPdfEvent('save_request');
       final info = await _api.save();
@@ -461,24 +375,18 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerInkModeChanged event,
     Emitter<PdfViewerState> emit,
   ) async {
-    await _run(
-      emit,
-      event.enabled ? 'enable ink mode' : 'enable read mode',
-      () async {
-        logPdfEvent('set_ink_mode_request', <String, Object?>{
-          'enabled': event.enabled,
-        });
-        await _api.setInkModeEnabled(event.enabled);
-        emit(
-          state.copyWith(
-            inkModeEnabled: event.enabled,
-            status: event.enabled
-                ? 'Ink mode enabled. Draw on the PDF, then commit ink.'
-                : 'Read mode enabled.',
-          ),
-        );
-      },
-    );
+    await _run(emit, event.enabled ? 'enable ink mode' : 'enable read mode', () async {
+      logPdfEvent('set_ink_mode_request', <String, Object?>{'enabled': event.enabled});
+      await _api.setInkModeEnabled(event.enabled);
+      emit(
+        state.copyWith(
+          inkModeEnabled: event.enabled,
+          status: event.enabled
+              ? 'Ink mode enabled. Draw on the PDF, then commit ink.'
+              : 'Read mode enabled.',
+        ),
+      );
+    });
   }
 
   Future<void> _onClearInkRequested(
@@ -499,11 +407,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerDeleteSelectedAnnotationRequested event,
     Emitter<PdfViewerState> emit,
   ) async {
-    await _run(
-      emit,
-      'delete selected annotation',
-      _api.deleteSelectedAnnotation,
-    );
+    await _run(emit, 'delete selected annotation', _api.deleteSelectedAnnotation);
   }
 
   Future<void> _onCaptureSignatureRequested(
@@ -520,11 +424,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerClearSignatureCaptureRequested event,
     Emitter<PdfViewerState> emit,
   ) async {
-    await _run(
-      emit,
-      'clear electronic signature capture',
-      _api.clearElectronicSignatureCapture,
-    );
+    await _run(emit, 'clear electronic signature capture', _api.clearElectronicSignatureCapture);
   }
 
   Future<void> _onConfirmSignatureCaptureRequested(
@@ -535,8 +435,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       await _api.confirmElectronicSignatureCapture();
       emit(
         state.copyWith(
-          status:
-              'Electronic signature captured. Use Place to position it on the current page.',
+          status: 'Electronic signature captured. Use Place to position it on the current page.',
         ),
       );
     });
@@ -550,8 +449,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       await _api.beginSignaturePlacement();
       emit(
         state.copyWith(
-          status:
-              'Move and pinch the electronic signature preview, then commit placement.',
+          status: 'Move and pinch the electronic signature preview, then commit placement.',
         ),
       );
     });
@@ -577,33 +475,21 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     PdfViewerCommitSignaturePlacementRequested event,
     Emitter<PdfViewerState> emit,
   ) async {
-    await _run(
-      emit,
-      'commit electronic signature placement',
-      _api.commitSignaturePlacement,
-    );
+    await _run(emit, 'commit electronic signature placement', _api.commitSignaturePlacement);
   }
 
   Future<void> _onCancelSignaturePlacementRequested(
     PdfViewerCancelSignaturePlacementRequested event,
     Emitter<PdfViewerState> emit,
   ) async {
-    await _run(
-      emit,
-      'cancel electronic signature placement',
-      _api.cancelSignaturePlacement,
-    );
+    await _run(emit, 'cancel electronic signature placement', _api.cancelSignaturePlacement);
   }
 
   Future<void> _onDeleteSelectedSignatureRequested(
     PdfViewerDeleteSelectedSignatureRequested event,
     Emitter<PdfViewerState> emit,
   ) async {
-    await _run(
-      emit,
-      'delete selected electronic signature',
-      _api.deleteSelectedSignature,
-    );
+    await _run(emit, 'delete selected electronic signature', _api.deleteSelectedSignature);
   }
 
   Future<void> _onExportFlattenedCopyRequested(
@@ -619,8 +505,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       });
       emit(
         state.copyWith(
-          status:
-              'Flattened copy exported: ${result.outputPath} (${result.fileSizeBytes} bytes).',
+          status: 'Flattened copy exported: ${result.outputPath} (${result.fileSizeBytes} bytes).',
         ),
       );
     });
@@ -658,9 +543,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       return;
     }
     await _run(emit, 'delete page', () async {
-      logPdfEvent('delete_page_request', <String, Object?>{
-        'pageIndex': info.currentPageIndex,
-      });
+      logPdfEvent('delete_page_request', <String, Object?>{'pageIndex': info.currentPageIndex});
       await _api.deletePages(<int>[info.currentPageIndex]);
     });
   }
@@ -695,9 +578,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
     final destinationIndex = info.currentPageIndex + event.delta;
     if (destinationIndex < 0 || destinationIndex >= info.pageCount) {
-      emit(
-        state.copyWith(status: 'Page cannot move farther in that direction.'),
-      );
+      emit(state.copyWith(status: 'Page cannot move farther in that direction.'));
       return;
     }
     await _run(emit, 'move page', () async {
@@ -789,11 +670,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       emit(state.copyWith(status: 'Open a document before running OCR.'));
       return;
     }
-    await _startOcr(
-      emit,
-      List<int>.generate(info.pageCount, (index) => index),
-      'all pages',
-    );
+    await _startOcr(emit, List<int>.generate(info.pageCount, (index) => index), 'all pages');
   }
 
   Future<void> _onCancelOcrRequested(
@@ -834,13 +711,28 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   ) async {
     await _startCompression(
       emit,
-      PdfCompressionRequest(
-        mode: PdfCompressionMode.preserve,
-        rasterDpi: 150,
-        jpegQuality: 0.75,
-      ),
+      PdfCompressionRequest(mode: PdfCompressionMode.preserve, rasterDpi: 150, jpegQuality: 0.75),
       'preservation compression',
     );
+  }
+
+  /// Bấm lại đúng nút đang mở là đóng panel.
+  void _onPanelModeToggled(PdfViewerPanelModeToggled event, Emitter<PdfViewerState> emit) {
+    emit(state.copyWith(activePanelMode: state.activePanelMode == event.mode ? null : event.mode));
+  }
+
+  void _onCompressionSettingsChanged(
+    PdfViewerCompressionSettingsChanged event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(state.copyWith(compressionDpi: event.dpi, compressionJpegQuality: event.jpegQuality));
+  }
+
+  void _onConversionSettingsChanged(
+    PdfViewerConversionSettingsChanged event,
+    Emitter<PdfViewerState> emit,
+  ) {
+    emit(state.copyWith(convertPageSize: event.pageSize, convertImageQuality: event.imageQuality));
   }
 
   Future<void> _onRunRasterizedCompressionRequested(
@@ -851,8 +743,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       emit,
       PdfCompressionRequest(
         mode: PdfCompressionMode.rasterized,
-        rasterDpi: event.dpi,
-        jpegQuality: event.jpegQuality,
+        rasterDpi: state.compressionDpi.round(),
+        jpegQuality: state.compressionJpegQuality,
       ),
       'rasterized compression',
     );
@@ -953,9 +845,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       emit(state.copyWith(status: 'Enter two or more local PDF paths.'));
       return;
     }
-    logPdfEvent('merge_run_request', <String, Object?>{
-      'inputCount': inputPaths.length,
-    });
+    logPdfEvent('merge_run_request', <String, Object?>{'inputCount': inputPaths.length});
     emit(
       state.copyWith(
         mergeRunning: true,
@@ -1007,8 +897,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       return;
     }
     logPdfEvent('pdf_conversion_request', <String, Object?>{
-      'pageSize': event.pageSize.name,
-      'imageQuality': event.imageQuality.name,
+      'pageSize': state.convertPageSize.name,
+      'imageQuality': state.convertImageQuality.name,
     });
     emit(
       state.copyWith(
@@ -1023,8 +913,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       await _api.pickFileForPdfConversion(
         PdfConvertToPdfRequest(
           outputPath: '',
-          pageSize: event.pageSize,
-          imageQuality: event.imageQuality,
+          pageSize: state.convertPageSize,
+          imageQuality: state.convertImageQuality,
         ),
       );
     } on PlatformException catch (error) {
@@ -1054,7 +944,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
     logPdfEvent('pdf_url_conversion_request', <String, Object?>{
       'url': url,
-      'pageSize': event.pageSize.name,
+      'pageSize': state.convertPageSize.name,
     });
     emit(
       state.copyWith(
@@ -1067,11 +957,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
     try {
       await _api.convertUrlToPdf(
-        PdfConvertUrlRequest(
-          url: url,
-          outputPath: '',
-          pageSize: event.pageSize,
-        ),
+        PdfConvertUrlRequest(url: url, outputPath: '', pageSize: state.convertPageSize),
       );
     } on PlatformException catch (error) {
       emit(state.copyWith(conversionRunning: false));
@@ -1083,265 +969,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         error.details?.toString(),
       );
     }
-  }
-
-  Future<void> _onPickDocumentForViewingRequested(
-    PdfViewerPickDocumentForViewingRequested event,
-    Emitter<PdfViewerState> emit,
-  ) async {
-    try {
-      logPdfEvent('pick_document_for_viewing_request');
-      emit(
-        state.copyWith(
-          viewablePickPending: true,
-          viewableDocument: null,
-          status: 'Opening file picker...',
-        ),
-      );
-      await _api.pickDocumentForViewing();
-    } on PlatformException catch (error) {
-      emit(state.copyWith(viewablePickPending: false));
-      _showError(
-        emit,
-        'pick document',
-        error.code,
-        error.message ?? 'Operation failed.',
-        error.details?.toString(),
-      );
-    }
-  }
-
-  /// Transient viewer actions are called directly rather than through events:
-  /// they carry no state worth keeping and search runs on every keystroke.
-  Future<bool> findInViewer(String query, {bool forward = true}) async {
-    try {
-      return await _api.findInViewer(query, forward);
-    } on PlatformException catch (error) {
-      logPdfEvent('find_in_viewer_failed', <String, Object?>{
-        'code': error.code,
-        'message': error.message,
-      });
-      return false;
-    }
-  }
-
-  Future<void> clearViewerSearch() async {
-    try {
-      await _api.clearViewerSearch();
-    } on PlatformException catch (_) {
-      // The viewer is already gone; nothing to clear.
-    }
-  }
-
-  Future<void> shareViewerDocument() async {
-    try {
-      await _api.shareViewerDocument();
-    } on PlatformException catch (error) {
-      logPdfEvent('share_viewer_document_failed', <String, Object?>{
-        'code': error.code,
-        'message': error.message,
-      });
-    }
-  }
-
-  /// Bật/tắt chế độ sửa của trình xem tài liệu. Chỉ HWP dùng tới.
-  ///
-  /// Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm trong trình soạn thảo.
-  Future<void> setViewerEditing(bool enabled) async {
-    logPdfEvent('set_document_editing', <String, Object?>{'enabled': enabled});
-    try {
-      await _api.setDocumentEditingEnabled(enabled);
-    } on PlatformException catch (error) {
-      logPdfEvent('set_document_editing_failed', <String, Object?>{
-        'code': error.code,
-        'message': error.message,
-      });
-      rethrow;
-    }
-  }
-
-  /// Ghi bản đang sửa đè lên tệp đang mở, và **đợi kết quả thật**.
-  ///
-  /// `saveDocumentEdits` bên native trả về ngay — việc xuất chạy bất đồng bộ
-  /// trong trình soạn thảo. Kết quả về sau, qua `onHwpEditsSaved`; chỗ này nối
-  /// hai đầu đó lại để màn hình biết được nó đã lưu xong hay hỏng, thay vì
-  /// đoán.
-  Future<HwpSaveResult> saveViewerEdits() async {
-    final completer = Completer<HwpSaveResult>();
-    _pendingSave = completer;
-    try {
-      await _api.saveDocumentEdits();
-    } on PlatformException catch (error) {
-      logPdfEvent('save_document_edits_failed', <String, Object?>{
-        'code': error.code,
-        'message': error.message,
-      });
-      _pendingSave = null;
-      rethrow;
-    }
-    return completer.future.timeout(
-      const Duration(seconds: 30),
-      onTimeout: () {
-        _pendingSave = null;
-        logPdfEvent('save_document_edits_timeout');
-        return HwpSaveResult(ok: false, error: 'Quá thời gian chờ lưu tệp.');
-      },
-    );
-  }
-
-  /// Đợi kết quả của lần lưu đang chạy, nếu có.
-  Completer<HwpSaveResult>? _pendingSave;
-
-  /// Áp định dạng chữ cho vùng đang chọn trong trình soạn thảo HWP.
-  Future<void> applyHwpCharFormat(HwpCharFormat format) async {
-    try {
-      await _api.applyHwpCharFormat(format);
-    } on PlatformException catch (error) {
-      logPdfEvent('apply_hwp_char_format_failed', <String, Object?>{
-        'code': error.code,
-        'message': error.message,
-      });
-    }
-  }
-
-  Future<void> applyHwpParaFormat(HwpParaFormat format) async {
-    try {
-      await _api.applyHwpParaFormat(format);
-    } on PlatformException catch (error) {
-      logPdfEvent('apply_hwp_para_format_failed', <String, Object?>{
-        'code': error.code,
-        'message': error.message,
-      });
-    }
-  }
-
-  /// Báo cho trình soạn thảo biết thanh công cụ nổi của Flutter đang che mất
-  /// bao nhiêu ở đáy web view.
-  Future<void> setViewerChromeInset(double pixels) async {
-    try {
-      await _api.setViewerChromeInset(pixels);
-    } on PlatformException catch (_) {
-      // Trình xem chưa lên hoặc đã đóng; không có gì để chừa chỗ.
-    }
-  }
-
-  Future<void> hwpUndo() async {
-    try {
-      await _api.hwpUndo();
-    } on PlatformException catch (_) {
-      // Trình soạn thảo đã đóng; không có gì để hoàn tác.
-    }
-  }
-
-  Future<void> hwpRedo() async {
-    try {
-      await _api.hwpRedo();
-    } on PlatformException catch (_) {
-      // Trình soạn thảo đã đóng.
-    }
-  }
-
-  /// Lật tới trang [pageIndex] (đếm từ 0) trong trình xem HWP.
-  ///
-  /// Không tự cập nhật state: trang vỏ mới là nơi biết nó dừng ở trang nào sau
-  /// khi kẹp chỉ số, và nó báo ngược lên qua `onHwpEditorStateChanged`.
-  Future<void> hwpGoToPage(int pageIndex) async {
-    try {
-      await _api.hwpGoToPage(pageIndex);
-    } on PlatformException catch (error) {
-      logPdfEvent('hwp_go_to_page_failed', <String, Object?>{
-        'page': pageIndex,
-        'code': error.code,
-      });
-    }
-  }
-
-  /// Called by the viewer route once its platform view is on screen.
-  Future<void> loadPickedDocumentIntoViewer(String path) async {
-    logPdfEvent('load_document_into_viewer', <String, Object?>{'path': path});
-    await _api.loadDocumentIntoViewer(path);
-    // Từ đây trở đi là việc của native, nó có đồng hồ riêng.
-    stopPdfEventClock();
-  }
-
-  void _onNativeHwpEditorStateChanged(
-    PdfViewerNativeHwpEditorStateChanged event,
-    Emitter<PdfViewerState> emit,
-  ) {
-    emit(state.copyWith(hwpEditor: event.state));
-  }
-
-  void _onNativeHwpEditsSaved(
-    PdfViewerNativeHwpEditsSaved event,
-    Emitter<PdfViewerState> emit,
-  ) {
-    // Ghi xong thì không còn thay đổi chưa lưu. Trang vỏ cũng gửi state mới,
-    // nhưng nó tới sau và màn hình không nên nhấp nháy "chưa lưu" ở giữa.
-    final editor = state.hwpEditor;
-    if (event.result.ok && editor != null) {
-      emit(state.copyWith(hwpEditor: _copyEditorState(editor, dirty: false)));
-    }
-  }
-
-  /// `HwpEditorState` do Pigeon sinh nên không có `copyWith`.
-  HwpEditorState _copyEditorState(HwpEditorState from, {required bool dirty}) {
-    return HwpEditorState(
-      hasCaret: from.hasCaret,
-      hasSelection: from.hasSelection,
-      bold: from.bold,
-      italic: from.italic,
-      underline: from.underline,
-      strikethrough: from.strikethrough,
-      fontSizePt: from.fontSizePt,
-      alignment: from.alignment,
-      lineSpacing: from.lineSpacing,
-      canUndo: from.canUndo,
-      canRedo: from.canRedo,
-      dirty: dirty,
-      pageIndex: from.pageIndex,
-      pageCount: from.pageCount,
-    );
-  }
-
-  Future<void> _onCloseDocumentViewerRequested(
-    PdfViewerCloseDocumentViewerRequested event,
-    Emitter<PdfViewerState> emit,
-  ) async {
-    emit(state.copyWith(viewableDocument: null, hwpEditor: null));
-    try {
-      await _api.closeDocumentViewer();
-    } on PlatformException catch (error) {
-      logPdfEvent('close_document_viewer_ignored_error', <String, Object?>{
-        'code': error.code,
-        'message': error.message,
-      });
-    }
-  }
-
-  void _onNativeDocumentForViewingPicked(
-    PdfViewerNativeDocumentForViewingPicked event,
-    Emitter<PdfViewerState> emit,
-  ) {
-    emit(
-      state.copyWith(
-        viewablePickPending: false,
-        viewableDocument: event.document,
-        status: 'Opening ${event.document.fileName}...',
-      ),
-    );
-  }
-
-  void _onNativeDocumentForViewingCancelled(
-    PdfViewerNativeDocumentForViewingCancelled event,
-    Emitter<PdfViewerState> emit,
-  ) {
-    emit(
-      state.copyWith(
-        viewablePickPending: false,
-        viewableDocument: null,
-        status: 'File selection cancelled.',
-      ),
-    );
   }
 
   Future<void> _onCancelPdfConversionRequested(
@@ -1373,15 +1000,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     emit(state.copyWith(generatedOutputsLoading: true));
     try {
       final outputs = await _api.listGeneratedOutputs();
-      logPdfEvent('generated_outputs_loaded', <String, Object?>{
-        'count': outputs.length,
-      });
-      emit(
-        state.copyWith(
-          generatedOutputs: outputs,
-          generatedOutputsLoading: false,
-        ),
-      );
+      logPdfEvent('generated_outputs_loaded', <String, Object?>{'count': outputs.length});
+      emit(state.copyWith(generatedOutputs: outputs, generatedOutputsLoading: false));
     } on PlatformException catch (error) {
       emit(state.copyWith(generatedOutputsLoading: false));
       _showError(
@@ -1399,9 +1019,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     Emitter<PdfViewerState> emit,
   ) async {
     await _run(emit, 'open output', () async {
-      logPdfEvent('open_generated_output_request', <String, Object?>{
-        'path': event.path,
-      });
+      logPdfEvent('open_generated_output_request', <String, Object?>{'path': event.path});
       final info = await _api.openGeneratedOutput(event.path);
       _applyDocumentInfo(emit, info);
       emit(
@@ -1420,9 +1038,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     Emitter<PdfViewerState> emit,
   ) async {
     try {
-      logPdfEvent('share_generated_output_request', <String, Object?>{
-        'path': event.path,
-      });
+      logPdfEvent('share_generated_output_request', <String, Object?>{'path': event.path});
       await _api.shareGeneratedOutput(event.path);
       emit(state.copyWith(status: 'Sharing ${event.path.split('/').last}...'));
     } on PlatformException catch (error) {
@@ -1436,10 +1052,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     }
   }
 
-  void _onNativePageChanged(
-    PdfViewerNativePageChanged event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativePageChanged(PdfViewerNativePageChanged event, Emitter<PdfViewerState> emit) {
     final current = state.documentInfo;
     emit(
       state.copyWith(
@@ -1475,10 +1088,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
-  void _onNativeDocumentClosed(
-    PdfViewerNativeDocumentClosed event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeDocumentClosed(PdfViewerNativeDocumentClosed event, Emitter<PdfViewerState> emit) {
     emit(
       state.copyWith(
         documentInfo: null,
@@ -1509,10 +1119,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
-  void _onNativeDocumentOpened(
-    PdfViewerNativeDocumentOpened event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeDocumentOpened(PdfViewerNativeDocumentOpened event, Emitter<PdfViewerState> emit) {
     _applyDocumentInfo(emit, event.info);
     emit(state.copyWith(status: 'Opened writable copy.'));
   }
@@ -1529,13 +1136,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
         mergeRunning: false,
       ),
     );
-    _showError(
-      emit,
-      event.operationId,
-      event.code,
-      event.message,
-      event.details,
-    );
+    _showError(emit, event.operationId, event.code, event.message, event.details);
   }
 
   void _onNativeSearchStateChanged(
@@ -1564,37 +1165,22 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
-  void _onNativeOcrProgress(
-    PdfViewerNativeOcrProgress event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeOcrProgress(PdfViewerNativeOcrProgress event, Emitter<PdfViewerState> emit) {
     emit(
       state.copyWith(
         ocrCompletedPages: event.completedPages,
         ocrTotalPages: event.totalPages,
-        status:
-            'OCR progress: ${event.completedPages}/${event.totalPages} pages.',
+        status: 'OCR progress: ${event.completedPages}/${event.totalPages} pages.',
       ),
     );
   }
 
-  void _onNativeOcrResult(
-    PdfViewerNativeOcrResult event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeOcrResult(PdfViewerNativeOcrResult event, Emitter<PdfViewerState> emit) {
     final results = List<PdfOcrBlock>.of(state.ocrResults)..add(event.block);
-    emit(
-      state.copyWith(
-        ocrResults: results,
-        status: 'OCR found ${results.length} text blocks.',
-      ),
-    );
+    emit(state.copyWith(ocrResults: results, status: 'OCR found ${results.length} text blocks.'));
   }
 
-  void _onNativeOcrCompleted(
-    PdfViewerNativeOcrCompleted event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeOcrCompleted(PdfViewerNativeOcrCompleted event, Emitter<PdfViewerState> emit) {
     emit(
       state.copyWith(
         ocrRunning: false,
@@ -1613,8 +1199,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       state.copyWith(
         compressionCompletedPages: event.completedPages,
         compressionTotalPages: event.totalPages,
-        status:
-            'Compression progress: ${event.completedPages}/${event.totalPages} pages.',
+        status: 'Compression progress: ${event.completedPages}/${event.totalPages} pages.',
       ),
     );
   }
@@ -1637,24 +1222,17 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
-  void _onNativeSplitProgress(
-    PdfViewerNativeSplitProgress event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeSplitProgress(PdfViewerNativeSplitProgress event, Emitter<PdfViewerState> emit) {
     emit(
       state.copyWith(
         splitCompletedPages: event.completedPages,
         splitTotalPages: event.totalPages,
-        status:
-            'Split progress: ${event.completedPages}/${event.totalPages} pages.',
+        status: 'Split progress: ${event.completedPages}/${event.totalPages} pages.',
       ),
     );
   }
 
-  void _onNativeSplitCompleted(
-    PdfViewerNativeSplitCompleted event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeSplitCompleted(PdfViewerNativeSplitCompleted event, Emitter<PdfViewerState> emit) {
     final result = event.result;
     emit(
       state.copyWith(
@@ -1669,24 +1247,17 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     );
   }
 
-  void _onNativeMergeProgress(
-    PdfViewerNativeMergeProgress event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeMergeProgress(PdfViewerNativeMergeProgress event, Emitter<PdfViewerState> emit) {
     emit(
       state.copyWith(
         mergeCompletedPages: event.completedPages,
         mergeTotalPages: event.totalPages,
-        status:
-            'Merge progress: ${event.completedPages}/${event.totalPages} pages.',
+        status: 'Merge progress: ${event.completedPages}/${event.totalPages} pages.',
       ),
     );
   }
 
-  void _onNativeMergeCompleted(
-    PdfViewerNativeMergeCompleted event,
-    Emitter<PdfViewerState> emit,
-  ) {
+  void _onNativeMergeCompleted(PdfViewerNativeMergeCompleted event, Emitter<PdfViewerState> emit) {
     final result = event.result;
     emit(
       state.copyWith(
@@ -1709,8 +1280,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       state.copyWith(
         conversionCompletedPages: event.completedPages,
         conversionTotalPages: event.totalPages,
-        status:
-            'Conversion progress: ${event.completedPages}/${event.totalPages} pages.',
+        status: 'Conversion progress: ${event.completedPages}/${event.totalPages} pages.',
       ),
     );
   }
@@ -1746,9 +1316,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     final PdfDocumentInfo info;
     final String? filePath = initialFilePath;
     if (filePath != null) {
-      logPdfEvent('open_external_document', <String, Object?>{
-        'path': filePath,
-      });
+      logPdfEvent('open_external_document', <String, Object?>{'path': filePath});
       info = await _api.openExternalDocument(filePath);
     } else {
       final bytes = await _loadAssetBytes(assetKey);
@@ -1793,15 +1361,8 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
     return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
   }
 
-  Future<void> _startOcr(
-    Emitter<PdfViewerState> emit,
-    List<int> pageIndexes,
-    String label,
-  ) async {
-    logPdfEvent('ocr_run_request', <String, Object?>{
-      'label': label,
-      'pages': pageIndexes,
-    });
+  Future<void> _startOcr(Emitter<PdfViewerState> emit, List<int> pageIndexes, String label) async {
+    logPdfEvent('ocr_run_request', <String, Object?>{'label': label, 'pages': pageIndexes});
     emit(
       state.copyWith(
         ocrRunning: true,
@@ -1986,17 +1547,13 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       'pageCount': pageCount,
     });
     if (!isClosed) {
-      add(
-        PdfViewerNativePageChanged(pageIndex: pageIndex, pageCount: pageCount),
-      );
+      add(PdfViewerNativePageChanged(pageIndex: pageIndex, pageCount: pageCount));
     }
   }
 
   @override
   void onDirtyStateChanged(bool isDirty) {
-    logPdfEvent('callback_dirty_changed', <String, Object?>{
-      'isDirty': isDirty,
-    });
+    logPdfEvent('callback_dirty_changed', <String, Object?>{'isDirty': isDirty});
     if (!isClosed) {
       add(PdfViewerNativeDirtyStateChanged(isDirty));
     }
@@ -2023,12 +1580,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   }
 
   @override
-  void onOperationFailed(
-    String operationId,
-    String code,
-    String message,
-    String? details,
-  ) {
+  void onOperationFailed(String operationId, String code, String message, String? details) {
     logPdfEvent('callback_operation_failed', <String, Object?>{
       'operationId': operationId,
       'code': code,
@@ -2121,21 +1673,12 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
       'cancelled': cancelled,
     });
     if (!isClosed) {
-      add(
-        PdfViewerNativeOcrCompleted(
-          operationId: operationId,
-          cancelled: cancelled,
-        ),
-      );
+      add(PdfViewerNativeOcrCompleted(operationId: operationId, cancelled: cancelled));
     }
   }
 
   @override
-  void onCompressionProgress(
-    String operationId,
-    int completedPages,
-    int totalPages,
-  ) {
+  void onCompressionProgress(String operationId, int completedPages, int totalPages) {
     logPdfEvent('callback_compression_progress', <String, Object?>{
       'operationId': operationId,
       'completedPages': completedPages,
@@ -2153,11 +1696,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   }
 
   @override
-  void onCompressionCompleted(
-    String operationId,
-    PdfCompressionResult? result,
-    bool cancelled,
-  ) {
+  void onCompressionCompleted(String operationId, PdfCompressionResult? result, bool cancelled) {
     logPdfEvent('callback_compression_completed', <String, Object?>{
       'operationId': operationId,
       'cancelled': cancelled,
@@ -2195,11 +1734,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   }
 
   @override
-  void onSplitCompleted(
-    String operationId,
-    PdfSplitResult? result,
-    bool cancelled,
-  ) {
+  void onSplitCompleted(String operationId, PdfSplitResult? result, bool cancelled) {
     logPdfEvent('callback_split_completed', <String, Object?>{
       'operationId': operationId,
       'cancelled': cancelled,
@@ -2235,11 +1770,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   }
 
   @override
-  void onMergeCompleted(
-    String operationId,
-    PdfMergeResult? result,
-    bool cancelled,
-  ) {
+  void onMergeCompleted(String operationId, PdfMergeResult? result, bool cancelled) {
     logPdfEvent('callback_merge_completed', <String, Object?>{
       'operationId': operationId,
       'cancelled': cancelled,
@@ -2258,11 +1789,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   }
 
   @override
-  void onPdfConversionProgress(
-    String operationId,
-    int completedPages,
-    int totalPages,
-  ) {
+  void onPdfConversionProgress(String operationId, int completedPages, int totalPages) {
     logPdfEvent('callback_pdf_conversion_progress', <String, Object?>{
       'operationId': operationId,
       'completedPages': completedPages,
@@ -2280,11 +1807,7 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
   }
 
   @override
-  void onPdfConversionCompleted(
-    String operationId,
-    PdfConvertToPdfResult? result,
-    bool cancelled,
-  ) {
+  void onPdfConversionCompleted(String operationId, PdfConvertToPdfResult? result, bool cancelled) {
     logPdfEvent('callback_pdf_conversion_completed', <String, Object?>{
       'operationId': operationId,
       'cancelled': cancelled,
@@ -2300,50 +1823,6 @@ class PdfViewerBloc extends Bloc<PdfViewerEvent, PdfViewerState>
           cancelled: cancelled,
         ),
       );
-    }
-  }
-
-  @override
-  void onDocumentForViewingPicked(PdfViewableDocument document) {
-    startPdfEventClock();
-    logPdfEvent('callback_document_for_viewing_picked', <String, Object?>{
-      'fileName': document.fileName,
-      'fileFormat': document.fileFormat,
-      'fileSizeBytes': document.fileSizeBytes,
-    });
-    if (!isClosed) {
-      add(PdfViewerNativeDocumentForViewingPicked(document));
-    }
-  }
-
-  @override
-  void onDocumentForViewingCancelled() {
-    logPdfEvent('callback_document_for_viewing_cancelled');
-    if (!isClosed) {
-      add(const PdfViewerNativeDocumentForViewingCancelled());
-    }
-  }
-
-  @override
-  void onHwpEditorStateChanged(HwpEditorState state) {
-    // Không log: cái này bắn ra sau mỗi lần con trỏ nhúc nhích.
-    if (!isClosed) {
-      add(PdfViewerNativeHwpEditorStateChanged(state));
-    }
-  }
-
-  @override
-  void onHwpEditsSaved(HwpSaveResult result) {
-    logPdfEvent('callback_hwp_edits_saved', <String, Object?>{
-      'ok': result.ok,
-      'contentLoss': result.contentLoss?.length ?? 0,
-      'error': result.error,
-    });
-    final pending = _pendingSave;
-    _pendingSave = null;
-    if (pending != null && !pending.isCompleted) pending.complete(result);
-    if (!isClosed) {
-      add(PdfViewerNativeHwpEditsSaved(result));
     }
   }
 

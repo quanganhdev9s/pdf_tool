@@ -10,9 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:meta/meta.dart' show immutable, protected, visibleForTesting;
 
 Object? _extractReplyValueOrThrow(
-    List<Object?>? replyList,
-    String channelName, {
-    required bool isNullValid,
+  List<Object?>? replyList,
+  String channelName, {
+  required bool isNullValid,
 }) {
   if (replyList == null) {
     throw PlatformException(
@@ -34,7 +34,6 @@ Object? _extractReplyValueOrThrow(
   return replyList.firstOrNull;
 }
 
-
 List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty = false}) {
   if (empty) {
     return <Object?>[];
@@ -44,6 +43,7 @@ List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty
   }
   return <Object?>[error.code, error.message, error.details];
 }
+
 bool _deepEquals(Object? a, Object? b) {
   if (identical(a, b)) {
     return true;
@@ -56,8 +56,7 @@ bool _deepEquals(Object? a, Object? b) {
   }
   if (a is List && b is List) {
     return a.length == b.length &&
-        a.indexed
-            .every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
+        a.indexed.every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
   }
   if (a is Map && b is Map) {
     if (a.length != b.length) {
@@ -106,36 +105,17 @@ int _deepHash(Object? value) {
   return value.hashCode;
 }
 
+enum PdfMarkupType { highlight, underline, strikeout }
 
-enum PdfMarkupType {
-  highlight,
-  underline,
-  strikeout,
-}
-
-enum PdfCompressionMode {
-  preserve,
-  rasterized,
-}
+enum PdfCompressionMode { preserve, rasterized }
 
 /// Output resolution and compression for images rendered into a PDF.
-enum PdfScanQuality {
-  standard,
-  high,
-}
+enum PdfScanQuality { standard, high }
 
-enum PdfConvertPageSize {
-  a4,
-  letter,
-}
+enum PdfConvertPageSize { a4, letter }
 
 class PdfRect {
-  PdfRect({
-    required this.x,
-    required this.y,
-    required this.width,
-    required this.height,
-  });
+  PdfRect({required this.x, required this.y, required this.width, required this.height});
 
   double x;
 
@@ -146,16 +126,12 @@ class PdfRect {
   double height;
 
   List<Object?> _toList() {
-    return <Object?>[
-      x,
-      y,
-      width,
-      height,
-    ];
+    return <Object?>[x, y, width, height];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfRect decode(Object result) {
     result as List<Object?>;
@@ -176,7 +152,10 @@ class PdfRect {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(x, other.x) && _deepEquals(y, other.y) && _deepEquals(width, other.width) && _deepEquals(height, other.height);
+    return _deepEquals(x, other.x) &&
+        _deepEquals(y, other.y) &&
+        _deepEquals(width, other.width) &&
+        _deepEquals(height, other.height);
   }
 
   @override
@@ -190,26 +169,21 @@ class PdfRect {
 }
 
 class PdfColor {
-  PdfColor({
-    required this.argb,
-  });
+  PdfColor({required this.argb});
 
   int argb;
 
   List<Object?> _toList() {
-    return <Object?>[
-      argb,
-    ];
+    return <Object?>[argb];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfColor decode(Object result) {
     result as List<Object?>;
-    return PdfColor(
-      argb: result[0]! as int,
-    );
+    return PdfColor(argb: result[0]! as int);
   }
 
   @override
@@ -254,17 +228,12 @@ class PdfDocumentInfo {
   bool isDirty;
 
   List<Object?> _toList() {
-    return <Object?>[
-      workingPath,
-      pageCount,
-      currentPageIndex,
-      hasSearchableText,
-      isDirty,
-    ];
+    return <Object?>[workingPath, pageCount, currentPageIndex, hasSearchableText, isDirty];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfDocumentInfo decode(Object result) {
     result as List<Object?>;
@@ -286,7 +255,11 @@ class PdfDocumentInfo {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(workingPath, other.workingPath) && _deepEquals(pageCount, other.pageCount) && _deepEquals(currentPageIndex, other.currentPageIndex) && _deepEquals(hasSearchableText, other.hasSearchableText) && _deepEquals(isDirty, other.isDirty);
+    return _deepEquals(workingPath, other.workingPath) &&
+        _deepEquals(pageCount, other.pageCount) &&
+        _deepEquals(currentPageIndex, other.currentPageIndex) &&
+        _deepEquals(hasSearchableText, other.hasSearchableText) &&
+        _deepEquals(isDirty, other.isDirty);
   }
 
   @override
@@ -300,11 +273,7 @@ class PdfDocumentInfo {
 }
 
 class PdfSearchRequest {
-  PdfSearchRequest({
-    required this.query,
-    required this.caseSensitive,
-    required this.wholeWord,
-  });
+  PdfSearchRequest({required this.query, required this.caseSensitive, required this.wholeWord});
 
   String query;
 
@@ -313,15 +282,12 @@ class PdfSearchRequest {
   bool wholeWord;
 
   List<Object?> _toList() {
-    return <Object?>[
-      query,
-      caseSensitive,
-      wholeWord,
-    ];
+    return <Object?>[query, caseSensitive, wholeWord];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfSearchRequest decode(Object result) {
     result as List<Object?>;
@@ -341,7 +307,9 @@ class PdfSearchRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(query, other.query) && _deepEquals(caseSensitive, other.caseSensitive) && _deepEquals(wholeWord, other.wholeWord);
+    return _deepEquals(query, other.query) &&
+        _deepEquals(caseSensitive, other.caseSensitive) &&
+        _deepEquals(wholeWord, other.wholeWord);
   }
 
   @override
@@ -371,16 +339,12 @@ class PdfSearchState {
   String? activeResultText;
 
   List<Object?> _toList() {
-    return <Object?>[
-      query,
-      totalResults,
-      activeResultIndex,
-      activeResultText,
-    ];
+    return <Object?>[query, totalResults, activeResultIndex, activeResultText];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfSearchState decode(Object result) {
     result as List<Object?>;
@@ -401,7 +365,10 @@ class PdfSearchState {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(query, other.query) && _deepEquals(totalResults, other.totalResults) && _deepEquals(activeResultIndex, other.activeResultIndex) && _deepEquals(activeResultText, other.activeResultText);
+    return _deepEquals(query, other.query) &&
+        _deepEquals(totalResults, other.totalResults) &&
+        _deepEquals(activeResultIndex, other.activeResultIndex) &&
+        _deepEquals(activeResultText, other.activeResultText);
   }
 
   @override
@@ -434,17 +401,12 @@ class PdfFreeTextRequest {
   PdfColor textColor;
 
   List<Object?> _toList() {
-    return <Object?>[
-      pageIndex,
-      text,
-      bounds,
-      fontSize,
-      textColor,
-    ];
+    return <Object?>[pageIndex, text, bounds, fontSize, textColor];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfFreeTextRequest decode(Object result) {
     result as List<Object?>;
@@ -466,7 +428,11 @@ class PdfFreeTextRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(pageIndex, other.pageIndex) && _deepEquals(text, other.text) && _deepEquals(bounds, other.bounds) && _deepEquals(fontSize, other.fontSize) && _deepEquals(textColor, other.textColor);
+    return _deepEquals(pageIndex, other.pageIndex) &&
+        _deepEquals(text, other.text) &&
+        _deepEquals(bounds, other.bounds) &&
+        _deepEquals(fontSize, other.fontSize) &&
+        _deepEquals(textColor, other.textColor);
   }
 
   @override
@@ -480,31 +446,23 @@ class PdfFreeTextRequest {
 }
 
 class PdfFreeTextAreaSelection {
-  PdfFreeTextAreaSelection({
-    required this.pageIndex,
-    required this.bounds,
-  });
+  PdfFreeTextAreaSelection({required this.pageIndex, required this.bounds});
 
   int pageIndex;
 
   PdfRect bounds;
 
   List<Object?> _toList() {
-    return <Object?>[
-      pageIndex,
-      bounds,
-    ];
+    return <Object?>[pageIndex, bounds];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfFreeTextAreaSelection decode(Object result) {
     result as List<Object?>;
-    return PdfFreeTextAreaSelection(
-      pageIndex: result[0]! as int,
-      bounds: result[1]! as PdfRect,
-    );
+    return PdfFreeTextAreaSelection(pageIndex: result[0]! as int, bounds: result[1]! as PdfRect);
   }
 
   @override
@@ -530,11 +488,7 @@ class PdfFreeTextAreaSelection {
 }
 
 class PdfExportResult {
-  PdfExportResult({
-    required this.outputPath,
-    required this.pageCount,
-    required this.fileSizeBytes,
-  });
+  PdfExportResult({required this.outputPath, required this.pageCount, required this.fileSizeBytes});
 
   String outputPath;
 
@@ -543,15 +497,12 @@ class PdfExportResult {
   int fileSizeBytes;
 
   List<Object?> _toList() {
-    return <Object?>[
-      outputPath,
-      pageCount,
-      fileSizeBytes,
-    ];
+    return <Object?>[outputPath, pageCount, fileSizeBytes];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfExportResult decode(Object result) {
     result as List<Object?>;
@@ -571,7 +522,9 @@ class PdfExportResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(outputPath, other.outputPath) && _deepEquals(pageCount, other.pageCount) && _deepEquals(fileSizeBytes, other.fileSizeBytes);
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(pageCount, other.pageCount) &&
+        _deepEquals(fileSizeBytes, other.fileSizeBytes);
   }
 
   @override
@@ -598,15 +551,12 @@ class PdfOcrRequest {
   bool accurateRecognition;
 
   List<Object?> _toList() {
-    return <Object?>[
-      pageIndexes,
-      recognitionLanguages,
-      accurateRecognition,
-    ];
+    return <Object?>[pageIndexes, recognitionLanguages, accurateRecognition];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfOcrRequest decode(Object result) {
     result as List<Object?>;
@@ -626,7 +576,9 @@ class PdfOcrRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(pageIndexes, other.pageIndexes) && _deepEquals(recognitionLanguages, other.recognitionLanguages) && _deepEquals(accurateRecognition, other.accurateRecognition);
+    return _deepEquals(pageIndexes, other.pageIndexes) &&
+        _deepEquals(recognitionLanguages, other.recognitionLanguages) &&
+        _deepEquals(accurateRecognition, other.accurateRecognition);
   }
 
   @override
@@ -656,16 +608,12 @@ class PdfOcrBlock {
   PdfRect normalizedBoundingBox;
 
   List<Object?> _toList() {
-    return <Object?>[
-      pageIndex,
-      text,
-      confidence,
-      normalizedBoundingBox,
-    ];
+    return <Object?>[pageIndex, text, confidence, normalizedBoundingBox];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfOcrBlock decode(Object result) {
     result as List<Object?>;
@@ -686,7 +634,10 @@ class PdfOcrBlock {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(pageIndex, other.pageIndex) && _deepEquals(text, other.text) && _deepEquals(confidence, other.confidence) && _deepEquals(normalizedBoundingBox, other.normalizedBoundingBox);
+    return _deepEquals(pageIndex, other.pageIndex) &&
+        _deepEquals(text, other.text) &&
+        _deepEquals(confidence, other.confidence) &&
+        _deepEquals(normalizedBoundingBox, other.normalizedBoundingBox);
   }
 
   @override
@@ -700,11 +651,7 @@ class PdfOcrBlock {
 }
 
 class PdfCompressionRequest {
-  PdfCompressionRequest({
-    required this.mode,
-    required this.rasterDpi,
-    required this.jpegQuality,
-  });
+  PdfCompressionRequest({required this.mode, required this.rasterDpi, required this.jpegQuality});
 
   PdfCompressionMode mode;
 
@@ -713,15 +660,12 @@ class PdfCompressionRequest {
   double jpegQuality;
 
   List<Object?> _toList() {
-    return <Object?>[
-      mode,
-      rasterDpi,
-      jpegQuality,
-    ];
+    return <Object?>[mode, rasterDpi, jpegQuality];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfCompressionRequest decode(Object result) {
     result as List<Object?>;
@@ -741,7 +685,9 @@ class PdfCompressionRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(mode, other.mode) && _deepEquals(rasterDpi, other.rasterDpi) && _deepEquals(jpegQuality, other.jpegQuality);
+    return _deepEquals(mode, other.mode) &&
+        _deepEquals(rasterDpi, other.rasterDpi) &&
+        _deepEquals(jpegQuality, other.jpegQuality);
   }
 
   @override
@@ -808,7 +754,8 @@ class PdfCompressionResult {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfCompressionResult decode(Object result) {
     result as List<Object?>;
@@ -836,7 +783,17 @@ class PdfCompressionResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(outputPath, other.outputPath) && _deepEquals(inputBytes, other.inputBytes) && _deepEquals(outputBytes, other.outputBytes) && _deepEquals(compressionRatio, other.compressionRatio) && _deepEquals(durationMilliseconds, other.durationMilliseconds) && _deepEquals(textSelectable, other.textSelectable) && _deepEquals(annotationsEditable, other.annotationsEditable) && _deepEquals(linksFunctional, other.linksFunctional) && _deepEquals(formsFunctional, other.formsFunctional) && _deepEquals(visualQualityNotes, other.visualQualityNotes) && _deepEquals(warning, other.warning);
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(inputBytes, other.inputBytes) &&
+        _deepEquals(outputBytes, other.outputBytes) &&
+        _deepEquals(compressionRatio, other.compressionRatio) &&
+        _deepEquals(durationMilliseconds, other.durationMilliseconds) &&
+        _deepEquals(textSelectable, other.textSelectable) &&
+        _deepEquals(annotationsEditable, other.annotationsEditable) &&
+        _deepEquals(linksFunctional, other.linksFunctional) &&
+        _deepEquals(formsFunctional, other.formsFunctional) &&
+        _deepEquals(visualQualityNotes, other.visualQualityNotes) &&
+        _deepEquals(warning, other.warning);
   }
 
   @override
@@ -850,31 +807,23 @@ class PdfCompressionResult {
 }
 
 class PdfPageRange {
-  PdfPageRange({
-    required this.startPageIndex,
-    required this.endPageIndex,
-  });
+  PdfPageRange({required this.startPageIndex, required this.endPageIndex});
 
   int startPageIndex;
 
   int endPageIndex;
 
   List<Object?> _toList() {
-    return <Object?>[
-      startPageIndex,
-      endPageIndex,
-    ];
+    return <Object?>[startPageIndex, endPageIndex];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfPageRange decode(Object result) {
     result as List<Object?>;
-    return PdfPageRange(
-      startPageIndex: result[0]! as int,
-      endPageIndex: result[1]! as int,
-    );
+    return PdfPageRange(startPageIndex: result[0]! as int, endPageIndex: result[1]! as int);
   }
 
   @override
@@ -886,7 +835,8 @@ class PdfPageRange {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(startPageIndex, other.startPageIndex) && _deepEquals(endPageIndex, other.endPageIndex);
+    return _deepEquals(startPageIndex, other.startPageIndex) &&
+        _deepEquals(endPageIndex, other.endPageIndex);
   }
 
   @override
@@ -900,26 +850,21 @@ class PdfPageRange {
 }
 
 class PdfSplitRequest {
-  PdfSplitRequest({
-    required this.ranges,
-  });
+  PdfSplitRequest({required this.ranges});
 
   List<PdfPageRange> ranges;
 
   List<Object?> _toList() {
-    return <Object?>[
-      ranges,
-    ];
+    return <Object?>[ranges];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfSplitRequest decode(Object result) {
     result as List<Object?>;
-    return PdfSplitRequest(
-      ranges: (result[0]! as List<Object?>).cast<PdfPageRange>(),
-    );
+    return PdfSplitRequest(ranges: (result[0]! as List<Object?>).cast<PdfPageRange>());
   }
 
   @override
@@ -945,31 +890,23 @@ class PdfSplitRequest {
 }
 
 class PdfSplitOutput {
-  PdfSplitOutput({
-    required this.outputPath,
-    required this.pageCount,
-  });
+  PdfSplitOutput({required this.outputPath, required this.pageCount});
 
   String outputPath;
 
   int pageCount;
 
   List<Object?> _toList() {
-    return <Object?>[
-      outputPath,
-      pageCount,
-    ];
+    return <Object?>[outputPath, pageCount];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfSplitOutput decode(Object result) {
     result as List<Object?>;
-    return PdfSplitOutput(
-      outputPath: result[0]! as String,
-      pageCount: result[1]! as int,
-    );
+    return PdfSplitOutput(outputPath: result[0]! as String, pageCount: result[1]! as int);
   }
 
   @override
@@ -995,24 +932,19 @@ class PdfSplitOutput {
 }
 
 class PdfSplitResult {
-  PdfSplitResult({
-    required this.outputs,
-    required this.durationMilliseconds,
-  });
+  PdfSplitResult({required this.outputs, required this.durationMilliseconds});
 
   List<PdfSplitOutput> outputs;
 
   int durationMilliseconds;
 
   List<Object?> _toList() {
-    return <Object?>[
-      outputs,
-      durationMilliseconds,
-    ];
+    return <Object?>[outputs, durationMilliseconds];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfSplitResult decode(Object result) {
     result as List<Object?>;
@@ -1031,7 +963,8 @@ class PdfSplitResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(outputs, other.outputs) && _deepEquals(durationMilliseconds, other.durationMilliseconds);
+    return _deepEquals(outputs, other.outputs) &&
+        _deepEquals(durationMilliseconds, other.durationMilliseconds);
   }
 
   @override
@@ -1045,26 +978,21 @@ class PdfSplitResult {
 }
 
 class PdfMergeRequest {
-  PdfMergeRequest({
-    required this.inputPaths,
-  });
+  PdfMergeRequest({required this.inputPaths});
 
   List<String> inputPaths;
 
   List<Object?> _toList() {
-    return <Object?>[
-      inputPaths,
-    ];
+    return <Object?>[inputPaths];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfMergeRequest decode(Object result) {
     result as List<Object?>;
-    return PdfMergeRequest(
-      inputPaths: (result[0]! as List<Object?>).cast<String>(),
-    );
+    return PdfMergeRequest(inputPaths: (result[0]! as List<Object?>).cast<String>());
   }
 
   @override
@@ -1106,16 +1034,12 @@ class PdfMergeResult {
   int durationMilliseconds;
 
   List<Object?> _toList() {
-    return <Object?>[
-      outputPath,
-      inputDocumentCount,
-      pageCount,
-      durationMilliseconds,
-    ];
+    return <Object?>[outputPath, inputDocumentCount, pageCount, durationMilliseconds];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfMergeResult decode(Object result) {
     result as List<Object?>;
@@ -1136,7 +1060,10 @@ class PdfMergeResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(outputPath, other.outputPath) && _deepEquals(inputDocumentCount, other.inputDocumentCount) && _deepEquals(pageCount, other.pageCount) && _deepEquals(durationMilliseconds, other.durationMilliseconds);
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(inputDocumentCount, other.inputDocumentCount) &&
+        _deepEquals(pageCount, other.pageCount) &&
+        _deepEquals(durationMilliseconds, other.durationMilliseconds);
   }
 
   @override
@@ -1165,15 +1092,12 @@ class PdfConvertToPdfRequest {
   PdfScanQuality imageQuality;
 
   List<Object?> _toList() {
-    return <Object?>[
-      outputPath,
-      pageSize,
-      imageQuality,
-    ];
+    return <Object?>[outputPath, pageSize, imageQuality];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfConvertToPdfRequest decode(Object result) {
     result as List<Object?>;
@@ -1193,7 +1117,9 @@ class PdfConvertToPdfRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(outputPath, other.outputPath) && _deepEquals(pageSize, other.pageSize) && _deepEquals(imageQuality, other.imageQuality);
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(pageSize, other.pageSize) &&
+        _deepEquals(imageQuality, other.imageQuality);
   }
 
   @override
@@ -1240,7 +1166,8 @@ class PdfConvertToPdfResult {
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfConvertToPdfResult decode(Object result) {
     result as List<Object?>;
@@ -1263,7 +1190,12 @@ class PdfConvertToPdfResult {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(outputPath, other.outputPath) && _deepEquals(sourceFileName, other.sourceFileName) && _deepEquals(sourceFormat, other.sourceFormat) && _deepEquals(pageCount, other.pageCount) && _deepEquals(fileSizeBytes, other.fileSizeBytes) && _deepEquals(durationMilliseconds, other.durationMilliseconds);
+    return _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(sourceFileName, other.sourceFileName) &&
+        _deepEquals(sourceFormat, other.sourceFormat) &&
+        _deepEquals(pageCount, other.pageCount) &&
+        _deepEquals(fileSizeBytes, other.fileSizeBytes) &&
+        _deepEquals(durationMilliseconds, other.durationMilliseconds);
   }
 
   @override
@@ -1277,11 +1209,7 @@ class PdfConvertToPdfResult {
 }
 
 class PdfConvertUrlRequest {
-  PdfConvertUrlRequest({
-    required this.url,
-    required this.outputPath,
-    required this.pageSize,
-  });
+  PdfConvertUrlRequest({required this.url, required this.outputPath, required this.pageSize});
 
   String url;
 
@@ -1290,15 +1218,12 @@ class PdfConvertUrlRequest {
   PdfConvertPageSize pageSize;
 
   List<Object?> _toList() {
-    return <Object?>[
-      url,
-      outputPath,
-      pageSize,
-    ];
+    return <Object?>[url, outputPath, pageSize];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfConvertUrlRequest decode(Object result) {
     result as List<Object?>;
@@ -1318,7 +1243,9 @@ class PdfConvertUrlRequest {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(url, other.url) && _deepEquals(outputPath, other.outputPath) && _deepEquals(pageSize, other.pageSize);
+    return _deepEquals(url, other.url) &&
+        _deepEquals(outputPath, other.outputPath) &&
+        _deepEquals(pageSize, other.pageSize);
   }
 
   @override
@@ -1328,372 +1255,6 @@ class PdfConvertUrlRequest {
   @override
   String toString() {
     return 'PdfConvertUrlRequest(url: $url, outputPath: $outputPath, pageSize: $pageSize)';
-  }
-}
-
-/// A document picked for viewing. It is a local copy owned by the app, never
-/// the user's original file.
-class PdfViewableDocument {
-  PdfViewableDocument({
-    required this.path,
-    required this.fileName,
-    required this.fileFormat,
-    required this.fileSizeBytes,
-  });
-
-  String path;
-
-  String fileName;
-
-  String fileFormat;
-
-  int fileSizeBytes;
-
-  List<Object?> _toList() {
-    return <Object?>[
-      path,
-      fileName,
-      fileFormat,
-      fileSizeBytes,
-    ];
-  }
-
-  Object encode() {
-    return _toList();  }
-
-  static PdfViewableDocument decode(Object result) {
-    result as List<Object?>;
-    return PdfViewableDocument(
-      path: result[0]! as String,
-      fileName: result[1]! as String,
-      fileFormat: result[2]! as String,
-      fileSizeBytes: result[3]! as int,
-    );
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  bool operator ==(Object other) {
-    if (other is! PdfViewableDocument || other.runtimeType != runtimeType) {
-      return false;
-    }
-    if (identical(this, other)) {
-      return true;
-    }
-    return _deepEquals(path, other.path) && _deepEquals(fileName, other.fileName) && _deepEquals(fileFormat, other.fileFormat) && _deepEquals(fileSizeBytes, other.fileSizeBytes);
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
-
-  @override
-  String toString() {
-    return 'PdfViewableDocument(path: $path, fileName: $fileName, fileFormat: $fileFormat, fileSizeBytes: $fileSizeBytes)';
-  }
-}
-
-/// Trạng thái con trỏ trong trình soạn thảo HWP, đủ để vẽ thanh công cụ.
-///
-/// Con trỏ và vùng chọn sống trong trang vỏ chứ không trong tài liệu — rhwp
-/// không giữ chúng — nên đây là ảnh chụp đẩy ngược lên, không phải nguồn sự
-/// thật để ghi xuống.
-class HwpEditorState {
-  HwpEditorState({
-    required this.hasCaret,
-    required this.hasSelection,
-    required this.bold,
-    required this.italic,
-    required this.underline,
-    required this.strikethrough,
-    this.fontSizePt,
-    this.alignment,
-    this.lineSpacing,
-    required this.canUndo,
-    required this.canRedo,
-    required this.dirty,
-    required this.pageIndex,
-    required this.pageCount,
-  });
-
-  bool hasCaret;
-
-  bool hasSelection;
-
-  bool bold;
-
-  bool italic;
-
-  bool underline;
-
-  bool strikethrough;
-
-  /// Cỡ chữ theo **điểm**. rhwp lưu theo HWPUNIT (pt × 100); phép chia nằm ở
-  /// trang vỏ để bên Flutter không phải biết đơn vị của định dạng tệp.
-  double? fontSizePt;
-
-  /// `left`, `center`, `right`, `justify` hoặc `distribute`.
-  String? alignment;
-
-  double? lineSpacing;
-
-  bool canUndo;
-
-  bool canRedo;
-
-  /// Có thay đổi chưa ghi xuống tệp. Tắt chế độ sửa khi đang bật cờ này là mất
-  /// thay đổi.
-  bool dirty;
-
-  /// Trang đang hiển thị, đếm từ 0. Trình xem dựng đúng một trang mỗi lúc.
-  int pageIndex;
-
-  /// Tổng số trang, luôn ít nhất là 1.
-  ///
-  /// Đổi được **trong lúc sửa**: gõ thêm chữ có thể làm tài liệu nở ra hoặc co
-  /// lại một trang, nên thanh lật trang phải đọc lại con số này chứ không nhớ
-  /// giá trị lúc mở tệp.
-  int pageCount;
-
-  List<Object?> _toList() {
-    return <Object?>[
-      hasCaret,
-      hasSelection,
-      bold,
-      italic,
-      underline,
-      strikethrough,
-      fontSizePt,
-      alignment,
-      lineSpacing,
-      canUndo,
-      canRedo,
-      dirty,
-      pageIndex,
-      pageCount,
-    ];
-  }
-
-  Object encode() {
-    return _toList();  }
-
-  static HwpEditorState decode(Object result) {
-    result as List<Object?>;
-    return HwpEditorState(
-      hasCaret: result[0]! as bool,
-      hasSelection: result[1]! as bool,
-      bold: result[2]! as bool,
-      italic: result[3]! as bool,
-      underline: result[4]! as bool,
-      strikethrough: result[5]! as bool,
-      fontSizePt: result[6] as double?,
-      alignment: result[7] as String?,
-      lineSpacing: result[8] as double?,
-      canUndo: result[9]! as bool,
-      canRedo: result[10]! as bool,
-      dirty: result[11]! as bool,
-      pageIndex: result[12]! as int,
-      pageCount: result[13]! as int,
-    );
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  bool operator ==(Object other) {
-    if (other is! HwpEditorState || other.runtimeType != runtimeType) {
-      return false;
-    }
-    if (identical(this, other)) {
-      return true;
-    }
-    return _deepEquals(hasCaret, other.hasCaret) && _deepEquals(hasSelection, other.hasSelection) && _deepEquals(bold, other.bold) && _deepEquals(italic, other.italic) && _deepEquals(underline, other.underline) && _deepEquals(strikethrough, other.strikethrough) && _deepEquals(fontSizePt, other.fontSizePt) && _deepEquals(alignment, other.alignment) && _deepEquals(lineSpacing, other.lineSpacing) && _deepEquals(canUndo, other.canUndo) && _deepEquals(canRedo, other.canRedo) && _deepEquals(dirty, other.dirty) && _deepEquals(pageIndex, other.pageIndex) && _deepEquals(pageCount, other.pageCount);
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
-
-  @override
-  String toString() {
-    return 'HwpEditorState(hasCaret: $hasCaret, hasSelection: $hasSelection, bold: $bold, italic: $italic, underline: $underline, strikethrough: $strikethrough, fontSizePt: $fontSizePt, alignment: $alignment, lineSpacing: $lineSpacing, canUndo: $canUndo, canRedo: $canRedo, dirty: $dirty, pageIndex: $pageIndex, pageCount: $pageCount)';
-  }
-}
-
-/// Định dạng chữ cần áp. Khoá nào `null` thì giữ nguyên — bật đậm không được
-/// phép lặng lẽ đặt lại cỡ chữ.
-class HwpCharFormat {
-  HwpCharFormat({
-    this.bold,
-    this.italic,
-    this.underline,
-    this.strikethrough,
-    this.fontSizePt,
-  });
-
-  bool? bold;
-
-  bool? italic;
-
-  bool? underline;
-
-  bool? strikethrough;
-
-  double? fontSizePt;
-
-  List<Object?> _toList() {
-    return <Object?>[
-      bold,
-      italic,
-      underline,
-      strikethrough,
-      fontSizePt,
-    ];
-  }
-
-  Object encode() {
-    return _toList();  }
-
-  static HwpCharFormat decode(Object result) {
-    result as List<Object?>;
-    return HwpCharFormat(
-      bold: result[0] as bool?,
-      italic: result[1] as bool?,
-      underline: result[2] as bool?,
-      strikethrough: result[3] as bool?,
-      fontSizePt: result[4] as double?,
-    );
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  bool operator ==(Object other) {
-    if (other is! HwpCharFormat || other.runtimeType != runtimeType) {
-      return false;
-    }
-    if (identical(this, other)) {
-      return true;
-    }
-    return _deepEquals(bold, other.bold) && _deepEquals(italic, other.italic) && _deepEquals(underline, other.underline) && _deepEquals(strikethrough, other.strikethrough) && _deepEquals(fontSizePt, other.fontSizePt);
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
-
-  @override
-  String toString() {
-    return 'HwpCharFormat(bold: $bold, italic: $italic, underline: $underline, strikethrough: $strikethrough, fontSizePt: $fontSizePt)';
-  }
-}
-
-/// Định dạng đoạn cần áp. Cùng quy ước `null` là giữ nguyên như
-/// [HwpCharFormat].
-class HwpParaFormat {
-  HwpParaFormat({
-    this.alignment,
-    this.lineSpacing,
-  });
-
-  String? alignment;
-
-  double? lineSpacing;
-
-  List<Object?> _toList() {
-    return <Object?>[
-      alignment,
-      lineSpacing,
-    ];
-  }
-
-  Object encode() {
-    return _toList();  }
-
-  static HwpParaFormat decode(Object result) {
-    result as List<Object?>;
-    return HwpParaFormat(
-      alignment: result[0] as String?,
-      lineSpacing: result[1] as double?,
-    );
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  bool operator ==(Object other) {
-    if (other is! HwpParaFormat || other.runtimeType != runtimeType) {
-      return false;
-    }
-    if (identical(this, other)) {
-      return true;
-    }
-    return _deepEquals(alignment, other.alignment) && _deepEquals(lineSpacing, other.lineSpacing);
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
-
-  @override
-  String toString() {
-    return 'HwpParaFormat(alignment: $alignment, lineSpacing: $lineSpacing)';
-  }
-}
-
-/// Kết quả một lần ghi tài liệu HWP xuống đĩa.
-class HwpSaveResult {
-  HwpSaveResult({
-    required this.ok,
-    this.contentLoss,
-    this.error,
-  });
-
-  bool ok;
-
-  /// Báo cáo phần nội dung trình xuất phải bỏ đi, lấy từ
-  /// `exportHwpWithReport`. Không rỗng nghĩa là tệp ghi ra **không** giữ đủ
-  /// tài liệu ban đầu, kể cả khi [ok].
-  String? contentLoss;
-
-  String? error;
-
-  List<Object?> _toList() {
-    return <Object?>[
-      ok,
-      contentLoss,
-      error,
-    ];
-  }
-
-  Object encode() {
-    return _toList();  }
-
-  static HwpSaveResult decode(Object result) {
-    result as List<Object?>;
-    return HwpSaveResult(
-      ok: result[0]! as bool,
-      contentLoss: result[1] as String?,
-      error: result[2] as String?,
-    );
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  bool operator ==(Object other) {
-    if (other is! HwpSaveResult || other.runtimeType != runtimeType) {
-      return false;
-    }
-    if (identical(this, other)) {
-      return true;
-    }
-    return _deepEquals(ok, other.ok) && _deepEquals(contentLoss, other.contentLoss) && _deepEquals(error, other.error);
-  }
-
-  @override
-  // ignore: avoid_equals_and_hash_code_on_mutable_classes
-  int get hashCode => _deepHash(<Object?>[runtimeType, ..._toList()]);
-
-  @override
-  String toString() {
-    return 'HwpSaveResult(ok: $ok, contentLoss: $contentLoss, error: $error)';
   }
 }
 
@@ -1719,17 +1280,12 @@ class PdfGeneratedOutput {
   int pageCount;
 
   List<Object?> _toList() {
-    return <Object?>[
-      path,
-      fileName,
-      fileSizeBytes,
-      modifiedEpochMilliseconds,
-      pageCount,
-    ];
+    return <Object?>[path, fileName, fileSizeBytes, modifiedEpochMilliseconds, pageCount];
   }
 
   Object encode() {
-    return _toList();  }
+    return _toList();
+  }
 
   static PdfGeneratedOutput decode(Object result) {
     result as List<Object?>;
@@ -1751,7 +1307,11 @@ class PdfGeneratedOutput {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(path, other.path) && _deepEquals(fileName, other.fileName) && _deepEquals(fileSizeBytes, other.fileSizeBytes) && _deepEquals(modifiedEpochMilliseconds, other.modifiedEpochMilliseconds) && _deepEquals(pageCount, other.pageCount);
+    return _deepEquals(path, other.path) &&
+        _deepEquals(fileName, other.fileName) &&
+        _deepEquals(fileSizeBytes, other.fileSizeBytes) &&
+        _deepEquals(modifiedEpochMilliseconds, other.modifiedEpochMilliseconds) &&
+        _deepEquals(pageCount, other.pageCount);
   }
 
   @override
@@ -1764,7 +1324,6 @@ class PdfGeneratedOutput {
   }
 }
 
-
 class _PigeonCodec extends StandardMessageCodec {
   const _PigeonCodec();
   @override
@@ -1772,98 +1331,83 @@ class _PigeonCodec extends StandardMessageCodec {
     if (value is int) {
       buffer.putUint8(4);
       buffer.putInt64(value);
-    }    else if (value is PdfMarkupType) {
+    } else if (value is PdfMarkupType) {
       buffer.putUint8(129);
       writeValue(buffer, value.index);
-    }    else if (value is PdfCompressionMode) {
+    } else if (value is PdfCompressionMode) {
       buffer.putUint8(130);
       writeValue(buffer, value.index);
-    }    else if (value is PdfScanQuality) {
+    } else if (value is PdfScanQuality) {
       buffer.putUint8(131);
       writeValue(buffer, value.index);
-    }    else if (value is PdfConvertPageSize) {
+    } else if (value is PdfConvertPageSize) {
       buffer.putUint8(132);
       writeValue(buffer, value.index);
-    }    else if (value is PdfRect) {
+    } else if (value is PdfRect) {
       buffer.putUint8(133);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfColor) {
+    } else if (value is PdfColor) {
       buffer.putUint8(134);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfDocumentInfo) {
+    } else if (value is PdfDocumentInfo) {
       buffer.putUint8(135);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSearchRequest) {
+    } else if (value is PdfSearchRequest) {
       buffer.putUint8(136);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSearchState) {
+    } else if (value is PdfSearchState) {
       buffer.putUint8(137);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfFreeTextRequest) {
+    } else if (value is PdfFreeTextRequest) {
       buffer.putUint8(138);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfFreeTextAreaSelection) {
+    } else if (value is PdfFreeTextAreaSelection) {
       buffer.putUint8(139);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfExportResult) {
+    } else if (value is PdfExportResult) {
       buffer.putUint8(140);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfOcrRequest) {
+    } else if (value is PdfOcrRequest) {
       buffer.putUint8(141);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfOcrBlock) {
+    } else if (value is PdfOcrBlock) {
       buffer.putUint8(142);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfCompressionRequest) {
+    } else if (value is PdfCompressionRequest) {
       buffer.putUint8(143);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfCompressionResult) {
+    } else if (value is PdfCompressionResult) {
       buffer.putUint8(144);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfPageRange) {
+    } else if (value is PdfPageRange) {
       buffer.putUint8(145);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSplitRequest) {
+    } else if (value is PdfSplitRequest) {
       buffer.putUint8(146);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSplitOutput) {
+    } else if (value is PdfSplitOutput) {
       buffer.putUint8(147);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfSplitResult) {
+    } else if (value is PdfSplitResult) {
       buffer.putUint8(148);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfMergeRequest) {
+    } else if (value is PdfMergeRequest) {
       buffer.putUint8(149);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfMergeResult) {
+    } else if (value is PdfMergeResult) {
       buffer.putUint8(150);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfConvertToPdfRequest) {
+    } else if (value is PdfConvertToPdfRequest) {
       buffer.putUint8(151);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfConvertToPdfResult) {
+    } else if (value is PdfConvertToPdfResult) {
       buffer.putUint8(152);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfConvertUrlRequest) {
+    } else if (value is PdfConvertUrlRequest) {
       buffer.putUint8(153);
       writeValue(buffer, value.encode());
-    }    else if (value is PdfViewableDocument) {
+    } else if (value is PdfGeneratedOutput) {
       buffer.putUint8(154);
-      writeValue(buffer, value.encode());
-    }    else if (value is HwpEditorState) {
-      buffer.putUint8(155);
-      writeValue(buffer, value.encode());
-    }    else if (value is HwpCharFormat) {
-      buffer.putUint8(156);
-      writeValue(buffer, value.encode());
-    }    else if (value is HwpParaFormat) {
-      buffer.putUint8(157);
-      writeValue(buffer, value.encode());
-    }    else if (value is HwpSaveResult) {
-      buffer.putUint8(158);
-      writeValue(buffer, value.encode());
-    }    else if (value is PdfGeneratedOutput) {
-      buffer.putUint8(159);
       writeValue(buffer, value.encode());
     } else {
       super.writeValue(buffer, value);
@@ -1928,16 +1472,6 @@ class _PigeonCodec extends StandardMessageCodec {
       case 153:
         return PdfConvertUrlRequest.decode(readValue(buffer)!);
       case 154:
-        return PdfViewableDocument.decode(readValue(buffer)!);
-      case 155:
-        return HwpEditorState.decode(readValue(buffer)!);
-      case 156:
-        return HwpCharFormat.decode(readValue(buffer)!);
-      case 157:
-        return HwpParaFormat.decode(readValue(buffer)!);
-      case 158:
-        return HwpSaveResult.decode(readValue(buffer)!);
-      case 159:
         return PdfGeneratedOutput.decode(readValue(buffer)!);
       default:
         return super.readValueOfType(type, buffer);
@@ -1950,8 +1484,10 @@ class PdfPocHostApi {
   /// available for dependency injection. If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
   PdfPocHostApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
-      : pigeonVar_binaryMessenger = binaryMessenger,
-        pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
+    : pigeonVar_binaryMessenger = binaryMessenger,
+      pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
+          ? '.$messageChannelSuffix'
+          : '';
   final BinaryMessenger? pigeonVar_binaryMessenger;
 
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -1959,26 +1495,30 @@ class PdfPocHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   Future<PdfDocumentInfo> openAssetWorkingCopy(String assetKey, Uint8List assetBytes) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.openAssetWorkingCopy$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.openAssetWorkingCopy$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[assetKey, assetBytes]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      assetKey,
+      assetBytes,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfDocumentInfo;
   }
 
   Future<void> closeDocument() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocument$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocument$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -1987,35 +1527,34 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<PdfDocumentInfo> resetWorkingCopy(String assetKey, Uint8List assetBytes) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.resetWorkingCopy$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.resetWorkingCopy$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[assetKey, assetBytes]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      assetKey,
+      assetBytes,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfDocumentInfo;
   }
 
   Future<void> goToPage(int pageIndex) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToPage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToPage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2024,16 +1563,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndex]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> goToNextPage() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToNextPage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToNextPage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2042,16 +1577,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> goToPreviousPage() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToPreviousPage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToPreviousPage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2060,16 +1591,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<PdfSearchState> search(PdfSearchRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.search$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.search$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2079,16 +1606,16 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfSearchState;
   }
 
   Future<PdfSearchState> goToNextSearchResult() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToNextSearchResult$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToNextSearchResult$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2098,16 +1625,16 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfSearchState;
   }
 
   Future<PdfSearchState> goToPreviousSearchResult() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToPreviousSearchResult$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.goToPreviousSearchResult$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2117,16 +1644,16 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfSearchState;
   }
 
   Future<void> clearSearch() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearSearch$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearSearch$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2135,16 +1662,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<String?> getSelectedText() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.getSelectedText$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.getSelectedText$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2154,16 +1677,16 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
     return pigeonVar_replyValue as String?;
   }
 
   Future<void> copySelectedText() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.copySelectedText$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.copySelectedText$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2172,16 +1695,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> addMarkupFromCurrentSelection(PdfMarkupType type) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.addMarkupFromCurrentSelection$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.addMarkupFromCurrentSelection$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2190,16 +1709,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[type]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> addFreeText(PdfFreeTextRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.addFreeText$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.addFreeText$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2208,16 +1723,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> beginFreeTextAreaSelection() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.beginFreeTextAreaSelection$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.beginFreeTextAreaSelection$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2226,16 +1737,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> setInkModeEnabled(bool enabled) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setInkModeEnabled$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setInkModeEnabled$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2244,16 +1751,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[enabled]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> clearCurrentInkInput() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearCurrentInkInput$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearCurrentInkInput$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2262,16 +1765,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> commitCurrentInkToPdf() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitCurrentInkToPdf$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitCurrentInkToPdf$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2280,16 +1779,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> deleteSelectedAnnotation() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deleteSelectedAnnotation$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deleteSelectedAnnotation$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2298,16 +1793,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> captureElectronicSignature() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.captureElectronicSignature$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.captureElectronicSignature$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2316,16 +1807,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> clearElectronicSignatureCapture() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearElectronicSignatureCapture$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearElectronicSignatureCapture$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2334,16 +1821,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> confirmElectronicSignatureCapture() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.confirmElectronicSignatureCapture$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.confirmElectronicSignatureCapture$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2352,16 +1835,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> beginSignaturePlacement() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.beginSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.beginSignaturePlacement$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2370,16 +1849,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> resizeSignaturePlacement(double scale) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.resizeSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.resizeSignaturePlacement$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2388,16 +1863,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[scale]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> commitSignaturePlacement() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitSignaturePlacement$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2406,16 +1877,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cancelSignaturePlacement() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSignaturePlacement$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSignaturePlacement$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2424,16 +1891,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> deleteSelectedSignature() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deleteSelectedSignature$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deleteSelectedSignature$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2442,16 +1905,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<PdfExportResult> exportFlattenedCopy() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.exportFlattenedCopy$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.exportFlattenedCopy$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2461,34 +1920,33 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfExportResult;
   }
 
   Future<void> rotatePages(List<int> pageIndexes, int degrees) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.rotatePages$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.rotatePages$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndexes, degrees]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      pageIndexes,
+      degrees,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> deletePages(List<int> pageIndexes) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deletePages$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.deletePages$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2497,88 +1955,80 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndexes]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> duplicatePage(int pageIndex, int destinationIndex) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.duplicatePage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.duplicatePage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndex, destinationIndex]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      pageIndex,
+      destinationIndex,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> movePage(int fromIndex, int toIndex) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.movePage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.movePage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[fromIndex, toIndex]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      fromIndex,
+      toIndex,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cropPage(int pageIndex, PdfRect pageBounds) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cropPage$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cropPage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndex, pageBounds]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      pageIndex,
+      pageBounds,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cropPageToInset(int pageIndex, double insetPoints) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cropPageToInset$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cropPageToInset$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndex, insetPoints]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[
+      pageIndex,
+      insetPoints,
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> commitPendingPageReorder() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitPendingPageReorder$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.commitPendingPageReorder$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2587,16 +2037,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cancelPendingPageReorder() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPendingPageReorder$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPendingPageReorder$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2605,16 +2051,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<PdfExportResult> savePageOperationsCopy() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.savePageOperationsCopy$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.savePageOperationsCopy$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2624,16 +2066,16 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfExportResult;
   }
 
   Future<void> runOcr(PdfOcrRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.runOcr$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.runOcr$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2642,16 +2084,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cancelOcr() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelOcr$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelOcr$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2660,16 +2098,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> showOcrResult(PdfOcrBlock block) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.showOcrResult$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.showOcrResult$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2678,16 +2112,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[block]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> compress(PdfCompressionRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.compress$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.compress$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2696,16 +2126,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cancelCompression() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelCompression$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelCompression$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2714,16 +2140,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> splitPdf(PdfSplitRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.splitPdf$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.splitPdf$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2732,16 +2154,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cancelSplit() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSplit$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelSplit$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2750,16 +2168,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> mergePdfs(PdfMergeRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.mergePdfs$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.mergePdfs$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2768,16 +2182,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cancelMerge() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelMerge$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelMerge$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2786,16 +2196,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> pickFileForPdfConversion(PdfConvertToPdfRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.pickFileForPdfConversion$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.pickFileForPdfConversion$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2804,16 +2210,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> convertUrlToPdf(PdfConvertUrlRequest request) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.convertUrlToPdf$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.convertUrlToPdf$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -2822,303 +2224,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[request]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Picks a document to view. The result arrives through
-  /// `onDocumentForViewingPicked`; nothing is converted and no output is
-  /// written. Flutter then hosts the native viewer platform view.
-  Future<void> pickDocumentForViewing() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.pickDocumentForViewing$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Loads a picked document into the embedded viewer platform view.
-  Future<void> loadDocumentIntoViewer(String path) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.loadDocumentIntoViewer$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[path]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Chuyển trình xem tài liệu sang chế độ sửa, hoặc quay lại chế độ xem.
-  ///
-  /// Chỉ áp dụng cho HWP. Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm
-  /// trong trình soạn thảo, không nằm trong tệp.
-  Future<void> setDocumentEditingEnabled(bool enabled) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setDocumentEditingEnabled$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[enabled]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Ghi tài liệu đang sửa đè lên tệp đang mở.
-  ///
-  /// Trả về ngay; việc xuất chạy bất đồng bộ trong trình soạn thảo và kết quả
-  /// về qua `onHwpEditsSaved`.
-  Future<void> saveDocumentEdits() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.saveDocumentEdits$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Áp định dạng chữ lên vùng đang chọn.
-  ///
-  /// Không có vùng chọn thì định dạng được giữ lại và áp cho đoạn chữ gõ tiếp
-  /// theo, giống mọi trình soạn thảo khác.
-  Future<void> applyHwpCharFormat(HwpCharFormat format) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.applyHwpCharFormat$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[format]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Áp định dạng lên đoạn văn đang chứa con trỏ, hoặc mọi đoạn mà vùng chọn
-  /// chạm tới.
-  Future<void> applyHwpParaFormat(HwpParaFormat format) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.applyHwpParaFormat$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[format]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Cho trình soạn thảo biết Flutter đang che mất bao nhiêu điểm ở đáy web
-  /// view — tức chiều cao thanh công cụ nổi.
-  ///
-  /// Bàn phím thì native tự đo được; chỗ này chỉ nói về phần giao diện của
-  /// Flutter, thứ native không nhìn thấy. Con trỏ phải tránh cả hai.
-  Future<void> setViewerChromeInset(double pixels) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.setViewerChromeInset$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pixels]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Hoàn tác bước sửa gần nhất. Ngăn xếp nằm trong trang vỏ và mất khi tắt
-  /// chế độ sửa.
-  Future<void> hwpUndo() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpUndo$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  Future<void> hwpRedo() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpRedo$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Lật tới trang `pageIndex` (đếm từ 0) trong trình xem HWP.
-  ///
-  /// Dùng được cả khi **không** ở chế độ sửa: trình xem chỉ dựng đúng một trang
-  /// mỗi lúc, nên đây là đường duy nhất để đọc phần còn lại của tài liệu.
-  /// Chỉ số ngoài phạm vi bị kẹp về đầu hoặc cuối chứ không báo lỗi.
-  Future<void> hwpGoToPage(int pageIndex) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.hwpGoToPage$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndex]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Releases the embedded viewer and deletes the local copy.
-  Future<void> closeDocumentViewer() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.closeDocumentViewer$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Finds the next or previous match in the embedded viewer. Returns whether
-  /// a match was found and selected.
-  Future<bool> findInViewer(String query, bool forward) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.findInViewer$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[query, forward]);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
-    return pigeonVar_replyValue! as bool;
-  }
-
-  Future<void> clearViewerSearch() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.clearViewerSearch$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
-  }
-
-  /// Shares the document currently open in the embedded viewer.
-  Future<void> shareViewerDocument() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.shareViewerDocument$pigeonVar_messageChannelSuffix';
-    final pigeonVar_channel = BasicMessageChannel<Object?>(
-      pigeonVar_channelName,
-      pigeonChannelCodec,
-      binaryMessenger: pigeonVar_binaryMessenger,
-    );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
-    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
-
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<void> cancelPdfConversion() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPdfConversion$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.cancelPdfConversion$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -3127,16 +2238,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<List<PdfGeneratedOutput>> listGeneratedOutputs() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.listGeneratedOutputs$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.listGeneratedOutputs$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -3146,16 +2253,16 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return (pigeonVar_replyValue! as List<Object?>).cast<PdfGeneratedOutput>();
   }
 
   Future<PdfDocumentInfo> openGeneratedOutput(String path) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.openGeneratedOutput$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.openGeneratedOutput$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -3165,11 +2272,10 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfDocumentInfo;
   }
 
@@ -3177,7 +2283,8 @@ class PdfPocHostApi {
   /// [openGeneratedOutput] this needs no document already open and accepts
   /// paths outside the native working directory.
   Future<PdfDocumentInfo> openExternalDocument(String path) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.openExternalDocument$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.openExternalDocument$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -3187,16 +2294,16 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfDocumentInfo;
   }
 
   Future<void> shareGeneratedOutput(String path) async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.shareGeneratedOutput$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.shareGeneratedOutput$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -3205,16 +2312,12 @@ class PdfPocHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[path]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: true,
-    )
-    ;
+    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
   }
 
   Future<PdfDocumentInfo> save() async {
-    final pigeonVar_channelName = 'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.pdf_tool.PdfPocHostApi.save$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
       pigeonVar_channelName,
       pigeonChannelCodec,
@@ -3224,11 +2327,10 @@ class PdfPocHostApi {
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
-        pigeonVar_replyList,
-        pigeonVar_channelName,
-        isNullValid: false,
-    )
-    ;
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: false,
+    );
     return pigeonVar_replyValue! as PdfDocumentInfo;
   }
 }
@@ -3272,24 +2374,20 @@ abstract class PdfPocFlutterApi {
 
   void onPdfConversionCompleted(String operationId, PdfConvertToPdfResult? result, bool cancelled);
 
-  void onDocumentForViewingPicked(PdfViewableDocument document);
-
-  void onDocumentForViewingCancelled();
-
-  /// Con trỏ, vùng chọn hoặc nội dung trong trình soạn thảo HWP vừa đổi.
-  void onHwpEditorStateChanged(HwpEditorState state);
-
-  /// Một lần ghi tài liệu HWP đã xong — thành công hay không.
-  void onHwpEditsSaved(HwpSaveResult result);
-
   void onOperationFailed(String operationId, String code, String message, String? details);
 
-  static void setUp(PdfPocFlutterApi? api, {BinaryMessenger? binaryMessenger, String messageChannelSuffix = '',}) {
+  static void setUp(
+    PdfPocFlutterApi? api, {
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) {
     messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentOpened$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentOpened$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3301,16 +2399,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentClosed$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentClosed$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3320,16 +2422,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onCurrentPageChanged$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onCurrentPageChanged$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3342,16 +2448,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDirtyStateChanged$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDirtyStateChanged$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3363,16 +2473,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSearchStateChanged$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSearchStateChanged$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3384,16 +2498,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSelectionChanged$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSelectionChanged$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3405,16 +2523,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onFreeTextAreaSelected$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onFreeTextAreaSelected$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3426,16 +2548,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrProgress$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3449,16 +2575,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrResult$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrResult$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3471,16 +2601,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrCompleted$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOcrCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3493,16 +2627,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onCompressionProgress$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onCompressionProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3516,16 +2654,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onCompressionCompleted$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onCompressionCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3539,16 +2681,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitProgress$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3562,16 +2708,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitCompleted$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onSplitCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3585,16 +2735,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeProgress$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3608,16 +2762,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeCompleted$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onMergeCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3631,16 +2789,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onPdfConversionProgress$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onPdfConversionProgress$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3654,16 +2816,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onPdfConversionCompleted$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onPdfConversionCompleted$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3677,98 +2843,20 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }
     }
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentForViewingPicked$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
-      if (api == null) {
-        pigeonVar_channel.setMessageHandler(null);
-      } else {
-        pigeonVar_channel.setMessageHandler((Object? message) async {
-          final List<Object?> args = message! as List<Object?>;
-          final PdfViewableDocument arg_document = args[0]! as PdfViewableDocument;
-          try {
-            api.onDocumentForViewingPicked(arg_document);
-            return wrapResponse(empty: true);
-          } on PlatformException catch (e) {
-            return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
-          }
-        });
-      }
-    }
-    {
-      final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onDocumentForViewingCancelled$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
-      if (api == null) {
-        pigeonVar_channel.setMessageHandler(null);
-      } else {
-        pigeonVar_channel.setMessageHandler((Object? message) async {
-          try {
-            api.onDocumentForViewingCancelled();
-            return wrapResponse(empty: true);
-          } on PlatformException catch (e) {
-            return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
-          }
-        });
-      }
-    }
-    {
-      final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onHwpEditorStateChanged$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
-      if (api == null) {
-        pigeonVar_channel.setMessageHandler(null);
-      } else {
-        pigeonVar_channel.setMessageHandler((Object? message) async {
-          final List<Object?> args = message! as List<Object?>;
-          final HwpEditorState arg_state = args[0]! as HwpEditorState;
-          try {
-            api.onHwpEditorStateChanged(arg_state);
-            return wrapResponse(empty: true);
-          } on PlatformException catch (e) {
-            return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
-          }
-        });
-      }
-    }
-    {
-      final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onHwpEditsSaved$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
-      if (api == null) {
-        pigeonVar_channel.setMessageHandler(null);
-      } else {
-        pigeonVar_channel.setMessageHandler((Object? message) async {
-          final List<Object?> args = message! as List<Object?>;
-          final HwpSaveResult arg_result = args[0]! as HwpSaveResult;
-          try {
-            api.onHwpEditsSaved(arg_result);
-            return wrapResponse(empty: true);
-          } on PlatformException catch (e) {
-            return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
-          }
-        });
-      }
-    }
-    {
-      final pigeonVar_channel = BasicMessageChannel<Object?>(
-          'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOperationFailed$messageChannelSuffix', pigeonChannelCodec,
-          binaryMessenger: binaryMessenger);
+        'dev.flutter.pigeon.pdf_tool.PdfPocFlutterApi.onOperationFailed$messageChannelSuffix',
+        pigeonChannelCodec,
+        binaryMessenger: binaryMessenger,
+      );
       if (api == null) {
         pigeonVar_channel.setMessageHandler(null);
       } else {
@@ -3783,8 +2871,10 @@ abstract class PdfPocFlutterApi {
             return wrapResponse(empty: true);
           } on PlatformException catch (e) {
             return wrapResponse(error: e);
-          }          catch (e) {
-            return wrapResponse(error: PlatformException(code: 'error', message: e.toString()));
+          } catch (e) {
+            return wrapResponse(
+              error: PlatformException(code: 'error', message: e.toString()),
+            );
           }
         });
       }

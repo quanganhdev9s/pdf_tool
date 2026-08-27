@@ -19,10 +19,8 @@ Future<void> startScanFlow(BuildContext context) async {
 
   await navigator.push(
     MaterialPageRoute<void>(
-      builder: (_) => BlocProvider<ScanReviewBloc>.value(
-        value: bloc,
-        child: const ScanReviewPage(),
-      ),
+      builder: (_) =>
+          BlocProvider<ScanReviewBloc>.value(value: bloc, child: const ScanReviewPage()),
     ),
   );
 }
