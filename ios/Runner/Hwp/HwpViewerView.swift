@@ -252,8 +252,8 @@ final class HwpViewerView: UIView {
     )
   }
 
-  /// Tìm chữ trong tài liệu đã vẽ. Trang vỏ là DOM nên `window.find` tìm và
-  /// chọn y như trên một trang web bình thường. Hết tài liệu thì quay vòng.
+  /// Tìm chữ qua `searchText` của rhwp, **không** phải `window.find`: trang vỏ
+  /// chỉ dựng những trang quanh khung nhìn, tìm trên DOM là bỏ sót phần còn lại.
   func find(query: String, forward: Bool, completion: @escaping (Bool) -> Void) {
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -261,11 +261,7 @@ final class HwpViewerView: UIView {
       completion(false)
       return
     }
-    // window.find(text, caseSensitive, backwards, wrap, wholeWord, searchInFrames, showDialog)
-    let escaped = trimmed
-      .replacingOccurrences(of: "\\", with: "\\\\")
-      .replacingOccurrences(of: "'", with: "\\'")
-    let script = "window.find('\(escaped)', false, \(forward ? "false" : "true"), true, false, true, false)"
+    let script = "window.__rhwpEditor?.find(\(Self.jsString(trimmed)), \(forward))"
     webView.evaluateJavaScript(script) { result, error in
       let found = (result as? Bool) ?? false
       if let error {
@@ -387,6 +383,16 @@ final class HwpViewerView: UIView {
   /// Nối chuỗi vào `evaluateJavaScript` bằng tay là chỗ dễ hỏng nhất; để
   /// `JSONSerialization` lo phần thoát ký tự, rồi bọc kết quả lại thành một
   /// chuỗi JS cũng bằng `JSONSerialization`.
+  private static func jsString(_ value: String) -> String {
+    guard let data = try? JSONSerialization.data(
+            withJSONObject: [value], options: .fragmentsAllowed
+          ),
+          let wrapped = String(data: data, encoding: .utf8) else {
+      return "\"\""
+    }
+    return String(wrapped.dropFirst().dropLast())
+  }
+
   private static func jsString(_ value: [String: Any]) -> String {
     guard let data = try? JSONSerialization.data(withJSONObject: value),
           let json = String(data: data, encoding: .utf8),
@@ -580,7 +586,7 @@ final class HwpViewerView: UIView {
   }
 
   func clearSearch() {
-    webView.evaluateJavaScript("window.getSelection().removeAllRanges()", completionHandler: nil)
+    runEditor("clearFind()")
   }
 
   /// Hands the viewed file to the system share sheet. The file stays where it

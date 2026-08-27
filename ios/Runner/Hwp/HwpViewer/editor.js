@@ -615,6 +615,8 @@ function clearOverlays() {
 function drawOverlays() {
   if (!pagesEl) return;
   clearOverlays();
+  // Vẽ cả khi chỉ xem, nên đứng trước chỗ thoát sớm bên dưới.
+  if (findRange) drawFind();
   if (!editing || !focus) return;
 
   const range = selectionRange();
@@ -686,6 +688,182 @@ function drawPreedit() {
     chip.style.fontSize = `${(props.fontSize / HWPUNIT_PER_PT) * PX_PER_PT * scale}px`;
   }
   wrap.lastElementChild.appendChild(chip);
+}
+
+// ----------------------------------------------------------------- tìm chữ
+//
+// Bằng `searchText` của rhwp, **không** bằng `window.find`: chỉ những trang
+// quanh khung nhìn mới được dựng, nên tìm trên DOM là bỏ sót phần còn lại.
+
+/// Kết quả đang tô sáng, cùng hình dạng với vùng chọn. Tách khỏi `anchor`/
+/// `focus` vì tìm chạy cả khi không sửa.
+let findRange = null;
+
+/// Từ khoá lần trước, để biết lần gọi sau là "kết quả kế tiếp" hay lượt mới.
+let findQuery = "";
+
+function pickNumber(source, keys) {
+  for (const key of keys) {
+    if (typeof source[key] === "number") return source[key];
+  }
+  return null;
+}
+
+/// Kết quả thô của `searchText` → vùng chọn. rhwp không ghi hình dạng này ở
+/// đâu; đọc ra từ chuỗi mẫu trong `rhwp_bg.wasm`:
+///
+///   {"found":true,"wrapped":bool,"sec":N,"para":N,"charOffset":N,"length":N}
+///   + "cellContext":{"parentPara":N,"ctrlIdx":N,"cellIdx":N,"cellPara":N}
+///
+/// Đổi hình dạng thì `hwp_search_shape` in bản thô ra để đối chiếu.
+function toFindRange(hit) {
+  if (!hit || typeof hit !== "object" || hit.found !== true) return null;
+
+  const sectionIndex = pickNumber(hit, ["sec", "sectionIndex"]);
+  const charOffset = pickNumber(hit, ["charOffset"]);
+  const length = pickNumber(hit, ["length"]);
+  const context = hit.cellContext;
+  const cell = context
+    ? {
+        parentParaIndex: pickNumber(context, ["parentPara"]),
+        controlIndex: pickNumber(context, ["ctrlIdx"]),
+        cellIndex: pickNumber(context, ["cellIdx"]),
+      }
+    : null;
+  // Trong ô, `para` là đoạn neo bảng; đoạn thật của kết quả là `cellPara`.
+  const paragraphIndex = cell
+    ? pickNumber(context, ["cellPara"])
+    : pickNumber(hit, ["para", "paragraphIndex"]);
+
+  if (
+    sectionIndex === null ||
+    paragraphIndex === null ||
+    charOffset === null ||
+    length === null ||
+    (cell && Object.values(cell).some((value) => value === null))
+  ) {
+    post("hwp_search_shape", JSON.stringify(hit));
+    return null;
+  }
+
+  const start = { sectionIndex, paragraphIndex, charOffset, cell };
+  const end = { ...start, charOffset: charOffset + length };
+  return {
+    sectionIndex,
+    start,
+    end,
+    wrapped: hit.wrapped === true,
+    // Chỗ nối cho lượt sau, **không** phải `start`: kết quả trong ô bảng mang
+    // `para` của đoạn neo bảng, đưa `cellPara` ngược lại là tìm nhầm chỗ.
+    from: {
+      sectionIndex,
+      paragraphIndex: pickNumber(hit, ["para", "paragraphIndex"]),
+      charOffset,
+    },
+  };
+}
+
+/// Sau (hoặc trước) kết quả cũ nếu vẫn cùng từ khoá, không thì từ con trỏ,
+/// không nữa thì từ đầu tài liệu.
+function findFrom(query, forward) {
+  if (findRange && findQuery === query) {
+    const at = findRange.from;
+    return {
+      ...at,
+      charOffset: Math.max(0, at.charOffset + (forward ? 1 : -1)),
+    };
+  }
+  if (focus) {
+    const c = cellOf(focus);
+    return {
+      sectionIndex: focus.sectionIndex,
+      paragraphIndex: c ? c.parentParaIndex : focus.paragraphIndex,
+      charOffset: focus.charOffset,
+    };
+  }
+  return { sectionIndex: 0, paragraphIndex: 0, charOffset: 0 };
+}
+
+function drawFind() {
+  const rects = qSelectionRects(findRange);
+  for (const rect of rects) {
+    const wrap = pageWrap(rect.pageIndex);
+    if (!wrap) continue;
+    const { scale } = pageGeometry(wrap);
+    const box = document.createElement("div");
+    box.className = "find";
+    box.style.left = `${rect.x * scale}px`;
+    box.style.top = `${rect.y * scale}px`;
+    box.style.width = `${rect.width * scale}px`;
+    box.style.height = `${rect.height * scale}px`;
+    wrap.lastElementChild.appendChild(box);
+  }
+}
+
+/// Đặt kết quả ở khoảng một phần tư trên của phần màn hình còn trống — sát mép
+/// trên thì mất ngữ cảnh phía trước.
+function scrollFindIntoView() {
+  const rects = qSelectionRects(findRange);
+  const rect = rects && rects[0];
+  if (!rect) return;
+  const wrap = pageWrap(rect.pageIndex);
+  if (!wrap) return;
+  const geom = pageGeometry(wrap);
+  const top = geom.rect.top + rect.y * geom.scale;
+  const bottom = top + rect.height * geom.scale;
+  const visibleBottom = window.innerHeight - keyboardInset - chromeInset - 16;
+  if (top >= 16 && bottom <= visibleBottom) return;
+  window.scrollBy(0, top - Math.max(16, (visibleBottom - 16) * 0.25));
+}
+
+/// Tìm và tô sáng kết quả kế tiếp. Trả về `false` khi không còn gì.
+function findText(query, forward) {
+  const text = String(query || "").trim();
+  if (!doc || !text) {
+    clearFind();
+    return false;
+  }
+
+  const from = findFrom(text, forward);
+  const hit = ask(
+    () =>
+      doc.searchText(
+        text,
+        from.sectionIndex,
+        from.paragraphIndex,
+        from.charOffset,
+        forward,
+        false,
+        true,
+      ),
+    null,
+  );
+
+  const range = toFindRange(hit);
+  findQuery = text;
+  if (!range) {
+    // Giữ nguyên vệt cũ: cái đang tô vẫn là kết quả người dùng đang đọc.
+    post("hwp_search_miss", `query=${text} forward=${forward}`);
+    return false;
+  }
+
+  findRange = range;
+  // Trang chưa dựng thì không có hình học để đo.
+  const page = pageOf(range.start);
+  if (!mounted.has(page)) mountPage(page);
+  drawOverlays();
+  scrollFindIntoView();
+  post(
+    "hwp_search_hit",
+    `query=${text} page=${page} wrapped=${range.wrapped ? 1 : 0}`,
+  );
+  return true;
+}
+
+function clearFind() {
+  findRange = null;
+  findQuery = "";
+  drawOverlays();
 }
 
 // ------------------------------------------------- ghi thay đổi & vẽ lại
@@ -2404,6 +2582,8 @@ export function detach() {
   caretAfterCommit = null;
   fontChecked = false;
   objectsLogged = false;
+  findRange = null;
+  findQuery = "";
   undoStack.length = 0;
   redoStack.length = 0;
 
@@ -2464,6 +2644,8 @@ export function attach(hwpDocument, container, reporter) {
         undoStack.length = 0;
         redoStack.length = 0;
         dirty = false;
+        findRange = null;
+        findQuery = "";
         if (input) input.blur();
         clearOverlays();
         // Native ngừng báo chiều cao bàn phím khi không còn sửa, nên phần chừa
@@ -2486,6 +2668,10 @@ export function attach(hwpDocument, container, reporter) {
     },
     undo,
     redo,
+    find(query, forward) {
+      return findText(query, forward);
+    },
+    clearFind,
     goToPage(index) {
       showPage(index);
     },
