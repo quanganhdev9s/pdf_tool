@@ -47,9 +47,7 @@ class FreeTextAreaComposer extends StatelessWidget {
                     minLines: 1,
                     maxLines: 3,
                     textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'Text for selected area',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Text for selected area'),
                     onSubmitted: (_) => onSubmit(),
                   ),
                 ),
@@ -60,10 +58,7 @@ class FreeTextAreaComposer extends StatelessWidget {
                   icon: const Icon(Icons.close),
                 ),
                 const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: busy ? null : onSubmit,
-                  child: const Text('Add'),
-                ),
+                FilledButton(onPressed: busy ? null : onSubmit, child: const Text('Add')),
               ],
             ),
           ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../pdf_poc_api.g.dart';
+import '../hwp_api.g.dart';
 
 /// Thanh công cụ của trình soạn thảo HWP.
 ///
@@ -75,16 +75,12 @@ class HwpEditorToolBar extends StatelessWidget {
                   _Button(
                     icon: Icons.undo,
                     tooltip: 'Hoàn tác',
-                    onPressed: !busy && (editor?.canUndo ?? false)
-                        ? onUndo
-                        : null,
+                    onPressed: !busy && (editor?.canUndo ?? false) ? onUndo : null,
                   ),
                   _Button(
                     icon: Icons.redo,
                     tooltip: 'Làm lại',
-                    onPressed: !busy && (editor?.canRedo ?? false)
-                        ? onRedo
-                        : null,
+                    onPressed: !busy && (editor?.canRedo ?? false) ? onRedo : null,
                   ),
                   const _Divider(),
                   _Button(
@@ -92,9 +88,7 @@ class HwpEditorToolBar extends StatelessWidget {
                     tooltip: 'Đậm',
                     selected: editor?.bold ?? false,
                     onPressed: _enabled
-                        ? () => onCharFormat(
-                            HwpCharFormat(bold: !(editor?.bold ?? false)),
-                          )
+                        ? () => onCharFormat(HwpCharFormat(bold: !(editor?.bold ?? false)))
                         : null,
                   ),
                   _Button(
@@ -102,9 +96,7 @@ class HwpEditorToolBar extends StatelessWidget {
                     tooltip: 'Nghiêng',
                     selected: editor?.italic ?? false,
                     onPressed: _enabled
-                        ? () => onCharFormat(
-                            HwpCharFormat(italic: !(editor?.italic ?? false)),
-                          )
+                        ? () => onCharFormat(HwpCharFormat(italic: !(editor?.italic ?? false)))
                         : null,
                   ),
                   _Button(
@@ -112,11 +104,8 @@ class HwpEditorToolBar extends StatelessWidget {
                     tooltip: 'Gạch chân',
                     selected: editor?.underline ?? false,
                     onPressed: _enabled
-                        ? () => onCharFormat(
-                            HwpCharFormat(
-                              underline: !(editor?.underline ?? false),
-                            ),
-                          )
+                        ? () =>
+                              onCharFormat(HwpCharFormat(underline: !(editor?.underline ?? false)))
                         : null,
                   ),
                   _Button(
@@ -125,9 +114,7 @@ class HwpEditorToolBar extends StatelessWidget {
                     selected: editor?.strikethrough ?? false,
                     onPressed: _enabled
                         ? () => onCharFormat(
-                            HwpCharFormat(
-                              strikethrough: !(editor?.strikethrough ?? false),
-                            ),
+                            HwpCharFormat(strikethrough: !(editor?.strikethrough ?? false)),
                           )
                         : null,
                   ),
@@ -136,9 +123,7 @@ class HwpEditorToolBar extends StatelessWidget {
                     icon: Icons.remove,
                     tooltip: 'Nhỏ hơn',
                     onPressed: _enabled
-                        ? () => onCharFormat(
-                            HwpCharFormat(fontSizePt: _stepSize(size, -1)),
-                          )
+                        ? () => onCharFormat(HwpCharFormat(fontSizePt: _stepSize(size, -1)))
                         : null,
                   ),
                   SizedBox(
@@ -153,9 +138,7 @@ class HwpEditorToolBar extends StatelessWidget {
                     icon: Icons.add,
                     tooltip: 'Lớn hơn',
                     onPressed: _enabled
-                        ? () => onCharFormat(
-                            HwpCharFormat(fontSizePt: _stepSize(size, 1)),
-                          )
+                        ? () => onCharFormat(HwpCharFormat(fontSizePt: _stepSize(size, 1)))
                         : null,
                   ),
                   const _Divider(),
@@ -188,16 +171,14 @@ class HwpEditorToolBar extends StatelessWidget {
                     tooltip: 'Canh đều',
                     selected: editor?.alignment == 'justify',
                     onPressed: _enabled
-                        ? () =>
-                              onParaFormat(HwpParaFormat(alignment: 'justify'))
+                        ? () => onParaFormat(HwpParaFormat(alignment: 'justify'))
                         : null,
                   ),
                   const _Divider(),
                   _LineSpacingButton(
                     value: editor?.lineSpacing,
                     onSelected: _enabled
-                        ? (value) =>
-                              onParaFormat(HwpParaFormat(lineSpacing: value))
+                        ? (value) => onParaFormat(HwpParaFormat(lineSpacing: value))
                         : null,
                   ),
                 ],
@@ -223,9 +204,7 @@ class HwpEditorToolBar extends StatelessWidget {
   }
 
   static String _formatSize(double size) {
-    return size == size.roundToDouble()
-        ? size.round().toString()
-        : size.toStringAsFixed(1);
+    return size == size.roundToDouble() ? size.round().toString() : size.toStringAsFixed(1);
   }
 }
 

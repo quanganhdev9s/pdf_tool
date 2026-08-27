@@ -7,7 +7,6 @@ final class PdfPocRuntime {
   static let shared = PdfPocRuntime()
 
   private var workspaceView: PdfWorkspaceView?
-  private var documentViewerView: PdfDocumentViewerView?
   private var flutterApi: PdfPocFlutterApi?
   private var pendingPageReorder: [Int64]?
 
@@ -34,32 +33,6 @@ final class PdfPocRuntime {
       workspaceView.close()
       self.workspaceView = nil
     }
-  }
-
-  func attach(documentViewerView: PdfDocumentViewerView) {
-    logPdfEvent("runtime_attach_document_viewer")
-    self.documentViewerView = documentViewerView
-    documentViewerView.delegate = self
-  }
-
-  func detach(documentViewerView: PdfDocumentViewerView) {
-    if self.documentViewerView === documentViewerView {
-      logPdfEvent("runtime_detach_document_viewer")
-      documentViewerView.delegate = nil
-      documentViewerView.close()
-      self.documentViewerView = nil
-    }
-  }
-
-  func requireDocumentViewer() throws -> PdfDocumentViewerView {
-    guard let documentViewerView else {
-      throw PdfPocError(
-        code: "document_not_open",
-        message: "The native document viewer is not on screen.",
-        details: nil
-      )
-    }
-    return documentViewerView
   }
 
   func requireWorkspace() throws -> PdfWorkspaceView {
@@ -93,62 +66,6 @@ final class PdfPocRuntime {
     }
     try requireWorkspace().applyPageOrder(pendingPageReorder)
     clearPendingPageReorder()
-  }
-}
-
-extension PdfPocRuntime: PdfDocumentViewerViewDelegate {
-  func documentViewer(_ view: PdfDocumentViewerView, didChangeEditorState json: String) {
-    guard let state = Self.decodeEditorState(json) else {
-      logPdfEvent("hwp_editor_state_decode_failed", json.prefix(120).description)
-      return
-    }
-    // Không log mỗi lần: nó bắn ra sau mỗi lần con trỏ nhúc nhích.
-    flutterApi?.onHwpEditorStateChanged(state: state) { _ in }
-  }
-
-  func documentViewer(
-    _ view: PdfDocumentViewerView,
-    didSaveEditsWith error: String?,
-    contentLoss: String
-  ) {
-    logPdfEvent(
-      "callback_to_flutter_hwp_edits_saved",
-      "ok=\(error == nil) loss=\(contentLoss.isEmpty ? 0 : contentLoss.count)"
-    )
-    flutterApi?.onHwpEditsSaved(
-      result: HwpSaveResult(
-        ok: error == nil,
-        contentLoss: contentLoss.isEmpty ? nil : contentLoss,
-        error: error
-      )
-    ) { _ in }
-  }
-
-  /// Trang vỏ gửi JSON thô. Hình dạng của nó là hợp đồng giữa `editor.js` và
-  /// `HwpEditorState`; ở giữa chỉ có chỗ này biết cả hai.
-  private static func decodeEditorState(_ json: String) -> HwpEditorState? {
-    guard let data = json.data(using: .utf8),
-          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-      return nil
-    }
-    func flag(_ key: String) -> Bool { object[key] as? Bool ?? false }
-    return HwpEditorState(
-      hasCaret: flag("hasCaret"),
-      hasSelection: flag("hasSelection"),
-      bold: flag("bold"),
-      italic: flag("italic"),
-      underline: flag("underline"),
-      strikethrough: flag("strikethrough"),
-      fontSizePt: object["fontSizePt"] as? Double,
-      alignment: object["alignment"] as? String,
-      lineSpacing: object["lineSpacing"] as? Double,
-      canUndo: flag("canUndo"),
-      canRedo: flag("canRedo"),
-      dirty: flag("dirty"),
-      pageIndex: Int64(object["pageIndex"] as? Int ?? 0),
-      // Ít nhất 1: thanh lật trang chia cho số này để hiện "trang/tổng".
-      pageCount: Int64(max(1, object["pageCount"] as? Int ?? 1))
-    )
   }
 }
 
@@ -364,19 +281,6 @@ extension PdfPocRuntime: PdfWorkspaceViewDelegate {
       result: result,
       cancelled: cancelled
     ) { _ in }
-  }
-
-  func workspaceView(
-    _ view: PdfWorkspaceView,
-    didPickDocumentForViewing document: PdfViewableDocument
-  ) {
-    logPdfEvent("callback_to_flutter_document_for_viewing_picked", "file=\(document.fileName)")
-    flutterApi?.onDocumentForViewingPicked(document: document) { _ in }
-  }
-
-  func workspaceViewDidCancelDocumentForViewing(_ view: PdfWorkspaceView) {
-    logPdfEvent("callback_to_flutter_document_for_viewing_cancelled")
-    flutterApi?.onDocumentForViewingCancelled { _ in }
   }
 
   func workspaceView(

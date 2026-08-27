@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../pdf_viewer/data/pdf_assets.dart';
-import '../../pdf_viewer/data/pdf_event_log.dart';
+import '../../common/bundled_assets.dart';
+import '../../common/event_log.dart';
 import '../data/imported_pdf_store.dart';
 import 'pdf_asset_picker_state.dart';
 
@@ -52,13 +52,17 @@ class PdfAssetPickerCubit extends Cubit<PdfAssetPickerState> {
 
   /// Presents the system file picker. Returns the imported document, or null
   /// when the user cancelled or the import failed.
-  Future<ImportedPdf?> importFromFiles() async {
+  Future<ImportedPdf?> importFromFiles({
+    List<String> allowedExtensions = const <String>['pdf', 'hwp', 'hwpx'],
+  }) async {
     if (state.importing) return null;
     emit(state.copyWith(importing: true, clearError: true));
     logPdfEvent('document_import_request');
 
     try {
-      final ImportedPdf? document = await _store.importFromFiles();
+      final ImportedPdf? document = await _store.importFromFiles(
+        allowedExtensions: allowedExtensions,
+      );
       if (isClosed) return null;
       emit(state.copyWith(importing: false));
       if (document == null) return null;
@@ -66,9 +70,7 @@ class PdfAssetPickerCubit extends Cubit<PdfAssetPickerState> {
       return document;
     } on Object catch (error) {
       if (isClosed) return null;
-      emit(
-        state.copyWith(importing: false, error: 'Không mở được tệp đó: $error'),
-      );
+      emit(state.copyWith(importing: false, error: 'Không mở được tệp đó: $error'));
       return null;
     }
   }

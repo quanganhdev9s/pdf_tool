@@ -22,21 +22,14 @@ class BundledDocumentFile {
 }
 
 class BundledDocumentAssets {
-  const BundledDocumentAssets({
-    this.pdf = const <String>[],
-    this.hwp = const <String>[],
-  });
+  const BundledDocumentAssets({this.pdf = const <String>[], this.hwp = const <String>[]});
 
   final List<String> pdf;
   final List<String> hwp;
 }
 
-Future<BundledDocumentAssets> loadBundledDocumentAssets({
-  AssetBundle? bundle,
-}) async {
-  final AssetManifest manifest = await AssetManifest.loadFromAssetBundle(
-    bundle ?? rootBundle,
-  );
+Future<BundledDocumentAssets> loadBundledDocumentAssets({AssetBundle? bundle}) async {
+  final AssetManifest manifest = await AssetManifest.loadFromAssetBundle(bundle ?? rootBundle);
   final List<String> pdf = <String>[];
   final List<String> hwp = <String>[];
   for (final String asset in manifest.listAssets()) {
@@ -55,14 +48,9 @@ Future<BundledDocumentAssets> loadBundledDocumentAssets({
   );
 }
 
-Future<BundledDocumentFile> materializeBundledDocumentAsset(
-  String assetKey,
-) async {
+Future<BundledDocumentFile> materializeBundledDocumentAsset(String assetKey) async {
   final ByteData data = await rootBundle.load(assetKey);
-  final Uint8List bytes = data.buffer.asUint8List(
-    data.offsetInBytes,
-    data.lengthInBytes,
-  );
+  final Uint8List bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
   final Directory cache = await getTemporaryDirectory();
   final Directory directory = Directory('${cache.path}/bundled_documents')
     ..createSync(recursive: true);

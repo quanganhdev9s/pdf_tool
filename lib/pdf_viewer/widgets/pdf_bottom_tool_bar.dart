@@ -1,18 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum PdfControlPanelMode {
-  pages,
-  search,
-  ink,
-  freeText,
-  signature,
-  pageOperations,
-  ocr,
-  compression,
-  splitMerge,
-  documentViewer,
-  status,
-}
+import '../bloc/pdf_viewer_bloc.dart';
 
 class PdfBottomToolBar extends StatelessWidget {
   const PdfBottomToolBar({
@@ -43,9 +31,7 @@ class PdfBottomToolBar extends StatelessWidget {
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minWidth: constraints.maxWidth,
-                      ),
+                      constraints: BoxConstraints(minWidth: constraints.maxWidth),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -123,14 +109,6 @@ class PdfBottomToolBar extends StatelessWidget {
                             onPressed: onModePressed,
                           ),
                           _ToolbarIcon(
-                            mode: PdfControlPanelMode.documentViewer,
-                            activeMode: activeMode,
-                            label: 'Open',
-                            tooltip: 'Open a document to view',
-                            icon: Icons.folder_open_outlined,
-                            onPressed: onModePressed,
-                          ),
-                          _ToolbarIcon(
                             mode: PdfControlPanelMode.status,
                             activeMode: activeMode,
                             label: 'Status',
@@ -190,14 +168,9 @@ class _ToolbarIcon extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: selected
-                      ? theme.colorScheme.secondaryContainer
-                      : Colors.transparent,
+                  color: selected ? theme.colorScheme.secondaryContainer : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(icon, size: 22, color: foreground),

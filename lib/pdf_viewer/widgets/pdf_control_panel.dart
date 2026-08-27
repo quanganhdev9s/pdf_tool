@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../pdf_poc_api.g.dart';
 import '../bloc/pdf_viewer_bloc.dart';
-import 'pdf_bottom_tool_bar.dart';
 
 class PdfControlPanel extends StatelessWidget {
   const PdfControlPanel({
@@ -65,7 +64,10 @@ class PdfControlPanel extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    if (state.busy) ...<Widget>[const SizedBox(height: 8), const LinearProgressIndicator()] else
+                    if (state.busy) ...<Widget>[
+                      const SizedBox(height: 8),
+                      const LinearProgressIndicator(),
+                    ] else
                       _buildPanel(context, bloc),
                   ],
                 ),
@@ -112,8 +114,6 @@ class PdfControlPanel extends StatelessWidget {
         return _CompressionControls(state: state);
       case PdfControlPanelMode.splitMerge:
         return _SplitMergeControls(state: state);
-      case PdfControlPanelMode.documentViewer:
-        return _DocumentViewerControls(state: state);
       case PdfControlPanelMode.status:
         return _StatusControls(state: state);
     }
@@ -121,7 +121,12 @@ class PdfControlPanel extends StatelessWidget {
 }
 
 class _PageControls extends StatelessWidget {
-  const _PageControls({required this.state, required this.pageController, this.totalPages, required this.onJumpToPage});
+  const _PageControls({
+    required this.state,
+    required this.pageController,
+    this.totalPages,
+    required this.onJumpToPage,
+  });
 
   final PdfViewerState state;
   final TextEditingController pageController;
@@ -214,7 +219,9 @@ class _SearchControls extends StatelessWidget {
         FilledButton.tonal(onPressed: state.busy ? null : onSearch, child: const Text('Find')),
         IconButton.outlined(
           tooltip: 'Previous result',
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerPreviousSearchResultRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerPreviousSearchResultRequested()),
           icon: const Icon(Icons.keyboard_arrow_up),
         ),
         IconButton.outlined(
@@ -247,11 +254,21 @@ class _InkControls extends StatelessWidget {
       children: <Widget>[
         SegmentedButton<bool>(
           segments: const <ButtonSegment<bool>>[
-            ButtonSegment<bool>(value: false, icon: Icon(Icons.pan_tool_alt_outlined, size: 18), label: Text('Read')),
-            ButtonSegment<bool>(value: true, icon: Icon(Icons.draw_outlined, size: 18), label: Text('Ink')),
+            ButtonSegment<bool>(
+              value: false,
+              icon: Icon(Icons.pan_tool_alt_outlined, size: 18),
+              label: Text('Read'),
+            ),
+            ButtonSegment<bool>(
+              value: true,
+              icon: Icon(Icons.draw_outlined, size: 18),
+              label: Text('Ink'),
+            ),
           ],
           selected: <bool>{state.inkModeEnabled},
-          onSelectionChanged: state.busy ? null : (selection) => bloc.add(PdfViewerInkModeChanged(selection.first)),
+          onSelectionChanged: state.busy
+              ? null
+              : (selection) => bloc.add(PdfViewerInkModeChanged(selection.first)),
         ),
         OutlinedButton.icon(
           onPressed: state.busy ? null : () => bloc.add(const PdfViewerClearInkRequested()),
@@ -264,7 +281,9 @@ class _InkControls extends StatelessWidget {
           label: const Text('Commit ink'),
         ),
         OutlinedButton.icon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerDeleteSelectedAnnotationRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerDeleteSelectedAnnotationRequested()),
           icon: const Icon(Icons.delete_outline, size: 18),
           label: const Text('Delete selected'),
         ),
@@ -300,7 +319,10 @@ class _FreeTextControls extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'Free text'),
           ),
         ),
-        FilledButton(onPressed: state.busy ? null : onAddFreeText, child: const Text('Add text box')),
+        FilledButton(
+          onPressed: state.busy ? null : onAddFreeText,
+          child: const Text('Add text box'),
+        ),
         FilledButton.tonalIcon(
           onPressed: state.busy ? null : onBeginFreeTextAreaSelection,
           icon: const Icon(Icons.crop_free, size: 18),
@@ -330,47 +352,65 @@ class _SignatureControls extends StatelessWidget {
           label: const Text('Capture'),
         ),
         OutlinedButton.icon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerClearSignatureCaptureRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerClearSignatureCaptureRequested()),
           icon: const Icon(Icons.layers_clear_outlined, size: 18),
           label: const Text('Clear'),
         ),
         FilledButton.icon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerConfirmSignatureCaptureRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerConfirmSignatureCaptureRequested()),
           icon: const Icon(Icons.check, size: 18),
           label: const Text('Confirm'),
         ),
         FilledButton.tonalIcon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerBeginSignaturePlacementRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerBeginSignaturePlacementRequested()),
           icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
           label: const Text('Place'),
         ),
         IconButton.outlined(
           tooltip: 'Smaller signature',
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerResizeSignaturePlacementRequested(0.85)),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerResizeSignaturePlacementRequested(0.85)),
           icon: const Icon(Icons.remove),
         ),
         IconButton.outlined(
           tooltip: 'Larger signature',
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerResizeSignaturePlacementRequested(1.15)),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerResizeSignaturePlacementRequested(1.15)),
           icon: const Icon(Icons.add),
         ),
         FilledButton.tonalIcon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerCommitSignaturePlacementRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerCommitSignaturePlacementRequested()),
           icon: const Icon(Icons.done_all, size: 18),
           label: const Text('Commit'),
         ),
         OutlinedButton.icon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerCancelSignaturePlacementRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerCancelSignaturePlacementRequested()),
           icon: const Icon(Icons.close, size: 18),
           label: const Text('Cancel placement'),
         ),
         OutlinedButton.icon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerDeleteSelectedSignatureRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerDeleteSelectedSignatureRequested()),
           icon: const Icon(Icons.delete_outline, size: 18),
           label: const Text('Delete selected'),
         ),
         OutlinedButton.icon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerExportFlattenedCopyRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerExportFlattenedCopyRequested()),
           icon: const Icon(Icons.file_download_outlined, size: 18),
           label: const Text('Export flattened'),
         ),
@@ -396,17 +436,23 @@ class _PageOperationControls extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
         FilledButton.tonalIcon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerRotateCurrentPageRequested(90)),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerRotateCurrentPageRequested(90)),
           icon: const Icon(Icons.rotate_right, size: 18),
           label: const Text('Rotate 90'),
         ),
         OutlinedButton.icon(
-          onPressed: state.busy || !canDelete ? null : () => bloc.add(const PdfViewerDeleteCurrentPageRequested()),
+          onPressed: state.busy || !canDelete
+              ? null
+              : () => bloc.add(const PdfViewerDeleteCurrentPageRequested()),
           icon: const Icon(Icons.delete_outline, size: 18),
           label: const Text('Delete page'),
         ),
         FilledButton.tonalIcon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerDuplicateCurrentPageRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerDuplicateCurrentPageRequested()),
           icon: const Icon(Icons.copy_all_outlined, size: 18),
           label: const Text('Duplicate'),
         ),
@@ -421,7 +467,9 @@ class _PageOperationControls extends StatelessWidget {
           label: const Text('Crop inset'),
         ),
         OutlinedButton.icon(
-          onPressed: state.busy ? null : () => bloc.add(const PdfViewerSavePageOperationsCopyRequested()),
+          onPressed: state.busy
+              ? null
+              : () => bloc.add(const PdfViewerSavePageOperationsCopyRequested()),
           icon: const Icon(Icons.save_as_outlined, size: 18),
           label: const Text('Save output'),
         ),
@@ -450,7 +498,9 @@ class _OcrControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final bloc = context.read<PdfViewerBloc>();
     final totalPages = state.ocrTotalPages;
-    final progress = totalPages == 0 ? null : state.ocrCompletedPages / totalPages.clamp(1, totalPages);
+    final progress = totalPages == 0
+        ? null
+        : state.ocrCompletedPages / totalPages.clamp(1, totalPages);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,7 +525,9 @@ class _OcrControls extends StatelessWidget {
               label: const Text('All pages'),
             ),
             OutlinedButton.icon(
-              onPressed: state.ocrRunning ? () => bloc.add(const PdfViewerCancelOcrRequested()) : null,
+              onPressed: state.ocrRunning
+                  ? () => bloc.add(const PdfViewerCancelOcrRequested())
+                  : null,
               icon: const Icon(Icons.stop_circle_outlined, size: 18),
               label: const Text('Cancel'),
             ),
@@ -522,25 +574,18 @@ class _OcrControls extends StatelessWidget {
   }
 }
 
-class _CompressionControls extends StatefulWidget {
+class _CompressionControls extends StatelessWidget {
   const _CompressionControls({required this.state});
 
   final PdfViewerState state;
 
   @override
-  State<_CompressionControls> createState() => _CompressionControlsState();
-}
-
-class _CompressionControlsState extends State<_CompressionControls> {
-  double _dpi = 120;
-  double _jpegQuality = 0.6;
-
-  @override
   Widget build(BuildContext context) {
-    final state = widget.state;
     final bloc = context.read<PdfViewerBloc>();
     final totalPages = state.compressionTotalPages;
-    final progress = totalPages == 0 ? null : state.compressionCompletedPages / totalPages.clamp(1, totalPages);
+    final progress = totalPages == 0
+        ? null
+        : state.compressionCompletedPages / totalPages.clamp(1, totalPages);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -560,14 +605,14 @@ class _CompressionControlsState extends State<_CompressionControls> {
             FilledButton.icon(
               onPressed: state.busy || state.compressionRunning
                   ? null
-                  : () => bloc.add(
-                      PdfViewerRunRasterizedCompressionRequested(dpi: _dpi.round(), jpegQuality: _jpegQuality),
-                    ),
+                  : () => bloc.add(const PdfViewerRunRasterizedCompressionRequested()),
               icon: const Icon(Icons.image_outlined, size: 18),
               label: const Text('Rasterize'),
             ),
             OutlinedButton.icon(
-              onPressed: state.compressionRunning ? () => bloc.add(const PdfViewerCancelCompressionRequested()) : null,
+              onPressed: state.compressionRunning
+                  ? () => bloc.add(const PdfViewerCancelCompressionRequested())
+                  : null,
               icon: const Icon(Icons.stop_circle_outlined, size: 18),
               label: const Text('Cancel'),
             ),
@@ -581,21 +626,25 @@ class _CompressionControlsState extends State<_CompressionControls> {
         const SizedBox(height: 8),
         _SliderRow(
           label: 'DPI',
-          valueLabel: _dpi.round().toString(),
-          value: _dpi,
+          valueLabel: state.compressionDpi.round().toString(),
+          value: state.compressionDpi,
           min: 72,
           max: 300,
           divisions: 19,
-          onChanged: state.compressionRunning ? null : (value) => setState(() => _dpi = value),
+          onChanged: state.compressionRunning
+              ? null
+              : (value) => bloc.add(PdfViewerCompressionSettingsChanged(dpi: value)),
         ),
         _SliderRow(
           label: 'JPEG',
-          valueLabel: '${(_jpegQuality * 100).round()}%',
-          value: _jpegQuality,
+          valueLabel: '${(state.compressionJpegQuality * 100).round()}%',
+          value: state.compressionJpegQuality,
           min: 0.1,
           max: 0.95,
           divisions: 17,
-          onChanged: state.compressionRunning ? null : (value) => setState(() => _jpegQuality = value),
+          onChanged: state.compressionRunning
+              ? null
+              : (value) => bloc.add(PdfViewerCompressionSettingsChanged(jpegQuality: value)),
         ),
         const Text(
           'Rasterized output may destroy selectable text, links, forms, vector quality, and editable annotations.',
@@ -678,7 +727,8 @@ class _CompressionResultView extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         Text(result.visualQualityNotes, maxLines: 3, overflow: TextOverflow.ellipsis),
-        if (result.warning.isNotEmpty) Text(result.warning, maxLines: 3, overflow: TextOverflow.ellipsis),
+        if (result.warning.isNotEmpty)
+          Text(result.warning, maxLines: 3, overflow: TextOverflow.ellipsis),
         Text(result.outputPath, maxLines: 2, overflow: TextOverflow.ellipsis),
       ],
     );
@@ -742,7 +792,9 @@ class _SplitMergeControlsState extends State<_SplitMergeControls> {
               label: const Text('Split'),
             ),
             OutlinedButton.icon(
-              onPressed: state.splitRunning ? () => bloc.add(const PdfViewerCancelSplitRequested()) : null,
+              onPressed: state.splitRunning
+                  ? () => bloc.add(const PdfViewerCancelSplitRequested())
+                  : null,
               icon: const Icon(Icons.stop_circle_outlined, size: 18),
               label: const Text('Cancel split'),
             ),
@@ -782,7 +834,9 @@ class _SplitMergeControlsState extends State<_SplitMergeControls> {
               label: const Text('Merge'),
             ),
             OutlinedButton.icon(
-              onPressed: state.mergeRunning ? () => bloc.add(const PdfViewerCancelMergeRequested()) : null,
+              onPressed: state.mergeRunning
+                  ? () => bloc.add(const PdfViewerCancelMergeRequested())
+                  : null,
               icon: const Icon(Icons.stop_circle_outlined, size: 18),
               label: const Text('Cancel merge'),
             ),
@@ -813,8 +867,14 @@ class _SplitResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lines = result.outputs.map((output) => '${output.pageCount}p · ${output.outputPath}').join('\n');
-    return Text('$lines\n${result.durationMilliseconds} ms', maxLines: 6, overflow: TextOverflow.ellipsis);
+    final lines = result.outputs
+        .map((output) => '${output.pageCount}p · ${output.outputPath}')
+        .join('\n');
+    return Text(
+      '$lines\n${result.durationMilliseconds} ms',
+      maxLines: 6,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 }
 
@@ -847,9 +907,8 @@ class ConvertControls extends StatefulWidget {
   State<ConvertControls> createState() => _ConvertControlsState();
 }
 
+/// Stateful only for the URL controller; the settings live in `PdfViewerState`.
 class _ConvertControlsState extends State<ConvertControls> {
-  PdfConvertPageSize _pageSize = PdfConvertPageSize.a4;
-  PdfScanQuality _imageQuality = PdfScanQuality.standard;
   final TextEditingController _urlController = TextEditingController();
 
   @override
@@ -869,7 +928,9 @@ class _ConvertControlsState extends State<ConvertControls> {
     final state = widget.state;
     final bloc = context.read<PdfViewerBloc>();
     final totalPages = state.conversionTotalPages;
-    final progress = totalPages == 0 ? null : state.conversionCompletedPages / totalPages.clamp(1, totalPages);
+    final progress = totalPages == 0
+        ? null
+        : state.conversionCompletedPages / totalPages.clamp(1, totalPages);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -882,12 +943,16 @@ class _ConvertControlsState extends State<ConvertControls> {
             SegmentedButton<PdfConvertPageSize>(
               segments: const <ButtonSegment<PdfConvertPageSize>>[
                 ButtonSegment<PdfConvertPageSize>(value: PdfConvertPageSize.a4, label: Text('A4')),
-                ButtonSegment<PdfConvertPageSize>(value: PdfConvertPageSize.letter, label: Text('Letter')),
+                ButtonSegment<PdfConvertPageSize>(
+                  value: PdfConvertPageSize.letter,
+                  label: Text('Letter'),
+                ),
               ],
-              selected: <PdfConvertPageSize>{_pageSize},
+              selected: <PdfConvertPageSize>{state.convertPageSize},
               onSelectionChanged: state.conversionRunning
                   ? null
-                  : (selection) => setState(() => _pageSize = selection.first),
+                  : (selection) =>
+                        bloc.add(PdfViewerConversionSettingsChanged(pageSize: selection.first)),
             ),
             SegmentedButton<PdfScanQuality>(
               segments: const <ButtonSegment<PdfScanQuality>>[
@@ -902,25 +967,26 @@ class _ConvertControlsState extends State<ConvertControls> {
                   label: Text('High'),
                 ),
               ],
-              selected: <PdfScanQuality>{_imageQuality},
+              selected: <PdfScanQuality>{state.convertImageQuality},
               onSelectionChanged: state.conversionRunning
                   ? null
-                  : (selection) => setState(() => _imageQuality = selection.first),
+                  : (selection) =>
+                        bloc.add(PdfViewerConversionSettingsChanged(imageQuality: selection.first)),
             ),
             FilledButton.icon(
               onPressed: state.busy || state.conversionRunning
                   ? null
                   : () {
                       FocusScope.of(context).unfocus();
-                      bloc.add(
-                        PdfViewerPickFileForPdfConversionRequested(pageSize: _pageSize, imageQuality: _imageQuality),
-                      );
+                      bloc.add(const PdfViewerPickFileForPdfConversionRequested());
                     },
               icon: const Icon(Icons.upload_file_outlined, size: 18),
               label: const Text('Pick file'),
             ),
             OutlinedButton.icon(
-              onPressed: state.conversionRunning ? () => bloc.add(const PdfViewerCancelPdfConversionRequested()) : null,
+              onPressed: state.conversionRunning
+                  ? () => bloc.add(const PdfViewerCancelPdfConversionRequested())
+                  : null,
               icon: const Icon(Icons.stop_circle_outlined, size: 18),
               label: const Text('Cancel'),
             ),
@@ -950,42 +1016,46 @@ class _ConvertControlsState extends State<ConvertControls> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   Expanded(
-                    child: TextField(
-                      controller: _urlController,
-                      enabled: !state.conversionRunning,
-                      keyboardType: TextInputType.url,
-                      autocorrect: false,
-                      textInputAction: TextInputAction.go,
-                      decoration: InputDecoration(
-                        labelText: 'Web page URL',
-                        hintText: 'example.com',
-                        isDense: true,
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            IconButton(
-                              tooltip: 'Paste',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: state.conversionRunning ? null : _pasteUrl,
-                              icon: const Icon(Icons.content_paste, size: 18),
-                            ),
-                            if (_urlController.text.isNotEmpty)
+                    child: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _urlController,
+                      builder: (context, value, _) => TextField(
+                        controller: _urlController,
+                        enabled: !state.conversionRunning,
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        textInputAction: TextInputAction.go,
+                        decoration: InputDecoration(
+                          labelText: 'Web page URL',
+                          hintText: 'example.com',
+                          isDense: true,
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
                               IconButton(
-                                tooltip: 'Clear',
+                                tooltip: 'Paste',
                                 visualDensity: VisualDensity.compact,
-                                onPressed: state.conversionRunning ? null : () => setState(_urlController.clear),
-                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: state.conversionRunning ? null : _pasteUrl,
+                                icon: const Icon(Icons.content_paste, size: 18),
                               ),
-                          ],
+                              if (value.text.isNotEmpty)
+                                IconButton(
+                                  tooltip: 'Clear',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: state.conversionRunning ? null : _urlController.clear,
+                                  icon: const Icon(Icons.close, size: 18),
+                                ),
+                            ],
+                          ),
                         ),
+                        onSubmitted: (_) => _convertUrl(bloc),
                       ),
-                      onChanged: (_) => setState(() {}),
-                      onSubmitted: (_) => _convertUrl(bloc),
                     ),
                   ),
                   const SizedBox(width: 8),
                   FilledButton.tonalIcon(
-                    onPressed: state.busy || state.conversionRunning ? null : () => _convertUrl(bloc),
+                    onPressed: state.busy || state.conversionRunning
+                        ? null
+                        : () => _convertUrl(bloc),
                     icon: const Icon(Icons.language, size: 18),
                     label: const Text('Convert web'),
                   ),
@@ -1019,15 +1089,15 @@ class _ConvertControlsState extends State<ConvertControls> {
     if (text == null || text.isEmpty || !mounted) {
       return;
     }
-    setState(() {
-      _urlController.text = text;
-      _urlController.selection = TextSelection.collapsed(offset: text.length);
-    });
+    _urlController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
   }
 
   void _convertUrl(PdfViewerBloc bloc) {
     FocusScope.of(context).unfocus();
-    bloc.add(PdfViewerConvertUrlToPdfRequested(url: _urlController.text, pageSize: _pageSize));
+    bloc.add(PdfViewerConvertUrlToPdfRequested(_urlController.text));
   }
 }
 
@@ -1050,7 +1120,10 @@ class _GeneratedOutputsList extends StatelessWidget {
       children: <Widget>[
         Row(
           children: <Widget>[
-            Text('Generated files (${outputs.length})', style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Generated files (${outputs.length})',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const Spacer(),
             IconButton(
               tooltip: 'Refresh',
@@ -1092,7 +1165,12 @@ class _GeneratedOutputsList extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       if (isCurrent)
-                        Text('Viewing', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary))
+                        Text(
+                          'Viewing',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        )
                       else
                         const Icon(Icons.open_in_new, size: 18),
                       IconButton(
@@ -1130,52 +1208,6 @@ class _ConvertResultView extends StatelessWidget {
       '${result.durationMilliseconds} ms\n${result.outputPath}',
       maxLines: 4,
       overflow: TextOverflow.ellipsis,
-    );
-  }
-}
-
-/// Standalone document viewing: pick any supported file and open it in a
-/// Flutter route that hosts the native renderer. Nothing is converted.
-class _DocumentViewerControls extends StatelessWidget {
-  const _DocumentViewerControls({required this.state});
-
-  final PdfViewerState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final bloc = context.read<PdfViewerBloc>();
-    final document = state.viewableDocument;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: <Widget>[
-            FilledButton.icon(
-              onPressed: state.busy || state.viewablePickPending
-                  ? null
-                  : () {
-                      FocusScope.of(context).unfocus();
-                      bloc.add(const PdfViewerPickDocumentForViewingRequested());
-                    },
-              icon: const Icon(Icons.folder_open_outlined, size: 18),
-              label: const Text('Choose file'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          document == null
-              ? 'Word, Excel, PowerPoint, Pages, Numbers, Keynote, RTF, HTML, '
-                    'text, CSV, images and PDF.'
-              : '${document.fileName} · ${document.fileFormat.toUpperCase()} · '
-                    '${(document.fileSizeBytes / 1024).toStringAsFixed(0)} KB',
-        ),
-      ],
     );
   }
 }

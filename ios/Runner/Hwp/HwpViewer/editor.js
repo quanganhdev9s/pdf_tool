@@ -41,7 +41,7 @@ let preferredX = -1;
 let pendingCharFormat = null;
 
 let composing = false;
-let preedit = '';
+let preedit = "";
 
 /// Đáy web view bị che mất bao nhiêu px. Hai nguồn, hai bên biết một nửa:
 /// native đo bàn phím, Flutter báo chiều cao thanh công cụ nổi của nó.
@@ -65,7 +65,7 @@ let input = null;
 
 /// Ký tự đệm rộng bằng không, luôn có trong ô nhập: bàn phím mềm chỉ bắn
 /// `deleteContentBackward` khi thật sự có cái để xoá.
-const INPUT_FILLER = '\u200b';
+const INPUT_FILLER = "\u200b";
 
 // ---------------------------------------------------------------- tiện ích
 
@@ -88,7 +88,7 @@ function ask(fn, fallback = null) {
   try {
     json = fn();
   } catch (error) {
-    post('hwp_query_failed', (error && error.message) || String(error));
+    post("hwp_query_failed", (error && error.message) || String(error));
     return fallback;
   }
   return parse(json, fallback);
@@ -98,9 +98,9 @@ function ask(fn, fallback = null) {
 function count(fn, fallback = 0) {
   try {
     const value = fn();
-    return typeof value === 'number' ? value : fallback;
+    return typeof value === "number" ? value : fallback;
   } catch (error) {
-    post('hwp_query_failed', (error && error.message) || String(error));
+    post("hwp_query_failed", (error && error.message) || String(error));
     return fallback;
   }
 }
@@ -123,23 +123,37 @@ function sameRegion(a, b) {
   const cb = cellOf(b);
   if (!ca && !cb) return a.sectionIndex === b.sectionIndex;
   if (!ca || !cb) return false;
-  return a.sectionIndex === b.sectionIndex
-    && ca.parentParaIndex === cb.parentParaIndex
-    && ca.controlIndex === cb.controlIndex
-    && ca.cellIndex === cb.cellIndex;
+  return (
+    a.sectionIndex === b.sectionIndex &&
+    ca.parentParaIndex === cb.parentParaIndex &&
+    ca.controlIndex === cb.controlIndex &&
+    ca.cellIndex === cb.cellIndex
+  );
 }
 
 /// Tiền tố tham số của họ hàm `*InCell`.
 function cellArgs(position) {
   const c = cellOf(position);
-  return [position.sectionIndex, c.parentParaIndex, c.controlIndex, c.cellIndex];
+  return [
+    position.sectionIndex,
+    c.parentParaIndex,
+    c.controlIndex,
+    c.cellIndex,
+  ];
 }
 
 function qParagraphLength(position) {
   const c = cellOf(position);
   return c
-    ? count(() => doc.getCellParagraphLength(...cellArgs(position), position.paragraphIndex))
-    : count(() => doc.getParagraphLength(position.sectionIndex, position.paragraphIndex));
+    ? count(() =>
+        doc.getCellParagraphLength(
+          ...cellArgs(position),
+          position.paragraphIndex,
+        ),
+      )
+    : count(() =>
+        doc.getParagraphLength(position.sectionIndex, position.paragraphIndex),
+      );
 }
 
 function qParagraphCount(position) {
@@ -150,15 +164,25 @@ function qParagraphCount(position) {
 }
 
 function qTextRange(position, offset, length) {
-  if (length <= 0) return '';
+  if (length <= 0) return "";
   const c = cellOf(position);
   try {
     return c
-      ? doc.getTextInCell(...cellArgs(position), position.paragraphIndex, offset, length)
-      : doc.getTextRange(position.sectionIndex, position.paragraphIndex, offset, length);
+      ? doc.getTextInCell(
+          ...cellArgs(position),
+          position.paragraphIndex,
+          offset,
+          length,
+        )
+      : doc.getTextRange(
+          position.sectionIndex,
+          position.paragraphIndex,
+          offset,
+          length,
+        );
   } catch (error) {
-    post('hwp_query_failed', (error && error.message) || String(error));
-    return '';
+    post("hwp_query_failed", (error && error.message) || String(error));
+    return "";
   }
 }
 
@@ -169,9 +193,18 @@ function qParagraphText(position) {
 function qCursorRect(position) {
   const c = cellOf(position);
   return ask(
-    () => (c
-      ? doc.getCursorRectInCell(...cellArgs(position), position.paragraphIndex, position.charOffset)
-      : doc.getCursorRect(position.sectionIndex, position.paragraphIndex, position.charOffset)),
+    () =>
+      c
+        ? doc.getCursorRectInCell(
+            ...cellArgs(position),
+            position.paragraphIndex,
+            position.charOffset,
+          )
+        : doc.getCursorRect(
+            position.sectionIndex,
+            position.paragraphIndex,
+            position.charOffset,
+          ),
     null,
   );
 }
@@ -179,17 +212,22 @@ function qCursorRect(position) {
 function qSelectionRects(range) {
   const c = cellOf(range.start);
   return ask(
-    () => (c
-      ? doc.getSelectionRectsInCell(
-          ...cellArgs(range.start),
-          range.start.paragraphIndex, range.start.charOffset,
-          range.end.paragraphIndex, range.end.charOffset,
-        )
-      : doc.getSelectionRects(
-          range.sectionIndex,
-          range.start.paragraphIndex, range.start.charOffset,
-          range.end.paragraphIndex, range.end.charOffset,
-        )),
+    () =>
+      c
+        ? doc.getSelectionRectsInCell(
+            ...cellArgs(range.start),
+            range.start.paragraphIndex,
+            range.start.charOffset,
+            range.end.paragraphIndex,
+            range.end.charOffset,
+          )
+        : doc.getSelectionRects(
+            range.sectionIndex,
+            range.start.paragraphIndex,
+            range.start.charOffset,
+            range.end.paragraphIndex,
+            range.end.charOffset,
+          ),
     [],
   );
 }
@@ -197,9 +235,18 @@ function qSelectionRects(range) {
 function qCharPropertiesAt(position, offset) {
   const c = cellOf(position);
   return ask(
-    () => (c
-      ? doc.getCellCharPropertiesAt(...cellArgs(position), position.paragraphIndex, offset)
-      : doc.getCharPropertiesAt(position.sectionIndex, position.paragraphIndex, offset)),
+    () =>
+      c
+        ? doc.getCellCharPropertiesAt(
+            ...cellArgs(position),
+            position.paragraphIndex,
+            offset,
+          )
+        : doc.getCharPropertiesAt(
+            position.sectionIndex,
+            position.paragraphIndex,
+            offset,
+          ),
     {},
   );
 }
@@ -207,9 +254,16 @@ function qCharPropertiesAt(position, offset) {
 function qParaPropertiesAt(position) {
   const c = cellOf(position);
   return ask(
-    () => (c
-      ? doc.getCellParaPropertiesAt(...cellArgs(position), position.paragraphIndex)
-      : doc.getParaPropertiesAt(position.sectionIndex, position.paragraphIndex)),
+    () =>
+      c
+        ? doc.getCellParaPropertiesAt(
+            ...cellArgs(position),
+            position.paragraphIndex,
+          )
+        : doc.getParaPropertiesAt(
+            position.sectionIndex,
+            position.paragraphIndex,
+          ),
     {},
   );
 }
@@ -217,9 +271,18 @@ function qParaPropertiesAt(position) {
 function qLineInfo(position, offset) {
   const c = cellOf(position);
   return ask(
-    () => (c
-      ? doc.getLineInfoInCell(...cellArgs(position), position.paragraphIndex, offset)
-      : doc.getLineInfo(position.sectionIndex, position.paragraphIndex, offset)),
+    () =>
+      c
+        ? doc.getLineInfoInCell(
+            ...cellArgs(position),
+            position.paragraphIndex,
+            offset,
+          )
+        : doc.getLineInfo(
+            position.sectionIndex,
+            position.paragraphIndex,
+            offset,
+          ),
     null,
   );
 }
@@ -227,62 +290,132 @@ function qLineInfo(position, offset) {
 /// Nhóm lệnh **ghi**. Trả về JSON đã parse, hoặc `null` nếu lời gọi ném.
 function wInsertText(position, text) {
   const c = cellOf(position);
-  return ask(() => (c
-    ? doc.insertTextInCell(...cellArgs(position), position.paragraphIndex, position.charOffset, text)
-    : doc.insertText(position.sectionIndex, position.paragraphIndex, position.charOffset, text)), null);
+  return ask(
+    () =>
+      c
+        ? doc.insertTextInCell(
+            ...cellArgs(position),
+            position.paragraphIndex,
+            position.charOffset,
+            text,
+          )
+        : doc.insertText(
+            position.sectionIndex,
+            position.paragraphIndex,
+            position.charOffset,
+            text,
+          ),
+    null,
+  );
 }
 
 function wDeleteText(position, offset, n) {
   const c = cellOf(position);
-  if (c) doc.deleteTextInCell(...cellArgs(position), position.paragraphIndex, offset, n);
-  else doc.deleteText(position.sectionIndex, position.paragraphIndex, offset, n);
+  if (c)
+    doc.deleteTextInCell(
+      ...cellArgs(position),
+      position.paragraphIndex,
+      offset,
+      n,
+    );
+  else
+    doc.deleteText(position.sectionIndex, position.paragraphIndex, offset, n);
 }
 
 function wDeleteRange(range) {
   const c = cellOf(range.start);
-  return ask(() => (c
-    ? doc.deleteRangeInCell(
-        ...cellArgs(range.start),
-        range.start.paragraphIndex, range.start.charOffset,
-        range.end.paragraphIndex, range.end.charOffset)
-    : doc.deleteRange(
-        range.sectionIndex,
-        range.start.paragraphIndex, range.start.charOffset,
-        range.end.paragraphIndex, range.end.charOffset)), null);
+  return ask(
+    () =>
+      c
+        ? doc.deleteRangeInCell(
+            ...cellArgs(range.start),
+            range.start.paragraphIndex,
+            range.start.charOffset,
+            range.end.paragraphIndex,
+            range.end.charOffset,
+          )
+        : doc.deleteRange(
+            range.sectionIndex,
+            range.start.paragraphIndex,
+            range.start.charOffset,
+            range.end.paragraphIndex,
+            range.end.charOffset,
+          ),
+    null,
+  );
 }
 
 function wSplitParagraph(position, meta) {
   const c = cellOf(position);
-  return ask(() => (c
-    ? doc.splitParagraphInCell(...cellArgs(position), position.paragraphIndex, position.charOffset, meta || null)
-    : doc.splitParagraph(position.sectionIndex, position.paragraphIndex, position.charOffset, meta || null)), null);
+  return ask(
+    () =>
+      c
+        ? doc.splitParagraphInCell(
+            ...cellArgs(position),
+            position.paragraphIndex,
+            position.charOffset,
+            meta || null,
+          )
+        : doc.splitParagraph(
+            position.sectionIndex,
+            position.paragraphIndex,
+            position.charOffset,
+            meta || null,
+          ),
+    null,
+  );
 }
 
 function wMergeParagraph(position) {
   const c = cellOf(position);
-  return ask(() => (c
-    ? doc.mergeParagraphInCell(...cellArgs(position), position.paragraphIndex)
-    : doc.mergeParagraph(position.sectionIndex, position.paragraphIndex)), null);
+  return ask(
+    () =>
+      c
+        ? doc.mergeParagraphInCell(
+            ...cellArgs(position),
+            position.paragraphIndex,
+          )
+        : doc.mergeParagraph(position.sectionIndex, position.paragraphIndex),
+    null,
+  );
 }
 
 function wApplyCharFormat(position, start, end, props) {
   const c = cellOf(position);
   const json = JSON.stringify(props);
-  if (c) doc.applyCharFormatInCell(...cellArgs(position), position.paragraphIndex, start, end, json);
-  else doc.applyCharFormat(position.sectionIndex, position.paragraphIndex, start, end, json);
+  if (c)
+    doc.applyCharFormatInCell(
+      ...cellArgs(position),
+      position.paragraphIndex,
+      start,
+      end,
+      json,
+    );
+  else
+    doc.applyCharFormat(
+      position.sectionIndex,
+      position.paragraphIndex,
+      start,
+      end,
+      json,
+    );
 }
 
 function samePos(a, b) {
-  return !!a && !!b
-    && a.sectionIndex === b.sectionIndex
-    && a.paragraphIndex === b.paragraphIndex
-    && a.charOffset === b.charOffset
-    && sameRegion(a, b);
+  return (
+    !!a &&
+    !!b &&
+    a.sectionIndex === b.sectionIndex &&
+    a.paragraphIndex === b.paragraphIndex &&
+    a.charOffset === b.charOffset &&
+    sameRegion(a, b)
+  );
 }
 
 /// Thứ tự tài liệu: đoạn trước, rồi tới ký tự.
 function comparePos(a, b) {
-  if (a.paragraphIndex !== b.paragraphIndex) return a.paragraphIndex - b.paragraphIndex;
+  if (a.paragraphIndex !== b.paragraphIndex)
+    return a.paragraphIndex - b.paragraphIndex;
   return a.charOffset - b.charOffset;
 }
 
@@ -293,14 +426,15 @@ function hasSelection() {
 /// Vùng chọn đã sắp xếp, hoặc `null` nếu chỉ có con trỏ.
 function selectionRange() {
   if (!hasSelection()) return null;
-  const [start, end] = comparePos(anchor, focus) <= 0 ? [anchor, focus] : [focus, anchor];
+  const [start, end] =
+    comparePos(anchor, focus) <= 0 ? [anchor, focus] : [focus, anchor];
   return { sectionIndex: start.sectionIndex, start, end };
 }
 
 // -------------------------------------------------------------- vẽ trang
 
 /// Dựng trước/sau khung nhìn chừng này để cuộn nhanh không thấy trang trống.
-const MOUNT_MARGIN = '120%';
+const MOUNT_MARGIN = "120%";
 
 /// Những trang đang có nội dung thật. Trang không nằm trong đây chỉ là khung
 /// rỗng giữ đúng chỗ, chưa tốn gì.
@@ -309,7 +443,10 @@ const mounted = new Set();
 let pageObserver = null;
 
 function pageTotal() {
-  return Math.max(1, count(() => doc.pageCount(), 1));
+  return Math.max(
+    1,
+    count(() => doc.pageCount(), 1),
+  );
 }
 
 /// Tạo/bỏ khung cho khớp số trang, và đặt đúng tỉ lệ để thanh cuộn dài đúng
@@ -325,8 +462,8 @@ function syncPageFrames(total) {
     gone.remove();
   }
   for (let i = pagesEl.children.length; i < total; i += 1) {
-    const frame = document.createElement('div');
-    frame.className = 'page';
+    const frame = document.createElement("div");
+    frame.className = "page";
     frame.dataset.page = String(i);
     const infoStart = performance.now();
     const info = ask(() => doc.getPageInfo(i), null);
@@ -340,9 +477,9 @@ function syncPageFrames(total) {
   }
   if (added > 0) {
     post(
-      'hwp_frames_synced',
-      `total=${total} added=${added} getPageInfo=${Math.round(infoMs)}ms`
-        + ` in=${Math.round(performance.now() - started)}ms`,
+      "hwp_frames_synced",
+      `total=${total} added=${added} getPageInfo=${Math.round(infoMs)}ms` +
+        ` in=${Math.round(performance.now() - started)}ms`,
     );
   }
 }
@@ -353,7 +490,7 @@ function mountPage(index) {
   const frame = pagesEl.children[index];
   if (!frame) return;
   const started = performance.now();
-  const holder = document.createElement('div');
+  const holder = document.createElement("div");
   const markup = doc.renderPageSvg(index);
   const rendered = performance.now();
   holder.innerHTML = markup;
@@ -362,14 +499,14 @@ function mountPage(index) {
 
   // svg + lớp phủ riêng: con trỏ và vệt bôi đen di chuyển được mà không phải
   // vẽ lại svg.
-  const overlay = document.createElement('div');
-  overlay.className = 'ov';
+  const overlay = document.createElement("div");
+  overlay.className = "ov";
   frame.replaceChildren(svg, overlay);
   mounted.add(index);
   post(
-    'hwp_page_mounted',
-    `page=${index} bytes=${markup.length} svg=${Math.round(rendered - started)}ms`
-      + ` dom=${Math.round(parsed - rendered)}ms in=${Math.round(performance.now() - started)}ms`,
+    "hwp_page_mounted",
+    `page=${index} bytes=${markup.length} svg=${Math.round(rendered - started)}ms` +
+      ` dom=${Math.round(parsed - rendered)}ms in=${Math.round(performance.now() - started)}ms`,
   );
 }
 
@@ -417,25 +554,28 @@ function showPage(index) {
   const total = pageTotal();
   const i = Math.min(Math.max(0, Math.trunc(Number(index) || 0)), total - 1);
   const frame = pagesEl.children[i];
-  if (frame) frame.scrollIntoView({ block: 'start' });
+  if (frame) frame.scrollIntoView({ block: "start" });
 }
 
 /// Dựng trang khi nó sắp vào khung nhìn, bỏ khi đã cuộn qua xa.
 function observePages() {
-  pageObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      const index = Number(entry.target.dataset.page);
-      if (!Number.isFinite(index)) continue;
-      if (entry.isIntersecting) {
-        if (!mounted.has(index)) mountPage(index);
-      } else if (mounted.has(index)) {
-        // Giữ lại trang có con trỏ, nếu không vệt bôi đen và caret biến mất.
-        if (!focus || pageOf(focus) !== index) unmountPage(index);
+  pageObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const index = Number(entry.target.dataset.page);
+        if (!Number.isFinite(index)) continue;
+        if (entry.isIntersecting) {
+          if (!mounted.has(index)) mountPage(index);
+        } else if (mounted.has(index)) {
+          // Giữ lại trang có con trỏ, nếu không vệt bôi đen và caret biến mất.
+          if (!focus || pageOf(focus) !== index) unmountPage(index);
+        }
       }
-    }
-    drawOverlays();
-    post('hwp_pages_mounted', `${mounted.size}/${pagesEl.children.length}`);
-  }, { root: null, rootMargin: `${MOUNT_MARGIN} 0px` });
+      drawOverlays();
+      post("hwp_pages_mounted", `${mounted.size}/${pagesEl.children.length}`);
+    },
+    { root: null, rootMargin: `${MOUNT_MARGIN} 0px` },
+  );
   for (const frame of pagesEl.children) pageObserver.observe(frame);
 }
 
@@ -444,7 +584,10 @@ function observePages() {
 function pageGeometry(wrap) {
   const svg = wrap.firstElementChild;
   const box = svg.viewBox && svg.viewBox.baseVal;
-  const width = (box && box.width) || (svg.width && svg.width.baseVal.value) || wrap.clientWidth;
+  const width =
+    (box && box.width) ||
+    (svg.width && svg.width.baseVal.value) ||
+    wrap.clientWidth;
   const rect = svg.getBoundingClientRect();
   return { rect, width, scale: rect.width / width };
 }
@@ -463,7 +606,7 @@ function clearOverlays() {
   for (const wrap of pagesEl.children) {
     const overlay = wrap.lastElementChild;
     if (overlay === wrap.firstElementChild) continue;
-    if (overlay && overlay.classList && overlay.classList.contains('ov')) {
+    if (overlay && overlay.classList && overlay.classList.contains("ov")) {
       overlay.replaceChildren();
     }
   }
@@ -486,7 +629,7 @@ function drawOverlays() {
 function caretRect() {
   if (!focus) return null;
   const rect = qCursorRect(focus);
-  return rect && typeof rect.pageIndex === 'number' ? rect : null;
+  return rect && typeof rect.pageIndex === "number" ? rect : null;
 }
 
 function drawCaret() {
@@ -496,8 +639,8 @@ function drawCaret() {
   if (!wrap) return;
   const { scale } = pageGeometry(wrap);
 
-  const bar = document.createElement('div');
-  bar.className = 'caret';
+  const bar = document.createElement("div");
+  bar.className = "caret";
   bar.style.left = `${rect.x * scale}px`;
   bar.style.top = `${rect.y * scale}px`;
   bar.style.height = `${Math.max(rect.height * scale, 8)}px`;
@@ -510,8 +653,8 @@ function drawSelection(range) {
     const wrap = pageWrap(rect.pageIndex);
     if (!wrap) continue;
     const { scale } = pageGeometry(wrap);
-    const box = document.createElement('div');
-    box.className = 'sel';
+    const box = document.createElement("div");
+    box.className = "sel";
     box.style.left = `${rect.x * scale}px`;
     box.style.top = `${rect.y * scale}px`;
     box.style.width = `${rect.width * scale}px`;
@@ -531,15 +674,15 @@ function drawPreedit() {
   const props = qCharPropertiesAt(focus, focus.charOffset);
   const height = Math.max(rect.height * scale, 8);
 
-  const chip = document.createElement('div');
-  chip.className = 'preedit';
+  const chip = document.createElement("div");
+  chip.className = "preedit";
   chip.textContent = preedit;
   chip.style.left = `${rect.x * scale}px`;
   chip.style.top = `${rect.y * scale}px`;
   chip.style.height = `${height}px`;
   chip.style.lineHeight = `${height}px`;
   if (props.fontFamily) chip.style.fontFamily = props.fontFamily;
-  if (typeof props.fontSize === 'number') {
+  if (typeof props.fontSize === "number") {
     chip.style.fontSize = `${(props.fontSize / HWPUNIT_PER_PT) * PX_PER_PT * scale}px`;
   }
   wrap.lastElementChild.appendChild(chip);
@@ -568,8 +711,8 @@ function commit(at, fn) {
   const linesAfter = lineCountOf(caretAfterCommit || at);
   if (objectsBefore !== null) {
     objectsLogged = true;
-    post('hwp_objects_before', objectsBefore);
-    post('hwp_objects_after', objectsOn(pageAfter));
+    post("hwp_objects_before", objectsBefore);
+    post("hwp_objects_after", objectsOn(pageAfter));
   }
   // Lùi lại một trang cho an toàn ở ranh giới: sửa ở đầu trang N có thể kéo
   // dòng cuối của trang N-1 xuống.
@@ -578,13 +721,16 @@ function commit(at, fn) {
 
   dirty = true;
   post(
-    'hwp_edit_commit',
-    `page=${pageBefore}->${pageAfter} pages=${pagesBefore}->${total}`
-      + ` lines=${linesBefore}->${linesAfter}`
-      + ` in=${Math.round(performance.now() - started)}ms`,
+    "hwp_edit_commit",
+    `page=${pageBefore}->${pageAfter} pages=${pagesBefore}->${total}` +
+      ` lines=${linesBefore}->${linesAfter}` +
+      ` in=${Math.round(performance.now() - started)}ms`,
   );
   if (failure) {
-    post('hwp_edit_failed', (failure && (failure.stack || failure.message)) || String(failure));
+    post(
+      "hwp_edit_failed",
+      (failure && (failure.stack || failure.message)) || String(failure),
+    );
   }
 }
 
@@ -594,9 +740,9 @@ let objectsLogged = false;
 /// Chụp ảnh/đối tượng trên một trang để chẩn đoán, in thô vì hình dạng JSON của
 /// `getPageControlLayout` không được ghi ở đâu.
 function objectsOn(page) {
-  let json = '';
+  let json = "";
   try {
-    json = doc.getPageControlLayout(page) || '';
+    json = doc.getPageControlLayout(page) || "";
   } catch (error) {
     return `error=${(error && error.message) || error}`;
   }
@@ -608,7 +754,7 @@ function objectsOn(page) {
 function lineCountOf(position) {
   if (!position) return -1;
   const line = qLineInfo(position, 0);
-  return line && typeof line.lineCount === 'number' ? line.lineCount : -1;
+  return line && typeof line.lineCount === "number" ? line.lineCount : -1;
 }
 
 /// Trang chứa một vị trí, hoặc 0 nếu không tra được.
@@ -621,7 +767,7 @@ function pageOf(position) {
     () => doc.getPageOfPosition(position.sectionIndex, paraIndex),
     null,
   );
-  return where && where.ok && typeof where.page === 'number' ? where.page : 0;
+  return where && where.ok && typeof where.page === "number" ? where.page : 0;
 }
 
 /// Đặt con trỏ sau khi trang đã vẽ lại xong.
@@ -641,49 +787,79 @@ function flushCaret() {
 /// liệu vào WASM nên không dùng được. `cmd.cell` cho biết lệnh sửa ở vùng nào.
 function exec(cmd) {
   const c = cmd.cell || null;
-  const pre = c ? [cmd.s, c.parentParaIndex, c.controlIndex, c.cellIndex] : [cmd.s];
+  const pre = c
+    ? [cmd.s, c.parentParaIndex, c.controlIndex, c.cellIndex]
+    : [cmd.s];
   switch (cmd.op) {
-    case 'insertText':
+    case "insertText":
       if (c) doc.insertTextInCell(...pre, cmd.p, cmd.o, cmd.text);
       else doc.insertText(cmd.s, cmd.p, cmd.o, cmd.text);
       return;
-    case 'deleteText':
+    case "deleteText":
       if (c) doc.deleteTextInCell(...pre, cmd.p, cmd.o, cmd.n);
       else doc.deleteText(cmd.s, cmd.p, cmd.o, cmd.n);
       return;
-    case 'deleteRange':
+    case "deleteRange":
       if (c) {
-        doc.deleteRangeInCell(...pre, cmd.startPara, cmd.startOffset, cmd.endPara, cmd.endOffset);
+        doc.deleteRangeInCell(
+          ...pre,
+          cmd.startPara,
+          cmd.startOffset,
+          cmd.endPara,
+          cmd.endOffset,
+        );
       } else {
-        doc.deleteRange(cmd.s, cmd.startPara, cmd.startOffset, cmd.endPara, cmd.endOffset);
+        doc.deleteRange(
+          cmd.s,
+          cmd.startPara,
+          cmd.startOffset,
+          cmd.endPara,
+          cmd.endOffset,
+        );
       }
       return;
-    case 'split':
+    case "split":
       if (c) doc.splitParagraphInCell(...pre, cmd.p, cmd.o, cmd.meta || null);
       else doc.splitParagraph(cmd.s, cmd.p, cmd.o, cmd.meta || null);
       return;
-    case 'merge':
+    case "merge":
       if (c) doc.mergeParagraphInCell(...pre, cmd.p);
       else doc.mergeParagraph(cmd.s, cmd.p);
       return;
-    case 'setCharShapeId':
-      if (c) doc.setCharShapeIdInCell(...pre, cmd.p, cmd.start, cmd.end, cmd.id);
+    case "setCharShapeId":
+      if (c)
+        doc.setCharShapeIdInCell(...pre, cmd.p, cmd.start, cmd.end, cmd.id);
       else doc.setCharShapeId(cmd.s, cmd.p, cmd.start, cmd.end, cmd.id);
       return;
-    case 'setParaShapeId':
+    case "setParaShapeId":
       if (c) doc.setCellParaShapeId(...pre, cmd.p, cmd.id);
       else doc.setParaShapeId(cmd.s, cmd.p, cmd.id);
       return;
-    case 'applyCharFormat':
-      if (c) doc.applyCharFormatInCell(...pre, cmd.p, cmd.start, cmd.end, JSON.stringify(cmd.props));
-      else doc.applyCharFormat(cmd.s, cmd.p, cmd.start, cmd.end, JSON.stringify(cmd.props));
+    case "applyCharFormat":
+      if (c)
+        doc.applyCharFormatInCell(
+          ...pre,
+          cmd.p,
+          cmd.start,
+          cmd.end,
+          JSON.stringify(cmd.props),
+        );
+      else
+        doc.applyCharFormat(
+          cmd.s,
+          cmd.p,
+          cmd.start,
+          cmd.end,
+          JSON.stringify(cmd.props),
+        );
       return;
-    case 'applyParaFormat':
-      if (c) doc.applyParaFormatInCell(...pre, cmd.p, JSON.stringify(cmd.props));
+    case "applyParaFormat":
+      if (c)
+        doc.applyParaFormatInCell(...pre, cmd.p, JSON.stringify(cmd.props));
       else doc.applyParaFormat(cmd.s, cmd.p, JSON.stringify(cmd.props));
       return;
     default:
-      post('hwp_undo_unknown_op', cmd.op);
+      post("hwp_undo_unknown_op", cmd.op);
   }
 }
 
@@ -700,24 +876,26 @@ function pushStep(step) {
 function pushTyping(s, p, offset, text, caretBefore, caretAfter, cell) {
   const last = undoStack[undoStack.length - 1];
   if (
-    last
-    && last.kind === 'type'
-    && last.s === s
-    && last.p === p
-    && last.tail === offset
-    && Date.now() - last.time < COALESCE_MS
+    last &&
+    last.kind === "type" &&
+    last.s === s &&
+    last.p === p &&
+    last.tail === offset &&
+    Date.now() - last.time < COALESCE_MS
   ) {
     last.text += text;
     last.tail = offset + text.length;
     last.caretAfter = caretAfter;
     last.time = Date.now();
-    last.undo = [{ op: 'deleteText', s, p, o: last.o, n: last.text.length, cell }];
-    last.redo = [{ op: 'insertText', s, p, o: last.o, text: last.text, cell }];
+    last.undo = [
+      { op: "deleteText", s, p, o: last.o, n: last.text.length, cell },
+    ];
+    last.redo = [{ op: "insertText", s, p, o: last.o, text: last.text, cell }];
     redoStack.length = 0;
     return;
   }
   pushStep({
-    kind: 'type',
+    kind: "type",
     s,
     p,
     o: offset,
@@ -725,8 +903,8 @@ function pushTyping(s, p, offset, text, caretBefore, caretAfter, cell) {
     text,
     caretBefore,
     caretAfter,
-    undo: [{ op: 'deleteText', s, p, o: offset, n: text.length, cell }],
-    redo: [{ op: 'insertText', s, p, o: offset, text, cell }],
+    undo: [{ op: "deleteText", s, p, o: offset, n: text.length, cell }],
+    redo: [{ op: "insertText", s, p, o: offset, text, cell }],
   });
 }
 
@@ -735,32 +913,34 @@ function pushTyping(s, p, offset, text, caretBefore, caretAfter, cell) {
 function pushBackspace(s, p, offset, removed, caretBefore, caretAfter, cell) {
   const last = undoStack[undoStack.length - 1];
   if (
-    last
-    && last.kind === 'backspace'
-    && last.s === s
-    && last.p === p
-    && last.o === offset + removed.length
-    && Date.now() - last.time < COALESCE_MS
+    last &&
+    last.kind === "backspace" &&
+    last.s === s &&
+    last.p === p &&
+    last.o === offset + removed.length &&
+    Date.now() - last.time < COALESCE_MS
   ) {
     last.text = removed + last.text;
     last.o = offset;
     last.caretAfter = caretAfter;
     last.time = Date.now();
-    last.undo = [{ op: 'insertText', s, p, o: offset, text: last.text, cell }];
-    last.redo = [{ op: 'deleteText', s, p, o: offset, n: last.text.length, cell }];
+    last.undo = [{ op: "insertText", s, p, o: offset, text: last.text, cell }];
+    last.redo = [
+      { op: "deleteText", s, p, o: offset, n: last.text.length, cell },
+    ];
     redoStack.length = 0;
     return;
   }
   pushStep({
-    kind: 'backspace',
+    kind: "backspace",
     s,
     p,
     o: offset,
     text: removed,
     caretBefore,
     caretAfter,
-    undo: [{ op: 'insertText', s, p, o: offset, text: removed, cell }],
-    redo: [{ op: 'deleteText', s, p, o: offset, n: removed.length, cell }],
+    undo: [{ op: "insertText", s, p, o: offset, text: removed, cell }],
+    redo: [{ op: "deleteText", s, p, o: offset, n: removed.length, cell }],
   });
 }
 
@@ -775,7 +955,7 @@ function undo() {
   });
   redoStack.push(step);
   setCaret(step.caretBefore);
-  post('hwp_undo', step.kind);
+  post("hwp_undo", step.kind);
 }
 
 function redo() {
@@ -789,7 +969,7 @@ function redo() {
   });
   undoStack.push(step);
   setCaret(step.caretAfter);
-  post('hwp_redo', step.kind);
+  post("hwp_redo", step.kind);
 }
 
 // --------------------------------------------------------- di chuyển con trỏ
@@ -801,7 +981,8 @@ let fontChecked = false;
 let probeCanvas = null;
 
 function measureWith(font, sample) {
-  if (!probeCanvas) probeCanvas = document.createElement('canvas').getContext('2d');
+  if (!probeCanvas)
+    probeCanvas = document.createElement("canvas").getContext("2d");
   probeCanvas.font = font;
   return probeCanvas.measureText(sample).width;
 }
@@ -809,9 +990,9 @@ function measureWith(font, sample) {
 /// Máy có cài font này không. Phải đo bề rộng chứ không dùng
 /// `document.fonts.check()` — hàm đó trả true cả với font không tồn tại.
 function fontInstalled(family) {
-  const sample = '한글Hangul漢字0123';
-  const missing = '__rhwp_no_such_font__';
-  for (const fallback of ['monospace', 'serif']) {
+  const sample = "한글Hangul漢字0123";
+  const missing = "__rhwp_no_such_font__";
+  for (const fallback of ["monospace", "serif"]) {
     const wanted = measureWith(`48px "${family}", ${fallback}`, sample);
     const absent = measureWith(`48px "${missing}", ${fallback}`, sample);
     if (Math.abs(wanted - absent) > 0.5) return true;
@@ -832,16 +1013,16 @@ function checkFont(position) {
   }
   if (!families.size) return;
   const report = [...families]
-    .map((family) => `${family}=${fontInstalled(family) ? 'yes' : 'NO'}`)
-    .join(' ');
+    .map((family) => `${family}=${fontInstalled(family) ? "yes" : "NO"}`)
+    .join(" ");
   const fallback = (() => {
     try {
       return doc.getFallbackFont();
     } catch (_) {
-      return '?';
+      return "?";
     }
   })();
-  post('hwp_font_check', `${report} fallback=${fallback}`);
+  post("hwp_font_check", `${report} fallback=${fallback}`);
 }
 
 /// Vết của mọi lần con trỏ đổi chỗ, kèm tên hàm đã gọi tới. Tạm thời.
@@ -849,19 +1030,21 @@ function traceCaret(how, position) {
   // Kéo bôi đen bắn `extendTo` mỗi khung hình, để vào log là chôn mất dòng khác.
   if (!editing || selecting) return;
   // JSC không có dòng tiêu đề trong `stack`, khung [1] là người gọi.
-  const frames = (new Error().stack || '').split('\n').slice(1, 3)
-    .map((line) => line.split('@')[0].trim())
+  const frames = (new Error().stack || "")
+    .split("\n")
+    .slice(1, 3)
+    .map((line) => line.split("@")[0].trim())
     .filter(Boolean)
-    .join('<-');
+    .join("<-");
   post(
-    'hwp_caret_trace',
-    `${how} para=${position ? position.paragraphIndex : -1}`
-      + ` off=${position ? position.charOffset : -1} by=${frames}`,
+    "hwp_caret_trace",
+    `${how} para=${position ? position.paragraphIndex : -1}` +
+      ` off=${position ? position.charOffset : -1} by=${frames}`,
   );
 }
 
 function setCaret(position, keepColumn = false) {
-  traceCaret('setCaret', position);
+  traceCaret("setCaret", position);
   if (position) checkFont(position);
   anchor = position ? { ...position } : null;
   focus = position ? { ...position } : null;
@@ -874,7 +1057,7 @@ function setCaret(position, keepColumn = false) {
 }
 
 function extendTo(position, keepColumn = false) {
-  traceCaret('extendTo', position);
+  traceCaret("extendTo", position);
   if (!anchor) anchor = { ...position };
   // Vùng chọn không bắc qua hai vùng được: `deleteRange*` chỉ nhận một vùng.
   if (!sameRegion(position, anchor)) return;
@@ -888,8 +1071,10 @@ function bodyListId(sectionIndex) {
   if (!cursorModel) cursorModel = ask(() => doc.getCursorModel(), null);
   const lists = cursorModel && cursorModel.lists;
   if (!Array.isArray(lists)) return null;
-  const body = lists.find((list) => !list.isCell && list.sectionIndex === sectionIndex);
-  return body && typeof body.listId === 'number' ? body.listId : null;
+  const body = lists.find(
+    (list) => !list.isCell && list.sectionIndex === sectionIndex,
+  );
+  return body && typeof body.listId === "number" ? body.listId : null;
 }
 
 /// Các chỗ con trỏ được phép đứng. `getCaretStops` biết né điều khiển nội tuyến
@@ -901,17 +1086,21 @@ function caretStops(position) {
   const listId = cellOf(position) ? null : bodyListId(sectionIndex);
   if (listId !== null) {
     const parsed = ask(() => doc.getCaretStops(listId, paragraphIndex), null);
-    const values = Array.isArray(parsed) ? parsed : (parsed && parsed.stops);
+    const values = Array.isArray(parsed) ? parsed : parsed && parsed.stops;
     // Phải là mảng toàn số — hình dạng JSON của `getCaretStops` không được ghi
     // ở đâu, đoán sai thì con trỏ lặng lẽ không nhúc nhích.
-    if (Array.isArray(values) && values.length
-        && values.every((value) => Number.isFinite(value))) {
+    if (
+      Array.isArray(values) &&
+      values.length &&
+      values.every((value) => Number.isFinite(value))
+    ) {
       return values;
     }
   }
   const text = qParagraphText(position);
   const fallback = [0];
-  for (const ch of text) fallback.push(fallback[fallback.length - 1] + ch.length);
+  for (const ch of text)
+    fallback.push(fallback[fallback.length - 1] + ch.length);
   return fallback;
 }
 
@@ -945,9 +1134,11 @@ function nearestStopIndex(stops, offset) {
 function stepHorizontal(position, delta) {
   const stops = caretStops(position);
   const index = stops.indexOf(position.charOffset);
-  const next = (index >= 0 ? index : nearestStopIndex(stops, position.charOffset)) + delta;
+  const next =
+    (index >= 0 ? index : nearestStopIndex(stops, position.charOffset)) + delta;
 
-  if (next >= 0 && next < stops.length) return { ...position, charOffset: stops[next] };
+  if (next >= 0 && next < stops.length)
+    return { ...position, charOffset: stops[next] };
 
   // Ra khỏi đoạn: sang đoạn kề, đứng ở đầu bên kia.
   if (delta < 0 && position.paragraphIndex > 0) {
@@ -975,7 +1166,7 @@ function moveVertical(delta, extend) {
 
   if (cellOf(focus)) {
     const line = qLineInfo(focus, focus.charOffset);
-    if (!line || typeof line.lineIndex !== 'number') return;
+    if (!line || typeof line.lineIndex !== "number") return;
     const wanted = line.lineIndex + delta;
     if (wanted < 0 || wanted >= (line.lineCount || 0)) {
       // Ra khỏi ô thì dừng lại — chưa nối sang ô kề.
@@ -989,7 +1180,10 @@ function moveVertical(delta, extend) {
     for (let o = 0; o <= length; o += 1) {
       const info = qLineInfo(probe, o);
       if (info && info.lineIndex === wanted) {
-        target = { ...focus, charOffset: Math.min(o + column, info.charEnd ?? o) };
+        target = {
+          ...focus,
+          charOffset: Math.min(o + column, info.charEnd ?? o),
+        };
         break;
       }
     }
@@ -1000,17 +1194,20 @@ function moveVertical(delta, extend) {
   }
 
   const moved = ask(
-    () => doc.moveVerticalEx(JSON.stringify({
-      sectionIdx: focus.sectionIndex,
-      paraIdx: focus.paragraphIndex,
-      charOffset: focus.charOffset,
-      delta,
-      preferredX,
-    })),
+    () =>
+      doc.moveVerticalEx(
+        JSON.stringify({
+          sectionIdx: focus.sectionIndex,
+          paraIdx: focus.paragraphIndex,
+          charOffset: focus.charOffset,
+          delta,
+          preferredX,
+        }),
+      ),
     null,
   );
-  if (!moved || typeof moved.paragraphIndex !== 'number') return;
-  if (typeof moved.preferredX === 'number') preferredX = moved.preferredX;
+  if (!moved || typeof moved.paragraphIndex !== "number") return;
+  if (typeof moved.preferredX === "number") preferredX = moved.preferredX;
   const position = {
     sectionIndex: moved.sectionIndex,
     paragraphIndex: moved.paragraphIndex,
@@ -1024,7 +1221,10 @@ function moveToLineEdge(atEnd, extend) {
   if (!focus) return;
   const line = qLineInfo(focus, focus.charOffset);
   if (!line) return;
-  const position = { ...focus, charOffset: atEnd ? line.charEnd : line.charStart };
+  const position = {
+    ...focus,
+    charOffset: atEnd ? line.charEnd : line.charStart,
+  };
   if (extend) extendTo(position);
   else setCaret(position);
 }
@@ -1034,12 +1234,16 @@ function moveToLineEdge(atEnd, extend) {
 /// Văn bản của vùng chọn, tách theo đoạn.
 function collectRangeText(range) {
   const parts = [];
-  for (let p = range.start.paragraphIndex; p <= range.end.paragraphIndex; p += 1) {
+  for (
+    let p = range.start.paragraphIndex;
+    p <= range.end.paragraphIndex;
+    p += 1
+  ) {
     const at = { ...range.start, paragraphIndex: p };
     const length = qParagraphLength(at);
     const from = p === range.start.paragraphIndex ? range.start.charOffset : 0;
     const to = p === range.end.paragraphIndex ? range.end.charOffset : length;
-    parts.push(to > from ? qTextRange(at, from, to - from) : '');
+    parts.push(to > from ? qTextRange(at, from, to - from) : "");
   }
   return parts;
 }
@@ -1053,12 +1257,14 @@ function removeRange(range) {
   // khỏi ô và lần gõ kế tiếp ghi nhầm vào thân bài.
   const after = {
     ...range.start,
-    paragraphIndex: result && typeof result.paraIdx === 'number'
-      ? result.paraIdx
-      : range.start.paragraphIndex,
-    charOffset: result && typeof result.charOffset === 'number'
-      ? result.charOffset
-      : range.start.charOffset,
+    paragraphIndex:
+      result && typeof result.paraIdx === "number"
+        ? result.paraIdx
+        : range.start.paragraphIndex,
+    charOffset:
+      result && typeof result.charOffset === "number"
+        ? result.charOffset
+        : range.start.charOffset,
   };
 
   // Dựng lại: chèn chữ của từng đoạn rồi tách ra đúng chỗ nó đã bị nhập vào.
@@ -1067,7 +1273,7 @@ function removeRange(range) {
   for (let i = 0; i < parts.length; i += 1) {
     if (parts[i]) {
       undoOps.push({
-        op: 'insertText',
+        op: "insertText",
         s: cursor.sectionIndex,
         p: cursor.paragraphIndex,
         o: cursor.charOffset,
@@ -1078,7 +1284,7 @@ function removeRange(range) {
     }
     if (i < parts.length - 1) {
       undoOps.push({
-        op: 'split',
+        op: "split",
         s: cursor.sectionIndex,
         p: cursor.paragraphIndex,
         o: cursor.charOffset,
@@ -1097,19 +1303,21 @@ function removeRange(range) {
   return {
     after,
     step: pushStep({
-      kind: 'deleteRange',
+      kind: "deleteRange",
       caretBefore: { ...range.start },
       caretAfter: after,
       undo: undoOps,
-      redo: [{
-        op: 'deleteRange',
-        s: range.sectionIndex,
-        startPara: range.start.paragraphIndex,
-        startOffset: range.start.charOffset,
-        endPara: range.end.paragraphIndex,
-        endOffset: range.end.charOffset,
-        cell: cellOf(range.start),
-      }],
+      redo: [
+        {
+          op: "deleteRange",
+          s: range.sectionIndex,
+          startPara: range.start.paragraphIndex,
+          startOffset: range.start.charOffset,
+          endPara: range.end.paragraphIndex,
+          endOffset: range.end.charOffset,
+          cell: cellOf(range.start),
+        },
+      ],
     }),
   };
 }
@@ -1118,10 +1326,10 @@ function removeRange(range) {
 /// 0.8.4 đọc được `textColor` nhưng không ghi vào được.
 function toCharProps(ui) {
   const props = {};
-  for (const key of ['bold', 'italic', 'underline', 'strikethrough']) {
-    if (typeof ui[key] === 'boolean') props[key] = ui[key];
+  for (const key of ["bold", "italic", "underline", "strikethrough"]) {
+    if (typeof ui[key] === "boolean") props[key] = ui[key];
   }
-  if (typeof ui.fontSizePt === 'number') {
+  if (typeof ui.fontSizePt === "number") {
     props.fontSize = Math.round(ui.fontSizePt * HWPUNIT_PER_PT);
   }
   return props;
@@ -1144,9 +1352,10 @@ function typeText(text) {
     const result = wInsertText(target, text);
     const after = {
       ...target,
-      charOffset: result && typeof result.charOffset === 'number'
-        ? result.charOffset
-        : target.charOffset + text.length,
+      charOffset:
+        result && typeof result.charOffset === "number"
+          ? result.charOffset
+          : target.charOffset + text.length,
     };
 
     if (format && Object.keys(format).length) {
@@ -1156,9 +1365,9 @@ function typeText(text) {
     if (deletion) {
       // Xoá-rồi-chèn là một bước: gộp phần chèn vào bước xoá vừa đẩy.
       const step = deletion.step;
-      step.kind = 'replace';
+      step.kind = "replace";
       step.undo.unshift({
-        op: 'deleteText',
+        op: "deleteText",
         s: target.sectionIndex,
         p: target.paragraphIndex,
         o: target.charOffset,
@@ -1166,7 +1375,7 @@ function typeText(text) {
         cell: cellOf(target),
       });
       step.redo.push({
-        op: 'insertText',
+        op: "insertText",
         s: target.sectionIndex,
         p: target.paragraphIndex,
         o: target.charOffset,
@@ -1211,17 +1420,26 @@ function deleteBackward() {
     const stepped = stepHorizontal(focus, -1);
     // Nếu phép dời không ở lại trong đoạn này — hoặc không đi đâu cả — thì lùi
     // về đếm chữ. Trước đây chỗ này `return`, nên phím xoá không làm gì hết.
-    const previous = stepped.paragraphIndex === paragraphIndex
-        && stepped.charOffset < charOffset
-      ? stepped
-      : { ...focus, charOffset: offsetBefore(focus, charOffset) };
+    const previous =
+      stepped.paragraphIndex === paragraphIndex &&
+      stepped.charOffset < charOffset
+        ? stepped
+        : { ...focus, charOffset: offsetBefore(focus, charOffset) };
     const removedCount = charOffset - previous.charOffset;
     if (removedCount <= 0) return;
     const removed = qTextRange(focus, previous.charOffset, removedCount);
     const before = { ...focus };
     commit(before, () => {
       wDeleteText(focus, previous.charOffset, removedCount);
-      pushBackspace(sectionIndex, paragraphIndex, previous.charOffset, removed, before, previous, cellOf(focus));
+      pushBackspace(
+        sectionIndex,
+        paragraphIndex,
+        previous.charOffset,
+        removed,
+        before,
+        previous,
+        cellOf(focus),
+      );
       caretAfterCommit = previous;
     });
     flushCaret();
@@ -1240,13 +1458,14 @@ function deleteForward() {
 
   if (charOffset < length) {
     const stepped = stepHorizontal(focus, 1);
-    const next = stepped.paragraphIndex === paragraphIndex
-        && stepped.charOffset > charOffset
-      ? stepped
-      : {
-          ...focus,
-          charOffset: offsetAfter(focus, charOffset, length),
-        };
+    const next =
+      stepped.paragraphIndex === paragraphIndex &&
+      stepped.charOffset > charOffset
+        ? stepped
+        : {
+            ...focus,
+            charOffset: offsetAfter(focus, charOffset, length),
+          };
     const removedCount = next.charOffset - charOffset;
     if (removedCount <= 0) return;
     const removed = qTextRange(focus, charOffset, removedCount);
@@ -1254,18 +1473,29 @@ function deleteForward() {
     commit(at, () => {
       wDeleteText(focus, charOffset, removedCount);
       pushStep({
-        kind: 'delete',
+        kind: "delete",
         caretBefore: at,
         caretAfter: at,
-        undo: [{ op: 'insertText', s: sectionIndex, p: paragraphIndex, o: charOffset, text: removed, cell: cellOf(focus) }],
-        redo: [{
-          op: 'deleteText',
-          s: sectionIndex,
-          p: paragraphIndex,
-          o: charOffset,
-          n: removedCount,
-          cell: cellOf(focus),
-        }],
+        undo: [
+          {
+            op: "insertText",
+            s: sectionIndex,
+            p: paragraphIndex,
+            o: charOffset,
+            text: removed,
+            cell: cellOf(focus),
+          },
+        ],
+        redo: [
+          {
+            op: "deleteText",
+            s: sectionIndex,
+            p: paragraphIndex,
+            o: charOffset,
+            n: removedCount,
+            cell: cellOf(focus),
+          },
+        ],
       });
       caretAfterCommit = at;
     });
@@ -1274,7 +1504,10 @@ function deleteForward() {
   }
 
   if (paragraphIndex + 1 >= qParagraphCount(focus)) return;
-  mergeIntoPrevious({ ...focus, paragraphIndex: paragraphIndex + 1 }, { ...focus });
+  mergeIntoPrevious(
+    { ...focus, paragraphIndex: paragraphIndex + 1 },
+    { ...focus },
+  );
 }
 
 /// Nhập đoạn vào đoạn trước nó. Hoàn tác phải tự nhớ `paraShapeId`, vì rhwp
@@ -1287,22 +1520,29 @@ function mergeIntoPrevious(at, caretBefore) {
     const result = wMergeParagraph(at);
     const after = {
       ...at,
-      paragraphIndex: result && typeof result.paraIdx === 'number'
-        ? result.paraIdx
-        : paragraphIndex - 1,
-      charOffset: result && typeof result.charOffset === 'number' ? result.charOffset : 0,
+      paragraphIndex:
+        result && typeof result.paraIdx === "number"
+          ? result.paraIdx
+          : paragraphIndex - 1,
+      charOffset:
+        result && typeof result.charOffset === "number" ? result.charOffset : 0,
     };
-    const undoOps = [{
-      op: 'split',
-      s: sectionIndex,
-      p: after.paragraphIndex,
-      o: after.charOffset,
-      meta: result && result.removedParaMeta ? JSON.stringify(result.removedParaMeta) : null,
-      cell: cellOf(at),
-    }];
-    if (typeof shape.paraShapeId === 'number') {
+    const undoOps = [
+      {
+        op: "split",
+        s: sectionIndex,
+        p: after.paragraphIndex,
+        o: after.charOffset,
+        meta:
+          result && result.removedParaMeta
+            ? JSON.stringify(result.removedParaMeta)
+            : null,
+        cell: cellOf(at),
+      },
+    ];
+    if (typeof shape.paraShapeId === "number") {
       undoOps.push({
-        op: 'setParaShapeId',
+        op: "setParaShapeId",
         s: sectionIndex,
         p: after.paragraphIndex + 1,
         id: shape.paraShapeId,
@@ -1310,11 +1550,13 @@ function mergeIntoPrevious(at, caretBefore) {
       });
     }
     pushStep({
-      kind: 'merge',
+      kind: "merge",
       caretBefore,
       caretAfter: after,
       undo: undoOps,
-      redo: [{ op: 'merge', s: sectionIndex, p: paragraphIndex, cell: cellOf(at) }],
+      redo: [
+        { op: "merge", s: sectionIndex, p: paragraphIndex, cell: cellOf(at) },
+      ],
     });
     caretAfterCommit = after;
   });
@@ -1336,30 +1578,34 @@ function splitParagraph() {
     const result = wSplitParagraph(target, null);
     const after = {
       ...target,
-      paragraphIndex: result && typeof result.paraIdx === 'number'
-        ? result.paraIdx
-        : target.paragraphIndex + 1,
+      paragraphIndex:
+        result && typeof result.paraIdx === "number"
+          ? result.paraIdx
+          : target.paragraphIndex + 1,
       charOffset: 0,
     };
     const split = {
-      op: 'split',
+      op: "split",
       s: target.sectionIndex,
       p: target.paragraphIndex,
       o: target.charOffset,
       cell: cellOf(target),
     };
     const unsplit = {
-      op: 'merge', s: after.sectionIndex, p: after.paragraphIndex, cell: cellOf(target),
+      op: "merge",
+      s: after.sectionIndex,
+      p: after.paragraphIndex,
+      cell: cellOf(target),
     };
 
     if (deletion) {
-      deletion.step.kind = 'replace';
+      deletion.step.kind = "replace";
       deletion.step.undo.unshift(unsplit);
       deletion.step.redo.push(split);
       deletion.step.caretAfter = after;
     } else {
       pushStep({
-        kind: 'split',
+        kind: "split",
         caretBefore,
         caretAfter: after,
         undo: [unsplit],
@@ -1379,16 +1625,22 @@ function formatTargets() {
   if (!focus) return [];
   const range = selectionRange();
   if (!range) {
-    return [{
-      sectionIndex: focus.sectionIndex,
-      paragraphIndex: focus.paragraphIndex,
-      start: focus.charOffset,
-      end: focus.charOffset,
-      cell: cellOf(focus),
-    }];
+    return [
+      {
+        sectionIndex: focus.sectionIndex,
+        paragraphIndex: focus.paragraphIndex,
+        start: focus.charOffset,
+        end: focus.charOffset,
+        cell: cellOf(focus),
+      },
+    ];
   }
   const targets = [];
-  for (let p = range.start.paragraphIndex; p <= range.end.paragraphIndex; p += 1) {
+  for (
+    let p = range.start.paragraphIndex;
+    p <= range.end.paragraphIndex;
+    p += 1
+  ) {
     const length = qParagraphLength({ ...range.start, paragraphIndex: p });
     targets.push({
       sectionIndex: range.sectionIndex,
@@ -1408,7 +1660,7 @@ function captureCharShapes(target) {
   for (let offset = target.start; offset < target.end; offset += 1) {
     const props = qCharPropertiesAt(target, offset);
     const id = props && props.charShapeId;
-    if (typeof id !== 'number') continue;
+    if (typeof id !== "number") continue;
     const last = runs[runs.length - 1];
     if (last && last.id === id && last.end === offset) last.end = offset + 1;
     else runs.push({ id, start: offset, end: offset + 1 });
@@ -1423,7 +1675,7 @@ function applyCharFormat(ui) {
     // Chưa bôi đen chữ nào: giữ lại, áp cho đoạn gõ tiếp theo — đúng như mọi
     // trình soạn thảo khác.
     pendingCharFormat = { ...(pendingCharFormat || {}), ...ui };
-    post('hwp_char_format_pending', Object.keys(ui).join(','));
+    post("hwp_char_format_pending", Object.keys(ui).join(","));
     publishState();
     return;
   }
@@ -1437,7 +1689,7 @@ function applyCharFormat(ui) {
     if (target.end <= target.start) continue;
     for (const run of captureCharShapes(target)) {
       undoOps.push({
-        op: 'setCharShapeId',
+        op: "setCharShapeId",
         s: target.sectionIndex,
         p: target.paragraphIndex,
         start: run.start,
@@ -1447,7 +1699,7 @@ function applyCharFormat(ui) {
       });
     }
     redoOps.push({
-      op: 'applyCharFormat',
+      op: "applyCharFormat",
       s: target.sectionIndex,
       p: target.paragraphIndex,
       start: target.start,
@@ -1461,7 +1713,13 @@ function applyCharFormat(ui) {
   const at = { ...focus };
   commit(at, () => {
     for (const cmd of redoOps) exec(cmd);
-    pushStep({ kind: 'charFormat', caretBefore: at, caretAfter: at, undo: undoOps, redo: redoOps });
+    pushStep({
+      kind: "charFormat",
+      caretBefore: at,
+      caretAfter: at,
+      undo: undoOps,
+      redo: redoOps,
+    });
   });
   drawOverlays();
   publishState();
@@ -1470,17 +1728,17 @@ function applyCharFormat(ui) {
 function applyParaFormat(ui) {
   if (!focus || !ui) return;
   const props = {};
-  if (typeof ui.alignment === 'string') props.alignment = ui.alignment;
-  if (typeof ui.lineSpacing === 'number') props.lineSpacing = ui.lineSpacing;
+  if (typeof ui.alignment === "string") props.alignment = ui.alignment;
+  if (typeof ui.lineSpacing === "number") props.lineSpacing = ui.lineSpacing;
   if (Object.keys(props).length === 0) return;
 
   const undoOps = [];
   const redoOps = [];
   for (const target of formatTargets()) {
     const shape = qParaPropertiesAt(target);
-    if (typeof shape.paraShapeId === 'number') {
+    if (typeof shape.paraShapeId === "number") {
       undoOps.push({
-        op: 'setParaShapeId',
+        op: "setParaShapeId",
         s: target.sectionIndex,
         p: target.paragraphIndex,
         id: shape.paraShapeId,
@@ -1488,7 +1746,7 @@ function applyParaFormat(ui) {
       });
     }
     redoOps.push({
-      op: 'applyParaFormat',
+      op: "applyParaFormat",
       s: target.sectionIndex,
       p: target.paragraphIndex,
       props,
@@ -1500,7 +1758,13 @@ function applyParaFormat(ui) {
   const at = { ...focus };
   commit(at, () => {
     for (const cmd of redoOps) exec(cmd);
-    pushStep({ kind: 'paraFormat', caretBefore: at, caretAfter: at, undo: undoOps, redo: redoOps });
+    pushStep({
+      kind: "paraFormat",
+      caretBefore: at,
+      caretAfter: at,
+      undo: undoOps,
+      redo: redoOps,
+    });
   });
   drawOverlays();
   publishState();
@@ -1548,58 +1812,61 @@ function sendState() {
     state.italic = !!char.italic;
     state.underline = !!char.underline;
     state.strikethrough = !!char.strikethrough;
-    if (typeof char.fontSize === 'number') state.fontSizePt = char.fontSize / HWPUNIT_PER_PT;
-    if (typeof para.alignment === 'string') state.alignment = para.alignment;
-    if (typeof para.lineSpacing === 'number') state.lineSpacing = para.lineSpacing;
+    if (typeof char.fontSize === "number")
+      state.fontSizePt = char.fontSize / HWPUNIT_PER_PT;
+    if (typeof para.alignment === "string") state.alignment = para.alignment;
+    if (typeof para.lineSpacing === "number")
+      state.lineSpacing = para.lineSpacing;
 
     // Định dạng đang chờ thắng: đó là thứ người dùng vừa bấm, dù tài liệu chưa
     // đổi. Nó cùng khoá với `state` nên gộp thẳng được.
     if (pendingCharFormat) Object.assign(state, pendingCharFormat);
   }
 
-  post('hwp_editor_state', JSON.stringify(state));
+  post("hwp_editor_state", JSON.stringify(state));
 }
 
 // ------------------------------------------------------------- ô nhập ẩn
 
 function createInput() {
-  const element = document.createElement('textarea');
-  element.id = 'hwp-input';
-  element.setAttribute('autocapitalize', 'off');
-  element.setAttribute('autocorrect', 'off');
-  element.setAttribute('autocomplete', 'off');
-  element.setAttribute('spellcheck', 'false');
+  const element = document.createElement("textarea");
+  element.id = "hwp-input";
+  element.setAttribute("autocapitalize", "off");
+  element.setAttribute("autocorrect", "off");
+  element.setAttribute("autocomplete", "off");
+  element.setAttribute("spellcheck", "false");
 
-  element.addEventListener('beforeinput', (event) => {
+  element.addEventListener("beforeinput", (event) => {
     // Trong lúc tổ hợp thì để yên cho IME: chặn ở đây là chặn cả bộ gõ.
     if (composing) return;
     // Bàn phím mềm mỗi hãng bắn một kiểu khác nhau; đây là chỗ duy nhất nhìn
     // thấy chúng, nên log lại để còn lần được khi một phím nào đó không ăn.
-    post('hwp_input', event.inputType);
+    post("hwp_input", event.inputType);
     event.preventDefault();
     switch (event.inputType) {
-      case 'insertText':
-      case 'insertReplacementText':
+      case "insertText":
+      case "insertReplacementText":
         if (event.data) typeText(event.data);
         break;
-      case 'insertFromPaste': {
+      case "insertFromPaste": {
         // Dán không mang chữ trong `data`; nó nằm trong dataTransfer.
-        const pasted = event.data
-          || (event.dataTransfer && event.dataTransfer.getData('text/plain'));
+        const pasted =
+          event.data ||
+          (event.dataTransfer && event.dataTransfer.getData("text/plain"));
         if (pasted) typeText(pasted);
         break;
       }
-      case 'insertParagraph':
-      case 'insertLineBreak':
+      case "insertParagraph":
+      case "insertLineBreak":
         splitParagraph();
         break;
-      case 'deleteContentBackward':
-      case 'deleteWordBackward':
-      case 'deleteSoftLineBackward':
+      case "deleteContentBackward":
+      case "deleteWordBackward":
+      case "deleteSoftLineBackward":
         deleteBackward();
         break;
-      case 'deleteContentForward':
-      case 'deleteWordForward':
+      case "deleteContentForward":
+      case "deleteWordForward":
         deleteForward();
         break;
       default:
@@ -1610,30 +1877,30 @@ function createInput() {
 
   // Chạy khi `preventDefault` không được tôn trọng. Nạp lại ký tự đệm, nếu
   // không lần bấm xoá kế tiếp rơi vào ô rỗng.
-  element.addEventListener('input', () => {
+  element.addEventListener("input", () => {
     if (!composing) resetInput();
   });
 
-  element.addEventListener('compositionstart', () => {
+  element.addEventListener("compositionstart", () => {
     composing = true;
-    preedit = '';
+    preedit = "";
   });
 
-  element.addEventListener('compositionupdate', (event) => {
-    preedit = event.data || '';
+  element.addEventListener("compositionupdate", (event) => {
+    preedit = event.data || "";
     drawOverlays();
   });
 
-  element.addEventListener('compositionend', (event) => {
+  element.addEventListener("compositionend", (event) => {
     composing = false;
-    const text = event.data || '';
-    preedit = '';
+    const text = event.data || "";
+    preedit = "";
     resetInput();
     if (text) typeText(text);
     else drawOverlays();
   });
 
-  element.addEventListener('keydown', (event) => {
+  element.addEventListener("keydown", (event) => {
     if (composing || !focus) return;
     const extend = event.shiftKey;
     const range = selectionRange();
@@ -1641,31 +1908,31 @@ function createInput() {
     switch (event.key) {
       // Phím xoá đi qua `beforeinput`, đừng xử lý ở đây — từng thêm đường dự
       // phòng hẹn giờ và nó xoá mất hai ký tự mỗi lần bấm.
-      case 'ArrowLeft':
+      case "ArrowLeft":
         event.preventDefault();
         if (!extend && range) setCaret(range.start);
         else if (extend) extendTo(stepHorizontal(focus, -1));
         else setCaret(stepHorizontal(focus, -1));
         break;
-      case 'ArrowRight':
+      case "ArrowRight":
         event.preventDefault();
         if (!extend && range) setCaret(range.end);
         else if (extend) extendTo(stepHorizontal(focus, 1));
         else setCaret(stepHorizontal(focus, 1));
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         event.preventDefault();
         moveVertical(-1, extend);
         break;
-      case 'ArrowDown':
+      case "ArrowDown":
         event.preventDefault();
         moveVertical(1, extend);
         break;
-      case 'Home':
+      case "Home":
         event.preventDefault();
         moveToLineEdge(false, extend);
         break;
-      case 'End':
+      case "End":
         event.preventDefault();
         moveToLineEdge(true, extend);
         break;
@@ -1718,7 +1985,7 @@ function applyBottomInset() {
   const inset = keyboardInset + chromeInset;
   const grew = inset > appliedInset;
   appliedInset = inset;
-  pagesEl.style.paddingBottom = inset > 0 ? `${12 + inset}px` : '';
+  pagesEl.style.paddingBottom = inset > 0 ? `${12 + inset}px` : "";
 
   // Chỉ cuộn khi phần che phình ra. Co lại là chỗ trống nhiều hơn, không có gì
   // phải tránh — cuộn ở đó chỉ làm trang giật.
@@ -1752,34 +2019,41 @@ function hitAt(wrap, event) {
   try {
     hit = ask(() => doc.hitTest(page, point.x, point.y), null);
   } catch (error) {
-    post('hwp_hit_test_failed', (error && error.message) || String(error));
+    post("hwp_hit_test_failed", (error && error.message) || String(error));
     return null;
   }
-  if (!hit || typeof hit.paragraphIndex !== 'number') {
-    post('hwp_hit_test_empty', `page=${page} x=${Math.round(point.x)} y=${Math.round(point.y)}`);
+  if (!hit || typeof hit.paragraphIndex !== "number") {
+    post(
+      "hwp_hit_test_empty",
+      `page=${page} x=${Math.round(point.x)} y=${Math.round(point.y)}`,
+    );
     return null;
   }
   // Hộp chữ, đầu/chân trang, chú thích: mỗi thứ một hệ toạ độ riêng — chưa làm.
   if (hit.isTextBox) {
-    post('hwp_edit_region_unsupported', 'textbox');
+    post("hwp_edit_region_unsupported", "textbox");
     return null;
   }
 
   // Bảng lồng nhau (`cellPath` dài hơn 1) chưa đỡ được: `*InCell` chỉ nhận một
   // tầng, phải dùng bản `*ByPath`.
   const path = Array.isArray(hit.cellPath) ? hit.cellPath : [];
-  const inCell = path.length > 0
-    || (typeof hit.parentParaIndex === 'number' && hit.parentParaIndex !== NO_CELL);
+  const inCell =
+    path.length > 0 ||
+    (typeof hit.parentParaIndex === "number" &&
+      hit.parentParaIndex !== NO_CELL);
   if (inCell) {
     if (path.length > 1) {
-      post('hwp_edit_region_unsupported', `nested_cell_depth=${path.length}`);
+      post("hwp_edit_region_unsupported", `nested_cell_depth=${path.length}`);
       return null;
     }
-    if (typeof hit.parentParaIndex !== 'number'
-        || typeof hit.controlIndex !== 'number'
-        || typeof hit.cellIndex !== 'number'
-        || typeof hit.cellParaIndex !== 'number') {
-      post('hwp_edit_region_unsupported', 'cell_fields_missing');
+    if (
+      typeof hit.parentParaIndex !== "number" ||
+      typeof hit.controlIndex !== "number" ||
+      typeof hit.cellIndex !== "number" ||
+      typeof hit.cellParaIndex !== "number"
+    ) {
+      post("hwp_edit_region_unsupported", "cell_fields_missing");
       return null;
     }
     return {
@@ -1832,21 +2106,21 @@ function onBlankPointerDown(event) {
   if (!editing || !input) return;
   // Dải đáy là thanh công cụ và bàn phím, không phải chỗ trống.
   if (event.clientY > visibleBottom()) return;
-  if (event.target.closest && event.target.closest('.page')) return;
+  if (event.target.closest && event.target.closest(".page")) return;
   blankPress = { x: event.clientX, y: event.clientY, scrollY: window.scrollY };
 }
 
 function onBlankPointerUp(event) {
   const press = blankPress;
   blankPress = null;
-  if (!press || event.type === 'pointercancel') return;
+  if (!press || event.type === "pointercancel") return;
   if (document.activeElement !== input) return;
   // Kéo hoặc cuộn không phải là chạm.
   if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10) return;
   if (Math.abs(window.scrollY - press.scrollY) > 4) return;
 
   input.blur();
-  post('hwp_keyboard_dismissed', 'blank_tap');
+  post("hwp_keyboard_dismissed", "blank_tap");
 }
 
 function onPointerDown(event) {
@@ -1857,14 +2131,22 @@ function onPointerDown(event) {
   // `pointerdown`, mà `pointerup` thì Flutter giữ lại — bộ đếm giữ-lâu nổ và
   // đặt con trỏ vào chữ nằm khuất bên dưới.
   if (event.clientY > visibleBottom()) {
-    post('hwp_touch_ignored', `y=${Math.round(event.clientY)} bottom=${Math.round(visibleBottom())}`);
+    post(
+      "hwp_touch_ignored",
+      `y=${Math.round(event.clientY)} bottom=${Math.round(visibleBottom())}`,
+    );
     return;
   }
 
-  const wrap = event.target.closest && event.target.closest('.page');
+  const wrap = event.target.closest && event.target.closest(".page");
   if (!wrap) return;
 
-  pressStart = { x: event.clientX, y: event.clientY, wrap, pointerId: event.pointerId };
+  pressStart = {
+    x: event.clientX,
+    y: event.clientY,
+    wrap,
+    pointerId: event.pointerId,
+  };
   selecting = false;
   clearTimeout(pressTimer);
 
@@ -1878,18 +2160,23 @@ function onPointerDown(event) {
     anchor = word ? word.start : { ...position };
     focus = word ? word.end : { ...position };
     selecting = true;
-    try { wrap.setPointerCapture(event.pointerId); } catch (_) {}
+    try {
+      wrap.setPointerCapture(event.pointerId);
+    } catch (_) {}
     focusInput();
     drawOverlays();
     publishState();
-    post('hwp_selection_started', `para=${position.paragraphIndex} off=${position.charOffset}`);
+    post(
+      "hwp_selection_started",
+      `para=${position.paragraphIndex} off=${position.charOffset}`,
+    );
   }, LONG_PRESS_MS);
 }
 
 /// Kéo qua khỏi mép trang: tìm trang đang nằm dưới ngón tay.
 function hitAtAnyPage(event) {
   const element = document.elementFromPoint(event.clientX, event.clientY);
-  const wrap = element && element.closest ? element.closest('.page') : null;
+  const wrap = element && element.closest ? element.closest(".page") : null;
   return wrap ? hitAt(wrap, event) : null;
 }
 
@@ -1964,7 +2251,10 @@ function onPointerMove(event) {
   if (!pressStart) return;
   if (pressTimer) {
     // Di chuyển trước khi hết giờ giữ nghĩa là đang cuộn, không phải bôi đen.
-    if (Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) > 10) {
+    if (
+      Math.hypot(event.clientX - pressStart.x, event.clientY - pressStart.y) >
+      10
+    ) {
       clearTimeout(pressTimer);
       pressTimer = null;
       pressStart = null;
@@ -1988,7 +2278,7 @@ function onPointerUp(event) {
 
   // Cử chỉ bị huỷ giữa chừng thì người dùng chưa hoàn tất cú chạm nào; đặt con
   // trỏ ở đây là dời nó tới chỗ ngón tay tình cờ đi qua.
-  const cancelled = event.type === 'pointercancel';
+  const cancelled = event.type === "pointercancel";
 
   if (pressTimer) {
     clearTimeout(pressTimer);
@@ -1997,11 +2287,16 @@ function onPointerUp(event) {
     if (position) {
       focusInput();
       setCaret(position);
-      post('hwp_caret_placed', `para=${position.paragraphIndex} off=${position.charOffset}`);
+      post(
+        "hwp_caret_placed",
+        `para=${position.paragraphIndex} off=${position.charOffset}`,
+      );
     }
   }
   if (selecting) {
-    try { wrap.releasePointerCapture(event.pointerId); } catch (_) {}
+    try {
+      wrap.releasePointerCapture(event.pointerId);
+    } catch (_) {}
     selecting = false;
     stopEdgeScroll();
     moveInputToCaret();
@@ -2016,7 +2311,11 @@ function exportDocument() {
     // Hancom mở tệp lên là đặt con trỏ ở chỗ đã ghi trong tài liệu; ghi lại
     // chỗ người dùng đang đứng thì mở lại thấy đúng đó.
     if (focus) {
-      doc.setCaretPosition(focus.sectionIndex, focus.paragraphIndex, focus.charOffset);
+      doc.setCaretPosition(
+        focus.sectionIndex,
+        focus.paragraphIndex,
+        focus.charOffset,
+      );
     }
     // Dùng bản `WithReport` để có báo cáo nội dung bị mất khi ghi — thứ duy
     // nhất cho biết ta có đang âm thầm làm hỏng tài liệu không.
@@ -2024,21 +2323,21 @@ function exportDocument() {
     const loss = result.contentLoss();
     const bytes = result.takeBytes();
     // Chia nhỏ khi mã hoá: `fromCharCode.apply` với cả tệp một lần tràn stack.
-    let binary = '';
+    let binary = "";
     for (let i = 0; i < bytes.length; i += 0x8000) {
       binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     }
-    post('hwp_editor_export_ready', `bytes=${bytes.length}`);
+    post("hwp_editor_export_ready", `bytes=${bytes.length}`);
     window.webkit?.messageHandlers?.hwpViewer?.postMessage({
-      event: 'hwp_editor_export_data',
+      event: "hwp_editor_export_data",
       detail: btoa(binary),
-      contentLoss: loss || '',
+      contentLoss: loss || "",
     });
   } catch (error) {
     const message = (error && (error.stack || error.message)) || String(error);
-    post('hwp_editor_export_failed', message);
+    post("hwp_editor_export_failed", message);
     window.webkit?.messageHandlers?.hwpViewer?.postMessage({
-      event: 'hwp_editor_export_failed',
+      event: "hwp_editor_export_failed",
       detail: String((error && error.message) || error),
     });
   }
@@ -2056,16 +2355,16 @@ function onOrientationChange() {
 export function detach() {
   if (!pagesEl) return;
 
-  pagesEl.removeEventListener('pointerdown', onPointerDown);
-  pagesEl.removeEventListener('pointermove', onPointerMove);
-  pagesEl.removeEventListener('pointerup', onPointerUp);
-  pagesEl.removeEventListener('pointercancel', onPointerUp);
-  pagesEl.removeEventListener('touchmove', onTouchMove, { passive: false });
-  document.removeEventListener('pointerdown', onBlankPointerDown);
-  document.removeEventListener('pointerup', onBlankPointerUp);
-  document.removeEventListener('pointercancel', onBlankPointerUp);
-  window.removeEventListener('resize', drawOverlays);
-  window.removeEventListener('orientationchange', onOrientationChange);
+  pagesEl.removeEventListener("pointerdown", onPointerDown);
+  pagesEl.removeEventListener("pointermove", onPointerMove);
+  pagesEl.removeEventListener("pointerup", onPointerUp);
+  pagesEl.removeEventListener("pointercancel", onPointerUp);
+  pagesEl.removeEventListener("touchmove", onTouchMove, { passive: false });
+  document.removeEventListener("pointerdown", onBlankPointerDown);
+  document.removeEventListener("pointerup", onBlankPointerUp);
+  document.removeEventListener("pointercancel", onBlankPointerUp);
+  window.removeEventListener("resize", drawOverlays);
+  window.removeEventListener("orientationchange", onOrientationChange);
 
   if (pageObserver) {
     pageObserver.disconnect();
@@ -2073,7 +2372,7 @@ export function detach() {
   }
   mounted.clear();
   pagesEl.replaceChildren();
-  pagesEl.style.paddingBottom = '';
+  pagesEl.style.paddingBottom = "";
   window.scrollTo(0, 0);
 
   if (statePending) {
@@ -2090,14 +2389,14 @@ export function detach() {
   stopEdgeScroll();
 
   editing = false;
-  document.body.classList.remove('editing');
+  document.body.classList.remove("editing");
   dirty = false;
   anchor = null;
   focus = null;
   preferredX = -1;
   pendingCharFormat = null;
   composing = false;
-  preedit = '';
+  preedit = "";
   keyboardInset = 0;
   chromeInset = 0;
   appliedInset = 0;
@@ -2120,7 +2419,10 @@ export function detach() {
   try {
     stale?.free?.();
   } catch (error) {
-    report('hwp_document_free_failed', String((error && error.message) || error));
+    report(
+      "hwp_document_free_failed",
+      String((error && error.message) || error),
+    );
   }
 
   delete window.__rhwpEditor;
@@ -2134,29 +2436,29 @@ export function attach(hwpDocument, container, reporter) {
   pagesEl = container;
   report = reporter || (() => {});
 
-  pagesEl.addEventListener('pointerdown', onPointerDown);
-  pagesEl.addEventListener('pointermove', onPointerMove);
-  pagesEl.addEventListener('pointerup', onPointerUp);
-  pagesEl.addEventListener('pointercancel', onPointerUp);
+  pagesEl.addEventListener("pointerdown", onPointerDown);
+  pagesEl.addEventListener("pointermove", onPointerMove);
+  pagesEl.addEventListener("pointerup", onPointerUp);
+  pagesEl.addEventListener("pointercancel", onPointerUp);
   // `passive: false`: mặc định của iOS là thụ động, `preventDefault` vô hiệu.
-  pagesEl.addEventListener('touchmove', onTouchMove, { passive: false });
-  document.addEventListener('pointerdown', onBlankPointerDown);
-  document.addEventListener('pointerup', onBlankPointerUp);
-  document.addEventListener('pointercancel', onBlankPointerUp);
-  window.addEventListener('resize', drawOverlays);
-  window.addEventListener('orientationchange', onOrientationChange);
+  pagesEl.addEventListener("touchmove", onTouchMove, { passive: false });
+  document.addEventListener("pointerdown", onBlankPointerDown);
+  document.addEventListener("pointerup", onBlankPointerUp);
+  document.addEventListener("pointercancel", onBlankPointerUp);
+  window.addEventListener("resize", drawOverlays);
+  window.addEventListener("orientationchange", onOrientationChange);
 
   // Swift gọi xuống qua `evaluateJavaScript`.
   window.__rhwpEditor = {
     setEditing(enabled) {
       editing = !!enabled;
-      document.body.classList.toggle('editing', editing);
+      document.body.classList.toggle("editing", editing);
       if (!editing) {
         // Tắt chế độ sửa là **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm trong
         // trình soạn thảo, không nằm trong tệp. Ngăn xếp hoàn tác đi theo.
         anchor = null;
         focus = null;
-        preedit = '';
+        preedit = "";
         composing = false;
         pendingCharFormat = null;
         undoStack.length = 0;
@@ -2174,7 +2476,7 @@ export function attach(hwpDocument, container, reporter) {
       fontChecked = false;
       objectsLogged = false;
       publishState();
-      post('hwp_edit_mode', `enabled=${editing}`);
+      post("hwp_edit_mode", `enabled=${editing}`);
     },
     applyCharFormat(json) {
       applyCharFormat(parse(json, null) || {});
@@ -2187,14 +2489,20 @@ export function attach(hwpDocument, container, reporter) {
     goToPage(index) {
       showPage(index);
     },
-      setKeyboardInset(pixels) {
+    setKeyboardInset(pixels) {
       keyboardInset = Number(pixels) || 0;
-      post('hwp_inset', `keyboard=${keyboardInset} chrome=${chromeInset} scrollY=${Math.round(window.scrollY)}`);
+      post(
+        "hwp_inset",
+        `keyboard=${keyboardInset} chrome=${chromeInset} scrollY=${Math.round(window.scrollY)}`,
+      );
       applyBottomInset();
     },
     setChromeInset(pixels) {
       chromeInset = Number(pixels) || 0;
-      post('hwp_inset', `keyboard=${keyboardInset} chrome=${chromeInset} scrollY=${Math.round(window.scrollY)}`);
+      post(
+        "hwp_inset",
+        `keyboard=${keyboardInset} chrome=${chromeInset} scrollY=${Math.round(window.scrollY)}`,
+      );
       applyBottomInset();
     },
     export: exportDocument,
