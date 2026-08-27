@@ -252,23 +252,37 @@ final class HwpViewerView: UIView {
     )
   }
 
-  /// Tìm chữ qua `searchText` của rhwp, **không** phải `window.find`: trang vỏ
-  /// chỉ dựng những trang quanh khung nhìn, tìm trên DOM là bỏ sót phần còn lại.
-  func find(query: String, forward: Bool, completion: @escaping (Bool) -> Void) {
+  /// Tìm chữ qua `searchAllText` của rhwp, **không** phải `window.find`: trang
+  /// vỏ chỉ dựng những trang quanh khung nhìn, tìm trên DOM là bỏ sót phần còn
+  /// lại. Trang vỏ trả về `{index, total}`, `index` đếm từ 1.
+  func find(
+    query: String,
+    forward: Bool,
+    completion: @escaping (HwpSearchResult) -> Void
+  ) {
+    let empty = HwpSearchResult(index: 0, total: 0)
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       clearSearch()
-      completion(false)
+      completion(empty)
       return
     }
     let script = "window.__rhwpEditor?.find(\(Self.jsString(trimmed)), \(forward))"
     webView.evaluateJavaScript(script) { result, error in
-      let found = (result as? Bool) ?? false
       if let error {
         logPdfEvent("hwp_viewer_find_failed", "error=\(error.localizedDescription)")
-      } else {
-        logPdfEvent("hwp_viewer_find", "query=\(trimmed) forward=\(forward) found=\(found)")
+        completion(empty)
+        return
       }
+      let payload = result as? [String: Any]
+      let found = HwpSearchResult(
+        index: Int64((payload?["index"] as? NSNumber)?.intValue ?? 0),
+        total: Int64((payload?["total"] as? NSNumber)?.intValue ?? 0)
+      )
+      logPdfEvent(
+        "hwp_viewer_find",
+        "query=\(trimmed) forward=\(forward) at=\(found.index)/\(found.total)"
+      )
       completion(found)
     }
   }

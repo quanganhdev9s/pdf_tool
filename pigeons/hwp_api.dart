@@ -145,6 +145,15 @@ class HwpSaveResult {
   bool? savedAsFallback;
 }
 
+/// Kết quả một lượt tìm. [index] đếm từ 1 để hiện thẳng lên giao diện; `0`
+/// nghĩa là không có kết quả nào.
+class HwpSearchResult {
+  HwpSearchResult({required this.index, required this.total});
+
+  int index;
+  int total;
+}
+
 @HostApi()
 abstract class HwpHostApi {
   /// Nạp tệp vào trình xem đang gắn trên màn hình.
@@ -189,9 +198,10 @@ abstract class HwpHostApi {
   /// hoặc cuối chứ không báo lỗi.
   void goToPage(int pageIndex);
 
-  /// Tìm kết quả kế tiếp hoặc trước đó. Trả về có tìm thấy và chọn được không.
+  /// Tìm kết quả kế tiếp hoặc trước đó. Cả tài liệu được tô, kết quả hiện tại
+  /// tô đậm hơn.
   @async
-  bool find(String query, bool forward);
+  HwpSearchResult find(String query, bool forward);
 
   void clearSearch();
 

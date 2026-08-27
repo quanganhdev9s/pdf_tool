@@ -133,12 +133,12 @@ private struct HwpHostApiImpl: HwpHostApi {
   func find(
     query: String,
     forward: Bool,
-    completion: @escaping (Result<Bool, Error>) -> Void
+    completion: @escaping (Result<HwpSearchResult, Error>) -> Void
   ) {
     do {
       try call { view in
-        view.find(query: query, forward: forward) { found in
-          completion(.success(found))
+        view.find(query: query, forward: forward) { result in
+          completion(.success(result))
         }
       }
     } catch {

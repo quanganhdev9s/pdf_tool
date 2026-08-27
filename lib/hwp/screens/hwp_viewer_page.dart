@@ -192,6 +192,8 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
   }
 
   PreferredSizeWidget _buildSearchAppBar(HwpViewerState state) {
+    final HwpSearchResult? search = state.search;
+    final bool noMatch = search != null && search.total == 0;
     return AppBar(
       leading: IconButton(
         tooltip: 'Close search',
@@ -207,11 +209,13 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
         decoration: InputDecoration(
           hintText: 'Search in document',
           border: InputBorder.none,
-          errorText: state.lastSearchFound == false ? 'No match' : null,
+          errorText: noMatch ? 'Không có kết quả' : null,
         ),
         onSubmitted: (_) => _find(forward: true),
       ),
       actions: <Widget>[
+        if (search != null && search.total > 0)
+          Center(child: Text('${search.index}/${search.total}')),
         IconButton(
           tooltip: 'Previous match',
           icon: const Icon(Icons.keyboard_arrow_up),

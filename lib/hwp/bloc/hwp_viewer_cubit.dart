@@ -15,7 +15,7 @@ class HwpViewerState {
     this.busy = false,
     this.searching = false,
     this.showDetails = false,
-    this.lastSearchFound,
+    this.search,
   });
 
   final HwpEditorState? editor;
@@ -28,8 +28,8 @@ class HwpViewerState {
   final bool searching;
   final bool showDetails;
 
-  /// `null` là chưa tìm lần nào.
-  final bool? lastSearchFound;
+  /// Kết quả lượt tìm gần nhất; `null` là chưa tìm lần nào.
+  final HwpSearchResult? search;
 
   bool get dirty => editor?.dirty ?? false;
 
@@ -40,8 +40,8 @@ class HwpViewerState {
     bool? busy,
     bool? searching,
     bool? showDetails,
-    bool? lastSearchFound,
-    bool clearLastSearchFound = false,
+    HwpSearchResult? search,
+    bool clearSearch = false,
   }) {
     return HwpViewerState(
       editor: clearEditor ? null : (editor ?? this.editor),
@@ -49,9 +49,7 @@ class HwpViewerState {
       busy: busy ?? this.busy,
       searching: searching ?? this.searching,
       showDetails: showDetails ?? this.showDetails,
-      lastSearchFound: clearLastSearchFound
-          ? null
-          : (lastSearchFound ?? this.lastSearchFound),
+      search: clearSearch ? null : (search ?? this.search),
     );
   }
 
@@ -65,7 +63,7 @@ class HwpViewerState {
         other.busy == busy &&
         other.searching == searching &&
         other.showDetails == showDetails &&
-        other.lastSearchFound == lastSearchFound;
+        identical(other.search, search);
   }
 
   @override
@@ -75,7 +73,7 @@ class HwpViewerState {
     busy,
     searching,
     showDetails,
-    lastSearchFound,
+    identityHashCode(search),
   );
 }
 
@@ -201,24 +199,24 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
   /// Đóng ô tìm kiếm và xoá cả vệt tô trong tài liệu.
   void stopSearch() {
     clearSearch();
-    emit(state.copyWith(searching: false, clearLastSearchFound: true));
+    emit(state.copyWith(searching: false, clearSearch: true));
   }
 
   void toggleDetails() => emit(state.copyWith(showDetails: !state.showDetails));
 
-  /// Kết quả về qua `state.lastSearchFound`.
+  /// Kết quả về qua `state.search`.
   Future<void> find(String query, {bool forward = true}) async {
-    bool found;
+    HwpSearchResult result;
     try {
-      found = await _api.find(query, forward);
+      result = await _api.find(query, forward);
     } on PlatformException catch (error) {
       logPdfEvent('hwp_find_failed', <String, Object?>{
         'code': error.code,
         'message': error.message,
       });
-      found = false;
+      result = HwpSearchResult(index: 0, total: 0);
     }
-    if (!isClosed) emit(state.copyWith(lastSearchFound: found));
+    if (!isClosed) emit(state.copyWith(search: result));
   }
 
   Future<void> closeViewer() async {

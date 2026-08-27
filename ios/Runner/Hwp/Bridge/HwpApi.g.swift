@@ -513,6 +513,49 @@ struct HwpSaveResult: Hashable, CustomStringConvertible {
   }
 }
 
+/// Kết quả một lượt tìm. [index] đếm từ 1 để hiện thẳng lên giao diện; `0`
+/// nghĩa là không có kết quả nào.
+///
+/// Generated class from Pigeon that represents data sent in messages.
+struct HwpSearchResult: Hashable, CustomStringConvertible {
+  var index: Int64
+  var total: Int64
+
+
+  // swift-format-ignore: AlwaysUseLowerCamelCase
+  static func fromList(_ pigeonVar_list: [Any?]) -> HwpSearchResult? {
+    let index = pigeonVar_list[0] as! Int64
+    let total = pigeonVar_list[1] as! Int64
+
+    return HwpSearchResult(
+      index: index,
+      total: total
+    )
+  }
+  func toList() -> [Any?] {
+    return [
+      index,
+      total,
+    ]
+  }
+  static func == (lhs: HwpSearchResult, rhs: HwpSearchResult) -> Bool {
+    if Swift.type(of: lhs) != Swift.type(of: rhs) {
+      return false
+    }
+    return HwpApiPigeonInternal.deepEquals(lhs.index, rhs.index) && HwpApiPigeonInternal.deepEquals(lhs.total, rhs.total)
+  }
+
+  func hash(into hasher: inout Hasher) {
+    hasher.combine("HwpSearchResult")
+    HwpApiPigeonInternal.deepHash(value: index, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: total, hasher: &hasher)
+  }
+
+  public var description: String {
+    return "HwpSearchResult(index: \(String(describing: index)), total: \(String(describing: total)))"
+  }
+}
+
 private class HwpApiPigeonCodecReader: FlutterStandardReader {
   override func readValue(ofType type: UInt8) -> Any? {
     switch type {
@@ -526,6 +569,8 @@ private class HwpApiPigeonCodecReader: FlutterStandardReader {
       return HwpParaFormat.fromList(self.readValue() as! [Any?])
     case 133:
       return HwpSaveResult.fromList(self.readValue() as! [Any?])
+    case 134:
+      return HwpSearchResult.fromList(self.readValue() as! [Any?])
     default:
       return super.readValue(ofType: type)
     }
@@ -548,6 +593,9 @@ private class HwpApiPigeonCodecWriter: FlutterStandardWriter {
       super.writeValue(value.toList())
     } else if let value = value as? HwpSaveResult {
       super.writeByte(133)
+      super.writeValue(value.toList())
+    } else if let value = value as? HwpSearchResult {
+      super.writeByte(134)
       super.writeValue(value.toList())
     } else {
       super.writeValue(value)
@@ -605,8 +653,9 @@ protocol HwpHostApi {
   /// Lật tới trang `pageIndex`, đếm từ 0. Chỉ số ngoài phạm vi bị kẹp về đầu
   /// hoặc cuối chứ không báo lỗi.
   func goToPage(pageIndex: Int64) throws
-  /// Tìm kết quả kế tiếp hoặc trước đó. Trả về có tìm thấy và chọn được không.
-  func find(query: String, forward: Bool, completion: @escaping (Result<Bool, Error>) -> Void)
+  /// Tìm kết quả kế tiếp hoặc trước đó. Cả tài liệu được tô, kết quả hiện tại
+  /// tô đậm hơn.
+  func find(query: String, forward: Bool, completion: @escaping (Result<HwpSearchResult, Error>) -> Void)
   func clearSearch() throws
   /// Chia sẻ tệp đang mở qua bảng chia sẻ của hệ thống.
   func share() throws
@@ -774,7 +823,8 @@ class HwpHostApiSetup {
     } else {
       goToPageChannel.setMessageHandler(nil)
     }
-    /// Tìm kết quả kế tiếp hoặc trước đó. Trả về có tìm thấy và chọn được không.
+    /// Tìm kết quả kế tiếp hoặc trước đó. Cả tài liệu được tô, kết quả hiện tại
+    /// tô đậm hơn.
     let findChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.pdf_tool.HwpHostApi.find\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
     if let api = api {
       findChannel.setMessageHandler { message, reply in

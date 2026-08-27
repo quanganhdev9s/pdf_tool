@@ -29,8 +29,10 @@
 
   .sel { position: absolute; background: rgba(10,132,255,.28); }
 
-  /* Khác màu vệt bôi đen: hai thứ hiện được cùng lúc. */
-  .find { position: absolute; background: rgba(255,214,10,.45); outline: 1px solid rgba(255,159,10,.9); }
+  /* Khác màu vệt bôi đen: hai thứ hiện được cùng lúc. Mọi kết quả tô nhạt,
+     kết quả đang đứng tô đậm và có viền. */
+  .find { position: absolute; background: rgba(255,214,10,.35); }
+  .find.current { background: rgba(255,159,10,.6); outline: 1px solid rgba(255,120,10,.95); }
 
   /* Chữ đang tổ hợp chưa nằm trong tài liệu nên nền phải đục: nó che phần chữ
      ngay sau con trỏ thay vì chồng lên. */

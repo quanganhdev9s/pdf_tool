@@ -616,7 +616,7 @@ function drawOverlays() {
   if (!pagesEl) return;
   clearOverlays();
   // Vẽ cả khi chỉ xem, nên đứng trước chỗ thoát sớm bên dưới.
-  if (findRange) drawFind();
+  if (findMatches.length) drawFind();
   if (!editing || !focus) return;
 
   const range = selectionRange();
@@ -692,14 +692,15 @@ function drawPreedit() {
 
 // ----------------------------------------------------------------- tìm chữ
 //
-// Bằng `searchText` của rhwp, **không** bằng `window.find`: chỉ những trang
+// Bằng `searchAllText` của rhwp, **không** bằng `window.find`: chỉ những trang
 // quanh khung nhìn mới được dựng, nên tìm trên DOM là bỏ sót phần còn lại.
 
-/// Kết quả đang tô sáng, cùng hình dạng với vùng chọn. Tách khỏi `anchor`/
-/// `focus` vì tìm chạy cả khi không sửa.
-let findRange = null;
+/// Mọi kết quả của từ khoá hiện tại, theo thứ tự tài liệu.
+let findMatches = [];
 
-/// Từ khoá lần trước, để biết lần gọi sau là "kết quả kế tiếp" hay lượt mới.
+/// Vị trí trong [findMatches]; `-1` là không có kết quả nào.
+let findIndex = -1;
+
 let findQuery = "";
 
 function pickNumber(source, keys) {
@@ -709,15 +710,15 @@ function pickNumber(source, keys) {
   return null;
 }
 
-/// Kết quả thô của `searchText` → vùng chọn. rhwp không ghi hình dạng này ở
-/// đâu; đọc ra từ chuỗi mẫu trong `rhwp_bg.wasm`:
+/// Một phần tử của `searchAllText` → vùng chọn kèm số trang. rhwp không ghi
+/// hình dạng này ở đâu; đọc ra từ chuỗi mẫu trong `rhwp_bg.wasm`:
 ///
-///   {"found":true,"wrapped":bool,"sec":N,"para":N,"charOffset":N,"length":N}
+///   {"sec":N,"para":N,"charOffset":N,"length":N}
 ///   + "cellContext":{"parentPara":N,"ctrlIdx":N,"cellIdx":N,"cellPara":N}
 ///
 /// Đổi hình dạng thì `hwp_search_shape` in bản thô ra để đối chiếu.
-function toFindRange(hit) {
-  if (!hit || typeof hit !== "object" || hit.found !== true) return null;
+function toFindMatch(hit) {
+  if (!hit || typeof hit !== "object") return null;
 
   const sectionIndex = pickNumber(hit, ["sec", "sectionIndex"]);
   const charOffset = pickNumber(hit, ["charOffset"]);
@@ -747,64 +748,86 @@ function toFindRange(hit) {
   }
 
   const start = { sectionIndex, paragraphIndex, charOffset, cell };
-  const end = { ...start, charOffset: charOffset + length };
   return {
     sectionIndex,
     start,
-    end,
-    wrapped: hit.wrapped === true,
-    // Chỗ nối cho lượt sau, **không** phải `start`: kết quả trong ô bảng mang
-    // `para` của đoạn neo bảng, đưa `cellPara` ngược lại là tìm nhầm chỗ.
-    from: {
-      sectionIndex,
+    end: { ...start, charOffset: charOffset + length },
+    // Thứ tự tài liệu dùng `para` thô, không phải `cellPara`.
+    order: {
       paragraphIndex: pickNumber(hit, ["para", "paragraphIndex"]),
       charOffset,
     },
+    page: pageOf(start),
+    rects: null,
   };
 }
 
-/// Sau (hoặc trước) kết quả cũ nếu vẫn cùng từ khoá, không thì từ con trỏ,
-/// không nữa thì từ đầu tài liệu.
-function findFrom(query, forward) {
-  if (findRange && findQuery === query) {
-    const at = findRange.from;
-    return {
-      ...at,
-      charOffset: Math.max(0, at.charOffset + (forward ? 1 : -1)),
-    };
-  }
-  if (focus) {
-    const c = cellOf(focus);
-    return {
-      sectionIndex: focus.sectionIndex,
-      paragraphIndex: c ? c.parentParaIndex : focus.paragraphIndex,
-      charOffset: focus.charOffset,
-    };
-  }
-  return { sectionIndex: 0, paragraphIndex: 0, charOffset: 0 };
+function collectMatches(query) {
+  const list = ask(() => doc.searchAllText(query, false, true), []);
+  if (!Array.isArray(list)) return [];
+  return list.map(toFindMatch).filter(Boolean);
+}
+
+/// Kết quả đầu tiên từ con trỏ trở đi, để lượt tìm bắt đầu ở chỗ đang đọc.
+function indexFromCaret() {
+  if (!focus) return 0;
+  const c = cellOf(focus);
+  const at = {
+    paragraphIndex: c ? c.parentParaIndex : focus.paragraphIndex,
+    charOffset: focus.charOffset,
+  };
+  const found = findMatches.findIndex(
+    (match) =>
+      match.sectionIndex > focus.sectionIndex ||
+      (match.sectionIndex === focus.sectionIndex &&
+        comparePos(match.order, at) >= 0),
+  );
+  return found < 0 ? 0 : found;
+}
+
+/// Số kết quả được **đo** trong một lần vẽ. `getSelectionRects` tốn ~5ms mỗi
+/// lượt, nên một trang dày kết quả có thể treo màn hình nửa giây. Đo rồi thì
+/// giữ lại, nên hạn mức chỉ chạm tới lần đầu đặt chân lên trang đó.
+const FIND_MEASURE_BUDGET = 60;
+
+function matchRects(match) {
+  if (!match.rects) match.rects = qSelectionRects(match);
+  return match.rects;
 }
 
 function drawFind() {
-  const rects = qSelectionRects(findRange);
-  for (const rect of rects) {
-    const wrap = pageWrap(rect.pageIndex);
-    if (!wrap) continue;
-    const { scale } = pageGeometry(wrap);
-    const box = document.createElement("div");
-    box.className = "find";
-    box.style.left = `${rect.x * scale}px`;
-    box.style.top = `${rect.y * scale}px`;
-    box.style.width = `${rect.width * scale}px`;
-    box.style.height = `${rect.height * scale}px`;
-    wrap.lastElementChild.appendChild(box);
+  let measured = 0;
+  for (let i = 0; i < findMatches.length; i++) {
+    const match = findMatches[i];
+    // Bỏ qua kết quả trên trang chưa dựng — vừa không có chỗ vẽ, vừa khỏi trả
+    // giá đo hình cho cả tài liệu.
+    if (!pageWrap(match.page)) continue;
+    const current = i === findIndex;
+    // Kết quả đang đứng thì luôn đo, dù đã hết hạn mức.
+    if (!match.rects) {
+      if (!current && measured >= FIND_MEASURE_BUDGET) continue;
+      measured++;
+    }
+    for (const rect of matchRects(match)) {
+      const wrap = pageWrap(rect.pageIndex);
+      if (!wrap) continue;
+      const { scale } = pageGeometry(wrap);
+      const box = document.createElement("div");
+      box.className = current ? "find current" : "find";
+      box.style.left = `${rect.x * scale}px`;
+      box.style.top = `${rect.y * scale}px`;
+      box.style.width = `${rect.width * scale}px`;
+      box.style.height = `${rect.height * scale}px`;
+      wrap.lastElementChild.appendChild(box);
+    }
   }
 }
 
 /// Đặt kết quả ở khoảng một phần tư trên của phần màn hình còn trống — sát mép
 /// trên thì mất ngữ cảnh phía trước.
 function scrollFindIntoView() {
-  const rects = qSelectionRects(findRange);
-  const rect = rects && rects[0];
+  const match = findMatches[findIndex];
+  const rect = match && matchRects(match)[0];
   if (!rect) return;
   const wrap = pageWrap(rect.pageIndex);
   if (!wrap) return;
@@ -816,54 +839,59 @@ function scrollFindIntoView() {
   window.scrollBy(0, top - Math.max(16, (visibleBottom - 16) * 0.25));
 }
 
-/// Tìm và tô sáng kết quả kế tiếp. Trả về `false` khi không còn gì.
+/// Tìm, tô cả tài liệu, và nhảy tới kết quả kế tiếp. Trả về `{index, total}`
+/// với `index` đếm từ 1; `0` là không có kết quả nào.
 function findText(query, forward) {
   const text = String(query || "").trim();
   if (!doc || !text) {
     clearFind();
-    return false;
+    return { index: 0, total: 0 };
   }
 
-  const from = findFrom(text, forward);
-  const hit = ask(
-    () =>
-      doc.searchText(
-        text,
-        from.sectionIndex,
-        from.paragraphIndex,
-        from.charOffset,
-        forward,
-        false,
-        true,
-      ),
-    null,
-  );
-
-  const range = toFindRange(hit);
-  findQuery = text;
-  if (!range) {
-    // Giữ nguyên vệt cũ: cái đang tô vẫn là kết quả người dùng đang đọc.
-    post("hwp_search_miss", `query=${text} forward=${forward}`);
-    return false;
+  if (text !== findQuery) {
+    findQuery = text;
+    findMatches = collectMatches(text);
+    findIndex = findMatches.length ? indexFromCaret() : -1;
+  } else if (findMatches.length) {
+    const total = findMatches.length;
+    findIndex = (findIndex + (forward ? 1 : -1) + total) % total;
   }
 
-  findRange = range;
+  if (!findMatches.length) {
+    findIndex = -1;
+    drawOverlays();
+    post("hwp_search_miss", `query=${text}`);
+    return { index: 0, total: 0 };
+  }
+
   // Trang chưa dựng thì không có hình học để đo.
-  const page = pageOf(range.start);
+  const page = findMatches[findIndex].page;
   if (!mounted.has(page)) mountPage(page);
   drawOverlays();
   scrollFindIntoView();
   post(
     "hwp_search_hit",
-    `query=${text} page=${page} wrapped=${range.wrapped ? 1 : 0}`,
+    `query=${text} at=${findIndex + 1}/${findMatches.length} page=${page}`,
   );
-  return true;
+  return { index: findIndex + 1, total: findMatches.length };
 }
 
 function clearFind() {
-  findRange = null;
+  findMatches = [];
+  findIndex = -1;
   findQuery = "";
   drawOverlays();
+}
+
+/// Sau một lần sửa thì mọi vị trí đã lưu đều lệch. `searchAllText` chỉ tốn
+/// chưa tới một mili giây nên tìm lại cả tài liệu rẻ hơn là đoán cái nào còn
+/// đúng.
+function refreshFind() {
+  if (!doc || !findQuery) return;
+  findMatches = collectMatches(findQuery);
+  findIndex = findMatches.length
+    ? Math.min(Math.max(findIndex, 0), findMatches.length - 1)
+    : -1;
 }
 
 // ------------------------------------------------- ghi thay đổi & vẽ lại
@@ -896,6 +924,8 @@ function commit(at, fn) {
   // dòng cuối của trang N-1 xuống.
   const from = Math.max(0, Math.min(pageBefore, pageAfter) - 1);
   const total = renderPages(from);
+  refreshFind();
+  if (findMatches.length) drawOverlays();
 
   dirty = true;
   post(
@@ -2582,7 +2612,8 @@ export function detach() {
   caretAfterCommit = null;
   fontChecked = false;
   objectsLogged = false;
-  findRange = null;
+  findMatches = [];
+  findIndex = -1;
   findQuery = "";
   undoStack.length = 0;
   redoStack.length = 0;
@@ -2644,7 +2675,8 @@ export function attach(hwpDocument, container, reporter) {
         undoStack.length = 0;
         redoStack.length = 0;
         dirty = false;
-        findRange = null;
+        findMatches = [];
+        findIndex = -1;
         findQuery = "";
         if (input) input.blur();
         clearOverlays();
