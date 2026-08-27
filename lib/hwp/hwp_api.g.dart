@@ -34,7 +34,11 @@ Object? _extractReplyValueOrThrow(
   return replyList.firstOrNull;
 }
 
-List<Object?> wrapResponse({Object? result, PlatformException? error, bool empty = false}) {
+List<Object?> wrapResponse({
+  Object? result,
+  PlatformException? error,
+  bool empty = false,
+}) {
   if (empty) {
     return <Object?>[];
   }
@@ -56,7 +60,9 @@ bool _deepEquals(Object? a, Object? b) {
   }
   if (a is List && b is List) {
     return a.length == b.length &&
-        a.indexed.every(((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]));
+        a.indexed.every(
+          ((int, dynamic) item) => _deepEquals(item.$2, b[item.$1]),
+        );
   }
   if (a is Map && b is Map) {
     if (a.length != b.length) {
@@ -105,17 +111,23 @@ int _deepHash(Object? value) {
   return value.hashCode;
 }
 
-/// Tệp HWP đang mở. Luôn là bản sao app sở hữu, không phải tệp gốc của người
-/// dùng.
+/// Tệp HWP cần mở. [path] là file nguồn hoặc asset key; native tự tạo working
+/// copy tạm để reader/editor thao tác.
 class HwpDocument {
   HwpDocument({
     required this.path,
+    required this.sourceIsAsset,
     required this.fileName,
     required this.fileFormat,
     required this.fileSizeBytes,
   });
 
+  /// File path hoặc Flutter asset key để native copy ra working copy tạm.
   String path;
+
+  /// `true` khi [path] là asset key. Asset không ghi đè được nên Save sẽ tạo
+  /// file mới trong store.
+  bool sourceIsAsset;
 
   String fileName;
 
@@ -125,7 +137,7 @@ class HwpDocument {
   int fileSizeBytes;
 
   List<Object?> _toList() {
-    return <Object?>[path, fileName, fileFormat, fileSizeBytes];
+    return <Object?>[path, sourceIsAsset, fileName, fileFormat, fileSizeBytes];
   }
 
   Object encode() {
@@ -136,9 +148,10 @@ class HwpDocument {
     result as List<Object?>;
     return HwpDocument(
       path: result[0]! as String,
-      fileName: result[1]! as String,
-      fileFormat: result[2]! as String,
-      fileSizeBytes: result[3]! as int,
+      sourceIsAsset: result[1]! as bool,
+      fileName: result[2]! as String,
+      fileFormat: result[3]! as String,
+      fileSizeBytes: result[4]! as int,
     );
   }
 
@@ -152,6 +165,7 @@ class HwpDocument {
       return true;
     }
     return _deepEquals(path, other.path) &&
+        _deepEquals(sourceIsAsset, other.sourceIsAsset) &&
         _deepEquals(fileName, other.fileName) &&
         _deepEquals(fileFormat, other.fileFormat) &&
         _deepEquals(fileSizeBytes, other.fileSizeBytes);
@@ -163,7 +177,7 @@ class HwpDocument {
 
   @override
   String toString() {
-    return 'HwpDocument(path: $path, fileName: $fileName, fileFormat: $fileFormat, fileSizeBytes: $fileSizeBytes)';
+    return 'HwpDocument(path: $path, sourceIsAsset: $sourceIsAsset, fileName: $fileName, fileFormat: $fileFormat, fileSizeBytes: $fileSizeBytes)';
   }
 }
 
@@ -310,7 +324,13 @@ class HwpEditorState {
 /// Định dạng chữ cần áp. Khoá nào `null` thì giữ nguyên — bật đậm không được
 /// phép lặng lẽ đặt lại cỡ chữ.
 class HwpCharFormat {
-  HwpCharFormat({this.bold, this.italic, this.underline, this.strikethrough, this.fontSizePt});
+  HwpCharFormat({
+    this.bold,
+    this.italic,
+    this.underline,
+    this.strikethrough,
+    this.fontSizePt,
+  });
 
   bool? bold;
 
@@ -386,7 +406,10 @@ class HwpParaFormat {
 
   static HwpParaFormat decode(Object result) {
     result as List<Object?>;
-    return HwpParaFormat(alignment: result[0] as String?, lineSpacing: result[1] as double?);
+    return HwpParaFormat(
+      alignment: result[0] as String?,
+      lineSpacing: result[1] as double?,
+    );
   }
 
   @override
@@ -398,7 +421,8 @@ class HwpParaFormat {
     if (identical(this, other)) {
       return true;
     }
-    return _deepEquals(alignment, other.alignment) && _deepEquals(lineSpacing, other.lineSpacing);
+    return _deepEquals(alignment, other.alignment) &&
+        _deepEquals(lineSpacing, other.lineSpacing);
   }
 
   @override
@@ -413,19 +437,32 @@ class HwpParaFormat {
 
 /// Kết quả một lần ghi tài liệu xuống đĩa.
 class HwpSaveResult {
-  HwpSaveResult({required this.ok, this.contentLoss, this.error});
+  HwpSaveResult({
+    required this.ok,
+    this.contentLoss,
+    this.error,
+    this.savedPath,
+    this.savedAsFallback,
+  });
 
   bool ok;
 
   /// Báo cáo phần nội dung trình xuất phải bỏ đi, lấy từ
-  /// `exportHwpWithReport`. Không rỗng nghĩa là tệp ghi ra **không** giữ đủ
-  /// tài liệu ban đầu, kể cả khi [ok].
+  /// `exportHwpWithReport`. Report JSON có thể không rỗng nhưng `count: 0`,
+  /// nên UI phải đọc nội dung thay vì chỉ kiểm tra chuỗi rỗng.
   String? contentLoss;
 
   String? error;
 
+  /// Đường dẫn tệp thật sự đã được ghi. Có thể khác tệp đang mở nếu native
+  /// không replace được file gốc và phải lưu thành bản sao.
+  String? savedPath;
+
+  /// `true` khi lần lưu này ghi ra bản sao thay vì ghi đè file đang mở.
+  bool? savedAsFallback;
+
   List<Object?> _toList() {
-    return <Object?>[ok, contentLoss, error];
+    return <Object?>[ok, contentLoss, error, savedPath, savedAsFallback];
   }
 
   Object encode() {
@@ -438,6 +475,8 @@ class HwpSaveResult {
       ok: result[0]! as bool,
       contentLoss: result[1] as String?,
       error: result[2] as String?,
+      savedPath: result[3] as String?,
+      savedAsFallback: result[4] as bool?,
     );
   }
 
@@ -452,7 +491,9 @@ class HwpSaveResult {
     }
     return _deepEquals(ok, other.ok) &&
         _deepEquals(contentLoss, other.contentLoss) &&
-        _deepEquals(error, other.error);
+        _deepEquals(error, other.error) &&
+        _deepEquals(savedPath, other.savedPath) &&
+        _deepEquals(savedAsFallback, other.savedAsFallback);
   }
 
   @override
@@ -461,7 +502,7 @@ class HwpSaveResult {
 
   @override
   String toString() {
-    return 'HwpSaveResult(ok: $ok, contentLoss: $contentLoss, error: $error)';
+    return 'HwpSaveResult(ok: $ok, contentLoss: $contentLoss, error: $error, savedPath: $savedPath, savedAsFallback: $savedAsFallback)';
   }
 }
 
@@ -515,11 +556,13 @@ class HwpHostApi {
   /// Constructor for [HwpHostApi]. The [binaryMessenger] named argument is
   /// available for dependency injection. If it is left null, the default
   /// BinaryMessenger will be used which routes to the host platform.
-  HwpHostApi({BinaryMessenger? binaryMessenger, String messageChannelSuffix = ''})
-    : pigeonVar_binaryMessenger = binaryMessenger,
-      pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
-          ? '.$messageChannelSuffix'
-          : '';
+  HwpHostApi({
+    BinaryMessenger? binaryMessenger,
+    String messageChannelSuffix = '',
+  }) : pigeonVar_binaryMessenger = binaryMessenger,
+       pigeonVar_messageChannelSuffix = messageChannelSuffix.isNotEmpty
+           ? '.$messageChannelSuffix'
+           : '';
   final BinaryMessenger? pigeonVar_binaryMessenger;
 
   static const MessageCodec<Object?> pigeonChannelCodec = _PigeonCodec();
@@ -527,7 +570,7 @@ class HwpHostApi {
   final String pigeonVar_messageChannelSuffix;
 
   /// Nạp tệp vào trình xem đang gắn trên màn hình.
-  Future<void> loadDocument(String path) async {
+  Future<void> loadDocument(String path, bool sourceIsAsset) async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.pdf_tool.HwpHostApi.loadDocument$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -535,10 +578,16 @@ class HwpHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[path]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[path, sourceIsAsset],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Chuyển sang chế độ sửa, hoặc quay lại chỉ xem.
@@ -553,10 +602,16 @@ class HwpHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[enabled]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[enabled],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Ghi tài liệu đang sửa đè lên tệp đang mở.
@@ -574,7 +629,11 @@ class HwpHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Áp định dạng chữ lên vùng đang chọn.
@@ -589,10 +648,16 @@ class HwpHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[format]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[format],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Áp định dạng lên đoạn văn đang chứa con trỏ, hoặc mọi đoạn mà vùng chọn
@@ -605,10 +670,16 @@ class HwpHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[format]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[format],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Cho trang vỏ biết Flutter đang che mất bao nhiêu điểm ở đáy web view —
@@ -624,10 +695,16 @@ class HwpHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pixels]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[pixels],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Hoàn tác bước sửa gần nhất. Ngăn xếp nằm trong trang vỏ và mất khi tắt
@@ -643,7 +720,11 @@ class HwpHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   Future<void> redo() async {
@@ -657,7 +738,11 @@ class HwpHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Lật tới trang `pageIndex`, đếm từ 0. Chỉ số ngoài phạm vi bị kẹp về đầu
@@ -670,10 +755,16 @@ class HwpHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[pageIndex]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[pageIndex],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Tìm kết quả kế tiếp hoặc trước đó. Trả về có tìm thấy và chọn được không.
@@ -685,7 +776,9 @@ class HwpHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(<Object?>[query, forward]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
+      <Object?>[query, forward],
+    );
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(
@@ -707,7 +800,11 @@ class HwpHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Chia sẻ tệp đang mở qua bảng chia sẻ của hệ thống.
@@ -722,7 +819,11 @@ class HwpHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 
   /// Nhả trình xem và xoá bản sao cục bộ.
@@ -737,7 +838,11 @@ class HwpHostApi {
     final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(null);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
-    _extractReplyValueOrThrow(pigeonVar_replyList, pigeonVar_channelName, isNullValid: true);
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
   }
 }
 
@@ -755,7 +860,9 @@ abstract class HwpFlutterApi {
     BinaryMessenger? binaryMessenger,
     String messageChannelSuffix = '',
   }) {
-    messageChannelSuffix = messageChannelSuffix.isNotEmpty ? '.$messageChannelSuffix' : '';
+    messageChannelSuffix = messageChannelSuffix.isNotEmpty
+        ? '.$messageChannelSuffix'
+        : '';
     {
       final pigeonVar_channel = BasicMessageChannel<Object?>(
         'dev.flutter.pigeon.pdf_tool.HwpFlutterApi.onEditorStateChanged$messageChannelSuffix',

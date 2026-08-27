@@ -11,17 +11,24 @@ import 'package:pigeon/pigeon.dart';
     dartPackageName: 'pdf_tool',
   ),
 )
-/// Tệp HWP đang mở. Luôn là bản sao app sở hữu, không phải tệp gốc của người
-/// dùng.
+/// Tệp HWP cần mở. [path] là file nguồn hoặc asset key; native tự tạo working
+/// copy tạm để reader/editor thao tác.
 class HwpDocument {
   HwpDocument({
     required this.path,
+    required this.sourceIsAsset,
     required this.fileName,
     required this.fileFormat,
     required this.fileSizeBytes,
   });
 
+  /// File path hoặc Flutter asset key để native copy ra working copy tạm.
   String path;
+
+  /// `true` khi [path] là asset key. Asset không ghi đè được nên Save sẽ tạo
+  /// file mới trong store.
+  bool sourceIsAsset;
+
   String fileName;
 
   /// `hwp` hoặc `hwpx`.
@@ -113,22 +120,35 @@ class HwpParaFormat {
 
 /// Kết quả một lần ghi tài liệu xuống đĩa.
 class HwpSaveResult {
-  HwpSaveResult({required this.ok, this.contentLoss, this.error});
+  HwpSaveResult({
+    required this.ok,
+    this.contentLoss,
+    this.error,
+    this.savedPath,
+    this.savedAsFallback,
+  });
 
   bool ok;
 
   /// Báo cáo phần nội dung trình xuất phải bỏ đi, lấy từ
-  /// `exportHwpWithReport`. Không rỗng nghĩa là tệp ghi ra **không** giữ đủ
-  /// tài liệu ban đầu, kể cả khi [ok].
+  /// `exportHwpWithReport`. Report JSON có thể không rỗng nhưng `count: 0`,
+  /// nên UI phải đọc nội dung thay vì chỉ kiểm tra chuỗi rỗng.
   String? contentLoss;
 
   String? error;
+
+  /// Đường dẫn tệp thật sự đã được ghi. Có thể khác tệp đang mở nếu native
+  /// không replace được file gốc và phải lưu thành bản sao.
+  String? savedPath;
+
+  /// `true` khi lần lưu này ghi ra bản sao thay vì ghi đè file đang mở.
+  bool? savedAsFallback;
 }
 
 @HostApi()
 abstract class HwpHostApi {
   /// Nạp tệp vào trình xem đang gắn trên màn hình.
-  void loadDocument(String path);
+  void loadDocument(String path, bool sourceIsAsset);
 
   /// Chuyển sang chế độ sửa, hoặc quay lại chỉ xem.
   ///

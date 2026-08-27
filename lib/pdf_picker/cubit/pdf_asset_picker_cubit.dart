@@ -70,7 +70,9 @@ class PdfAssetPickerCubit extends Cubit<PdfAssetPickerState> {
       return document;
     } on Object catch (error) {
       if (isClosed) return null;
-      emit(state.copyWith(importing: false, error: 'Không mở được tệp đó: $error'));
+      emit(
+        state.copyWith(importing: false, error: 'Không mở được tệp đó: $error'),
+      );
       return null;
     }
   }

@@ -49,7 +49,9 @@ class HwpViewerState {
       busy: busy ?? this.busy,
       searching: searching ?? this.searching,
       showDetails: showDetails ?? this.showDetails,
-      lastSearchFound: clearLastSearchFound ? null : (lastSearchFound ?? this.lastSearchFound),
+      lastSearchFound: clearLastSearchFound
+          ? null
+          : (lastSearchFound ?? this.lastSearchFound),
     );
   }
 
@@ -67,8 +69,14 @@ class HwpViewerState {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(identityHashCode(editor), editing, busy, searching, showDetails, lastSearchFound);
+  int get hashCode => Object.hash(
+    identityHashCode(editor),
+    editing,
+    busy,
+    searching,
+    showDetails,
+    lastSearchFound,
+  );
 }
 
 /// Nối màn hình HWP với trình xem native.
@@ -94,8 +102,11 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
 
   /// Màn hình gọi khi platform view đã lên. Trước đó không có gì để nạp vào.
   Future<void> loadIntoViewer() async {
-    logPdfEvent('hwp_load_into_viewer', <String, Object?>{'path': document.path});
-    await _api.loadDocument(document.path);
+    logPdfEvent('hwp_load_into_viewer', <String, Object?>{
+      'path': document.path,
+      'sourceIsAsset': document.sourceIsAsset,
+    });
+    await _api.loadDocument(document.path, document.sourceIsAsset);
     // Từ đây trở đi là việc của native, nó có đồng hồ riêng.
     stopPdfEventClock();
   }
@@ -120,7 +131,7 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
     }
   }
 
-  /// Ghi bản đang sửa đè lên tệp đang mở, và **đợi kết quả thật**.
+  /// Ghi bản đang sửa, ưu tiên đè lên tệp đang mở, và **đợi kết quả thật**.
   ///
   /// `saveEdits` bên native trả về ngay — việc xuất chạy bất đồng bộ trong
   /// trang vỏ. Kết quả về sau, qua `onEditsSaved`; chỗ này nối hai đầu đó lại
@@ -153,11 +164,15 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
     }
   }
 
-  Future<void> applyCharFormat(HwpCharFormat format) =>
-      _ignoringClosedViewer('hwp_apply_char_format', () => _api.applyCharFormat(format));
+  Future<void> applyCharFormat(HwpCharFormat format) => _ignoringClosedViewer(
+    'hwp_apply_char_format',
+    () => _api.applyCharFormat(format),
+  );
 
-  Future<void> applyParaFormat(HwpParaFormat format) =>
-      _ignoringClosedViewer('hwp_apply_para_format', () => _api.applyParaFormat(format));
+  Future<void> applyParaFormat(HwpParaFormat format) => _ignoringClosedViewer(
+    'hwp_apply_para_format',
+    () => _api.applyParaFormat(format),
+  );
 
   Future<void> undo() => _ignoringClosedViewer('hwp_undo', _api.undo);
 
@@ -171,10 +186,13 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
       _ignoringClosedViewer('hwp_go_to_page', () => _api.goToPage(pageIndex));
 
   /// Báo phần đáy web view mà thanh công cụ Flutter đang che.
-  Future<void> setChromeInset(double pixels) =>
-      _ignoringClosedViewer('hwp_set_chrome_inset', () => _api.setChromeInset(pixels));
+  Future<void> setChromeInset(double pixels) => _ignoringClosedViewer(
+    'hwp_set_chrome_inset',
+    () => _api.setChromeInset(pixels),
+  );
 
-  Future<void> clearSearch() => _ignoringClosedViewer('hwp_clear_search', _api.clearSearch);
+  Future<void> clearSearch() =>
+      _ignoringClosedViewer('hwp_clear_search', _api.clearSearch);
 
   Future<void> share() => _ignoringClosedViewer('hwp_share', _api.share);
 
@@ -210,7 +228,10 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
 
   /// Lệnh gửi tới một trình xem đã đóng thì không có gì để làm — người dùng đã
   /// rời màn hình, và nó **không** phải lỗi đáng báo lên giao diện.
-  Future<void> _ignoringClosedViewer(String event, Future<void> Function() body) async {
+  Future<void> _ignoringClosedViewer(
+    String event,
+    Future<void> Function() body,
+  ) async {
     try {
       await body();
     } on PlatformException catch (error) {
@@ -230,6 +251,8 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
       'ok': result.ok,
       'contentLoss': result.contentLoss?.length ?? 0,
       'error': result.error,
+      'savedPath': result.savedPath,
+      'savedAsFallback': result.savedAsFallback,
     });
     final Completer<HwpSaveResult>? pending = _pendingSave;
     _pendingSave = null;
@@ -265,7 +288,9 @@ class HwpViewerCubit extends Cubit<HwpViewerState> implements HwpFlutterApi {
 
   @override
   Future<void> close() async {
-    logPdfEvent('hwp_cubit_dispose', <String, Object?>{'file': document.fileName});
+    logPdfEvent('hwp_cubit_dispose', <String, Object?>{
+      'file': document.fileName,
+    });
     // Nhả kênh callback, nếu không cubit sau sẽ không đăng ký được.
     HwpFlutterApi.setUp(null);
     await super.close();

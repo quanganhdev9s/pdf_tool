@@ -70,17 +70,21 @@ extension HwpRuntime: HwpViewerViewDelegate {
   func hwpViewer(
     _ view: HwpViewerView,
     didSaveEditsWith error: String?,
-    contentLoss: String
+    contentLoss: String,
+    savedPath: String?,
+    savedAsFallback: Bool
   ) {
     logPdfEvent(
       "hwp_callback_edits_saved",
-      "ok=\(error == nil) loss=\(contentLoss.count)"
+      "ok=\(error == nil) fallback=\(savedAsFallback) loss=\(contentLoss.count)"
     )
     flutterApi?.onEditsSaved(
       result: HwpSaveResult(
         ok: error == nil,
         contentLoss: contentLoss.isEmpty ? nil : contentLoss,
-        error: error
+        error: error,
+        savedPath: savedPath,
+        savedAsFallback: savedAsFallback
       )
     ) { _ in }
   }
@@ -88,10 +92,10 @@ extension HwpRuntime: HwpViewerViewDelegate {
 
 /// Cài đặt `HwpHostApi`. Mọi lệnh đều đi tới đúng một view đang gắn.
 private struct HwpHostApiImpl: HwpHostApi {
-  func loadDocument(path: String) throws {
+  func loadDocument(path: String, sourceIsAsset: Bool) throws {
     // Mốc 0 của lượt mở tệp: mọi dòng log native sau đây đóng dấu `t=` theo nó.
     PdfEventClock.start()
-    try call { try $0.load(path: path) }
+    try call { try $0.load(path: path, sourceIsAsset: sourceIsAsset) }
   }
 
   func setEditingEnabled(enabled: Bool) throws {

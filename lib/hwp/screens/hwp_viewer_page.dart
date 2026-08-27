@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -88,7 +89,9 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
           //
           // Màn PDF cũng đặt như vậy, cùng một lý do.
           resizeToAvoidBottomInset: false,
-          appBar: state.searching ? _buildSearchAppBar(state) : _buildDefaultAppBar(state),
+          appBar: state.searching
+              ? _buildSearchAppBar(state)
+              : _buildDefaultAppBar(state),
           // Thanh công cụ **nổi** trên web view, không phải `bottomNavigationBar`.
           // Đáy Scaffold không nhúc nhích khi bàn phím lên, nên đặt ở đó là bị
           // bàn phím phủ mất. Ở đây nó tự nâng theo `viewInsets`.
@@ -165,8 +168,12 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
               child: ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(state.showDetails ? Icons.info : Icons.info_outline),
-                title: Text(state.showDetails ? 'Hide details' : 'File details'),
+                leading: Icon(
+                  state.showDetails ? Icons.info : Icons.info_outline,
+                ),
+                title: Text(
+                  state.showDetails ? 'Hide details' : 'File details',
+                ),
               ),
             ),
             const PopupMenuItem<_ViewerMenuAction>(
@@ -237,9 +244,9 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
       _showSaveResult(result);
     } on Object catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Không gửi được yêu cầu lưu.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không gửi được yêu cầu lưu.')),
+        );
       }
     }
   }
@@ -248,19 +255,48 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
     final messenger = ScaffoldMessenger.of(context);
     if (!result.ok) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Lưu hỏng: ${result.error ?? "không rõ lý do"}')),
+        SnackBar(
+          content: Text('Lưu hỏng: ${result.error ?? "không rõ lý do"}'),
+        ),
+      );
+      return;
+    }
+    final loss = result.contentLoss;
+    final hasContentLoss = _hasContentLoss(loss);
+    final savedAsFallback = result.savedAsFallback ?? false;
+    if (savedAsFallback && hasContentLoss && loss != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Đã lưu thành bản sao, nhưng một phần nội dung không ghi được.',
+          ),
+          action: SnackBarAction(
+            label: 'Chi tiết',
+            onPressed: () => _showContentLoss(loss),
+          ),
+        ),
+      );
+      return;
+    }
+    if (savedAsFallback) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Đã lưu thành bản sao.')),
       );
       return;
     }
     // Ghi được không có nghĩa là ghi đủ. `exportHwpWithReport` nói phần nào nó
     // phải bỏ lại, và đó là thứ duy nhất cho biết tệp vừa ghi có còn nguyên
     // tài liệu ban đầu hay không.
-    final loss = result.contentLoss;
-    if (loss != null && loss.isNotEmpty) {
+    if (hasContentLoss && loss != null) {
       messenger.showSnackBar(
         SnackBar(
-          content: const Text('Đã lưu, nhưng một phần nội dung không ghi được.'),
-          action: SnackBarAction(label: 'Chi tiết', onPressed: () => _showContentLoss(loss)),
+          content: const Text(
+            'Đã lưu, nhưng một phần nội dung không ghi được.',
+          ),
+          action: SnackBarAction(
+            label: 'Chi tiết',
+            onPressed: () => _showContentLoss(loss),
+          ),
         ),
       );
       return;
@@ -275,7 +311,10 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
         title: const Text('Nội dung không ghi được'),
         content: SingleChildScrollView(child: Text(report)),
         actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Đóng')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Đóng'),
+          ),
         ],
       ),
     );
@@ -289,7 +328,9 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Bỏ thay đổi?'),
-          content: const Text('Có thay đổi chưa lưu. Thoát chế độ sửa sẽ bỏ hết.'),
+          content: const Text(
+            'Có thay đổi chưa lưu. Thoát chế độ sửa sẽ bỏ hết.',
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -308,7 +349,8 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
   }
 
   Future<void> _find({required bool forward}) {
-    return _cubit?.find(_searchController.text, forward: forward) ?? Future<void>.value();
+    return _cubit?.find(_searchController.text, forward: forward) ??
+        Future<void>.value();
   }
 
   void _stopSearching() {
@@ -316,6 +358,22 @@ class _HwpViewerPageState extends State<HwpViewerPage> {
     _searchController.clear();
     _cubit?.stopSearch();
   }
+}
+
+bool _hasContentLoss(String? report) {
+  if (report == null || report.isEmpty) return false;
+  try {
+    final Object? decoded = jsonDecode(report);
+    if (decoded is Map<String, Object?>) {
+      final Object? count = decoded['count'];
+      if (count is num) return count > 0;
+      final Object? losses = decoded['losses'];
+      if (losses is List<Object?>) return losses.isNotEmpty;
+    }
+  } on FormatException {
+    return true;
+  }
+  return true;
 }
 
 class _DetailsBar extends StatelessWidget {

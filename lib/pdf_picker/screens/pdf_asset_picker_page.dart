@@ -30,7 +30,8 @@ class _PdfAssetPickerView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<PdfAssetPickerCubit, PdfAssetPickerState>(
-      listenWhen: (previous, current) => current.error != null && previous.error != current.error,
+      listenWhen: (previous, current) =>
+          current.error != null && previous.error != current.error,
       listener: (context, state) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -47,9 +48,11 @@ class _PdfAssetPickerView extends StatelessWidget {
                 IconButton(
                   tooltip: 'PDF đã quét',
                   icon: const Icon(Icons.folder_open_outlined),
-                  onPressed: () => Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute<void>(builder: (_) => const ScanLibraryPage())),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ScanLibraryPage(),
+                    ),
+                  ),
                 ),
                 IconButton(
                   tooltip: 'Quét tài liệu',
@@ -197,7 +200,11 @@ class _HwpTab extends StatelessWidget {
 }
 
 class _OpenButton extends StatelessWidget {
-  const _OpenButton({required this.label, required this.enabled, required this.onPressed});
+  const _OpenButton({
+    required this.label,
+    required this.enabled,
+    required this.onPressed,
+  });
 
   final String label;
   final bool enabled;
@@ -220,7 +227,9 @@ class _OpenButton extends StatelessWidget {
 /// danh sách là để lần sau.
 Future<void> _import(BuildContext context, List<String> extensions) async {
   final PdfAssetPickerCubit cubit = context.read<PdfAssetPickerCubit>();
-  final ImportedPdf? document = await cubit.importFromFiles(allowedExtensions: extensions);
+  final ImportedPdf? document = await cubit.importFromFiles(
+    allowedExtensions: extensions,
+  );
   if (document == null) return;
 
   if (!context.mounted) return;
@@ -254,7 +263,12 @@ class _EmptyList extends StatelessWidget {
           children: <Widget>[
             Icon(icon, color: Theme.of(context).disabledColor),
             const SizedBox(width: 12),
-            Expanded(child: Text(message, style: Theme.of(context).textTheme.bodySmall)),
+            Expanded(
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           ],
         ),
       ),
@@ -272,13 +286,18 @@ class _ImportedTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
-        leading: Icon(document.isHwp ? Icons.description_outlined : Icons.picture_as_pdf_outlined),
+        leading: Icon(
+          document.isHwp
+              ? Icons.description_outlined
+              : Icons.picture_as_pdf_outlined,
+        ),
         title: Text(document.fileName),
         subtitle: Text(_subtitle(document)),
         trailing: IconButton(
           tooltip: 'Xoá',
           icon: const Icon(Icons.delete_outline),
-          onPressed: () => context.read<PdfAssetPickerCubit>().deleteImported(document),
+          onPressed: () =>
+              context.read<PdfAssetPickerCubit>().deleteImported(document),
         ),
         onTap: () => _openImportedDocument(context, document),
       ),
@@ -304,7 +323,10 @@ class _ImportedTile extends StatelessWidget {
 ///
 /// `HwpFlutterApi` chỉ đăng ký được một đầu nhận mỗi lúc, nên cubit **phải**
 /// đóng lại trước khi mở tài liệu kế tiếp.
-Future<void> _openHwpViewer(NavigatorState navigator, HwpDocument document) async {
+Future<void> _openHwpViewer(
+  NavigatorState navigator,
+  HwpDocument document,
+) async {
   // Mốc 0 của một lượt mở tệp. Native có đồng hồ riêng, bắt đầu khi nó nhận
   // `loadDocument`; so hai bên theo dòng `hwp_load_into_viewer`.
   startPdfEventClock();
@@ -326,24 +348,35 @@ Future<void> _openHwpViewer(NavigatorState navigator, HwpDocument document) asyn
   }
 }
 
-Future<void> _openImportedDocument(BuildContext context, ImportedPdf document) async {
+Future<void> _openImportedDocument(
+  BuildContext context,
+  ImportedPdf document,
+) async {
   final NavigatorState navigator = Navigator.of(context);
   if (document.isHwp) {
+    final PdfAssetPickerCubit pickerCubit = context.read<PdfAssetPickerCubit>();
     await _openHwpViewer(
       navigator,
       HwpDocument(
         path: document.path,
+        sourceIsAsset: false,
         fileName: document.fileName,
         fileFormat: document.extension,
         fileSizeBytes: document.fileSizeBytes,
       ),
     );
+    if (context.mounted) {
+      await pickerCubit.loadDocuments();
+    }
     return;
   }
 
   await navigator.push(
     MaterialPageRoute<void>(
-      builder: (_) => PdfViewerPage(assetKey: document.fileName, initialFilePath: document.path),
+      builder: (_) => PdfViewerPage(
+        assetKey: document.fileName,
+        initialFilePath: document.path,
+      ),
     ),
   );
 }
@@ -352,27 +385,35 @@ Future<void> _openBundledDocument(BuildContext context, String assetKey) async {
   final NavigatorState navigator = Navigator.of(context);
   if (isHwpAsset(assetKey)) {
     try {
-      final BundledDocumentFile file = await materializeBundledDocumentAsset(assetKey);
+      final int fileSizeBytes = await bundledDocumentAssetSize(assetKey);
       if (!context.mounted) return;
       await _openHwpViewer(
         navigator,
         HwpDocument(
-          path: file.path,
-          fileName: file.fileName,
-          fileFormat: file.extension,
-          fileSizeBytes: file.fileSizeBytes,
+          path: assetKey,
+          sourceIsAsset: true,
+          fileName: assetName(assetKey),
+          fileFormat: assetExtension(assetKey),
+          fileSizeBytes: fileSizeBytes,
         ),
       );
+      if (context.mounted) {
+        await context.read<PdfAssetPickerCubit>().loadDocuments();
+      }
     } on Object catch (error) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('Không mở được tài liệu mẫu: $error')));
+        ..showSnackBar(
+          SnackBar(content: Text('Không mở được tài liệu mẫu: $error')),
+        );
     }
     return;
   }
 
-  await navigator.push(MaterialPageRoute<void>(builder: (_) => PdfViewerPage(assetKey: assetKey)));
+  await navigator.push(
+    MaterialPageRoute<void>(builder: (_) => PdfViewerPage(assetKey: assetKey)),
+  );
 }
 
 class _AssetTile extends StatelessWidget {
@@ -386,7 +427,9 @@ class _AssetTile extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: Icon(
-          isHwpAsset(assetKey) ? Icons.description_outlined : Icons.picture_as_pdf_outlined,
+          isHwpAsset(assetKey)
+              ? Icons.description_outlined
+              : Icons.picture_as_pdf_outlined,
         ),
         title: Text(assetName(assetKey)),
         subtitle: Text(assetDescription(assetKey)),

@@ -170,12 +170,16 @@ private func nilOrValue<T>(_ value: Any?) -> T? {
 }
 
 
-/// Tệp HWP đang mở. Luôn là bản sao app sở hữu, không phải tệp gốc của người
-/// dùng.
+/// Tệp HWP cần mở. [path] là file nguồn hoặc asset key; native tự tạo working
+/// copy tạm để reader/editor thao tác.
 ///
 /// Generated class from Pigeon that represents data sent in messages.
 struct HwpDocument: Hashable, CustomStringConvertible {
+  /// File path hoặc Flutter asset key để native copy ra working copy tạm.
   var path: String
+  /// `true` khi [path] là asset key. Asset không ghi đè được nên Save sẽ tạo
+  /// file mới trong store.
+  var sourceIsAsset: Bool
   var fileName: String
   /// `hwp` hoặc `hwpx`.
   var fileFormat: String
@@ -185,12 +189,14 @@ struct HwpDocument: Hashable, CustomStringConvertible {
   // swift-format-ignore: AlwaysUseLowerCamelCase
   static func fromList(_ pigeonVar_list: [Any?]) -> HwpDocument? {
     let path = pigeonVar_list[0] as! String
-    let fileName = pigeonVar_list[1] as! String
-    let fileFormat = pigeonVar_list[2] as! String
-    let fileSizeBytes = pigeonVar_list[3] as! Int64
+    let sourceIsAsset = pigeonVar_list[1] as! Bool
+    let fileName = pigeonVar_list[2] as! String
+    let fileFormat = pigeonVar_list[3] as! String
+    let fileSizeBytes = pigeonVar_list[4] as! Int64
 
     return HwpDocument(
       path: path,
+      sourceIsAsset: sourceIsAsset,
       fileName: fileName,
       fileFormat: fileFormat,
       fileSizeBytes: fileSizeBytes
@@ -199,6 +205,7 @@ struct HwpDocument: Hashable, CustomStringConvertible {
   func toList() -> [Any?] {
     return [
       path,
+      sourceIsAsset,
       fileName,
       fileFormat,
       fileSizeBytes,
@@ -208,19 +215,20 @@ struct HwpDocument: Hashable, CustomStringConvertible {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return HwpApiPigeonInternal.deepEquals(lhs.path, rhs.path) && HwpApiPigeonInternal.deepEquals(lhs.fileName, rhs.fileName) && HwpApiPigeonInternal.deepEquals(lhs.fileFormat, rhs.fileFormat) && HwpApiPigeonInternal.deepEquals(lhs.fileSizeBytes, rhs.fileSizeBytes)
+    return HwpApiPigeonInternal.deepEquals(lhs.path, rhs.path) && HwpApiPigeonInternal.deepEquals(lhs.sourceIsAsset, rhs.sourceIsAsset) && HwpApiPigeonInternal.deepEquals(lhs.fileName, rhs.fileName) && HwpApiPigeonInternal.deepEquals(lhs.fileFormat, rhs.fileFormat) && HwpApiPigeonInternal.deepEquals(lhs.fileSizeBytes, rhs.fileSizeBytes)
   }
 
   func hash(into hasher: inout Hasher) {
     hasher.combine("HwpDocument")
     HwpApiPigeonInternal.deepHash(value: path, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: sourceIsAsset, hasher: &hasher)
     HwpApiPigeonInternal.deepHash(value: fileName, hasher: &hasher)
     HwpApiPigeonInternal.deepHash(value: fileFormat, hasher: &hasher)
     HwpApiPigeonInternal.deepHash(value: fileSizeBytes, hasher: &hasher)
   }
 
   public var description: String {
-    return "HwpDocument(path: \(String(describing: path)), fileName: \(String(describing: fileName)), fileFormat: \(String(describing: fileFormat)), fileSizeBytes: \(String(describing: fileSizeBytes)))"
+    return "HwpDocument(path: \(String(describing: path)), sourceIsAsset: \(String(describing: sourceIsAsset)), fileName: \(String(describing: fileName)), fileFormat: \(String(describing: fileFormat)), fileSizeBytes: \(String(describing: fileSizeBytes)))"
   }
 }
 
@@ -448,10 +456,15 @@ struct HwpParaFormat: Hashable, CustomStringConvertible {
 struct HwpSaveResult: Hashable, CustomStringConvertible {
   var ok: Bool
   /// Báo cáo phần nội dung trình xuất phải bỏ đi, lấy từ
-  /// `exportHwpWithReport`. Không rỗng nghĩa là tệp ghi ra **không** giữ đủ
-  /// tài liệu ban đầu, kể cả khi [ok].
+  /// `exportHwpWithReport`. Report JSON có thể không rỗng nhưng `count: 0`,
+  /// nên UI phải đọc nội dung thay vì chỉ kiểm tra chuỗi rỗng.
   var contentLoss: String? = nil
   var error: String? = nil
+  /// Đường dẫn tệp thật sự đã được ghi. Có thể khác tệp đang mở nếu native
+  /// không replace được file gốc và phải lưu thành bản sao.
+  var savedPath: String? = nil
+  /// `true` khi lần lưu này ghi ra bản sao thay vì ghi đè file đang mở.
+  var savedAsFallback: Bool? = nil
 
 
   // swift-format-ignore: AlwaysUseLowerCamelCase
@@ -459,11 +472,15 @@ struct HwpSaveResult: Hashable, CustomStringConvertible {
     let ok = pigeonVar_list[0] as! Bool
     let contentLoss: String? = nilOrValue(pigeonVar_list[1])
     let error: String? = nilOrValue(pigeonVar_list[2])
+    let savedPath: String? = nilOrValue(pigeonVar_list[3])
+    let savedAsFallback: Bool? = nilOrValue(pigeonVar_list[4])
 
     return HwpSaveResult(
       ok: ok,
       contentLoss: contentLoss,
-      error: error
+      error: error,
+      savedPath: savedPath,
+      savedAsFallback: savedAsFallback
     )
   }
   func toList() -> [Any?] {
@@ -471,13 +488,15 @@ struct HwpSaveResult: Hashable, CustomStringConvertible {
       ok,
       contentLoss,
       error,
+      savedPath,
+      savedAsFallback,
     ]
   }
   static func == (lhs: HwpSaveResult, rhs: HwpSaveResult) -> Bool {
     if Swift.type(of: lhs) != Swift.type(of: rhs) {
       return false
     }
-    return HwpApiPigeonInternal.deepEquals(lhs.ok, rhs.ok) && HwpApiPigeonInternal.deepEquals(lhs.contentLoss, rhs.contentLoss) && HwpApiPigeonInternal.deepEquals(lhs.error, rhs.error)
+    return HwpApiPigeonInternal.deepEquals(lhs.ok, rhs.ok) && HwpApiPigeonInternal.deepEquals(lhs.contentLoss, rhs.contentLoss) && HwpApiPigeonInternal.deepEquals(lhs.error, rhs.error) && HwpApiPigeonInternal.deepEquals(lhs.savedPath, rhs.savedPath) && HwpApiPigeonInternal.deepEquals(lhs.savedAsFallback, rhs.savedAsFallback)
   }
 
   func hash(into hasher: inout Hasher) {
@@ -485,10 +504,12 @@ struct HwpSaveResult: Hashable, CustomStringConvertible {
     HwpApiPigeonInternal.deepHash(value: ok, hasher: &hasher)
     HwpApiPigeonInternal.deepHash(value: contentLoss, hasher: &hasher)
     HwpApiPigeonInternal.deepHash(value: error, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: savedPath, hasher: &hasher)
+    HwpApiPigeonInternal.deepHash(value: savedAsFallback, hasher: &hasher)
   }
 
   public var description: String {
-    return "HwpSaveResult(ok: \(String(describing: ok)), contentLoss: \(String(describing: contentLoss)), error: \(String(describing: error)))"
+    return "HwpSaveResult(ok: \(String(describing: ok)), contentLoss: \(String(describing: contentLoss)), error: \(String(describing: error)), savedPath: \(String(describing: savedPath)), savedAsFallback: \(String(describing: savedAsFallback)))"
   }
 }
 
@@ -552,7 +573,7 @@ class HwpApiPigeonCodec: FlutterStandardMessageCodec, @unchecked Sendable {
 /// Generated protocol from Pigeon that represents a handler of messages from Flutter.
 protocol HwpHostApi {
   /// Nạp tệp vào trình xem đang gắn trên màn hình.
-  func loadDocument(path: String) throws
+  func loadDocument(path: String, sourceIsAsset: Bool) throws
   /// Chuyển sang chế độ sửa, hoặc quay lại chỉ xem.
   ///
   /// Tắt sẽ **bỏ mọi thay đổi chưa lưu** — chúng chỉ nằm trong trình soạn
@@ -605,8 +626,9 @@ class HwpHostApiSetup {
       loadDocumentChannel.setMessageHandler { message, reply in
         let args = message as! [Any?]
         let pathArg = args[0] as! String
+        let sourceIsAssetArg = args[1] as! Bool
         do {
-          try api.loadDocument(path: pathArg)
+          try api.loadDocument(path: pathArg, sourceIsAsset: sourceIsAssetArg)
           reply(wrapResult(nil))
         } catch {
           reply(wrapError(error))

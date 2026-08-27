@@ -103,7 +103,8 @@ class ImportedPdfStore {
 
     final File source = File(sourcePath);
     final String extension = _extension(sourcePath);
-    if (!_supportedExtension(extension) || !allowedExtensions.contains(extension)) {
+    if (!_supportedExtension(extension) ||
+        !allowedExtensions.contains(extension)) {
       throw StateError('Unsupported document type: .$extension');
     }
     final String destinationPath = await _freePath(for_: sourcePath);
@@ -127,7 +128,9 @@ class ImportedPdfStore {
     final File file = File(document.path);
     if (file.existsSync()) {
       await file.delete();
-      logPdfEvent('document_import_delete', <String, Object?>{'file': document.fileName});
+      logPdfEvent('document_import_delete', <String, Object?>{
+        'file': document.fileName,
+      });
     }
   }
 
@@ -135,13 +138,20 @@ class ImportedPdfStore {
   /// that name is already taken.
   Future<String> _freePath({required String for_}) async {
     final Directory imported = await directory();
+    return _freePathIn(imported, for_: for_);
+  }
+
+  static Future<String> _freePathIn(
+    Directory directory, {
+    required String for_,
+  }) async {
     final String base = _baseName(for_).isEmpty ? 'Imported' : _baseName(for_);
     final String extension = _extension(for_);
 
-    String candidate = '${imported.path}/$base.$extension';
+    String candidate = '${directory.path}/$base.$extension';
     int suffix = 2;
     while (File(candidate).existsSync()) {
-      candidate = '${imported.path}/$base ($suffix).$extension';
+      candidate = '${directory.path}/$base ($suffix).$extension';
       suffix += 1;
     }
     return candidate;

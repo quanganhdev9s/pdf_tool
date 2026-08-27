@@ -1,4 +1,5 @@
 import Foundation
+import Flutter
 import UIKit
 import WebKit
 
@@ -13,7 +14,9 @@ protocol HwpViewerViewDelegate: AnyObject {
   func hwpViewer(
     _ view: HwpViewerView,
     didSaveEditsWith error: String?,
-    contentLoss: String
+    contentLoss: String,
+    savedPath: String?,
+    savedAsFallback: Bool
   )
 }
 
@@ -29,6 +32,7 @@ final class HwpViewerView: UIView {
   private let webView: WKWebView
   private let activityIndicator = UIActivityIndicatorView(style: .large)
   private let messageLabel = UILabel()
+  private var sourceURL: URL?
   private var loadedURL: URL?
 
   /// Phục vụ trang xem HWP. Phải gắn vào `WKWebViewConfiguration` **trước** khi
@@ -38,6 +42,10 @@ final class HwpViewerView: UIView {
 
   /// Tài liệu đang mở trong trình soạn thảo, nếu có. `nil` là đang chỉ xem.
   private var editingURL: URL?
+
+  /// File đích thật khi bấm Save. Viewer vẫn đọc/ghi trong phiên hiện tại từ
+  /// working copy tạm; chỉ lệnh Save mới chạm vào URL này.
+  private var saveTargetURL: URL?
 
   /// Mốc bắt đầu nạp, để đo riêng khoảng dựng trang vỏ.
   private var shellStart: CFTimeInterval = 0
@@ -102,8 +110,8 @@ final class HwpViewerView: UIView {
     messageLabel.frame = bounds.insetBy(dx: 24, dy: 24)
   }
 
-  func load(path: String) throws {
-    let sourceURL = URL(fileURLWithPath: path)
+  func load(path: String, sourceIsAsset: Bool) throws {
+    let sourceURL = try resolveSourceURL(path: path, sourceIsAsset: sourceIsAsset)
     guard FileManager.default.fileExists(atPath: sourceURL.path) else {
       throw HwpError(
         code: "asset_not_found",
@@ -118,13 +126,21 @@ final class HwpViewerView: UIView {
         details: sourceURL.lastPathComponent
       )
     }
-    loadedURL = sourceURL
+    let previousSourceURL = self.sourceURL
+    try clearWorkingDirectory()
+    let workingURL = try makeWorkingCopy(from: sourceURL)
+    if previousSourceURL?.standardizedFileURL.path != sourceURL.standardizedFileURL.path {
+      cleanupTemporaryURL(previousSourceURL)
+    }
+    loadedURL = workingURL
+    self.sourceURL = sourceURL
+    saveTargetURL = sourceIsAsset ? nil : sourceURL
     shellStart = CACurrentMediaTime()
     // Nạp tệp khác là trang vỏ mới: chế độ sửa của tệp cũ không còn nữa.
     editingURL = nil
     showMessage(nil)
     activityIndicator.startAnimating()
-    hwpHandler.documentURL = sourceURL
+    hwpHandler.documentURL = workingURL
     guard let pageURL = HwpViewerSchemeHandler.pageURL() else {
       throw HwpError(
         code: "internal_error",
@@ -132,13 +148,16 @@ final class HwpViewerView: UIView {
         details: nil
       )
     }
-    logPdfEvent("hwp_viewer_load", "file=\(sourceURL.lastPathComponent)")
+    logPdfEvent(
+      "hwp_viewer_load",
+      "source=\(sourceURL.lastPathComponent) asset=\(sourceIsAsset) working=\(workingURL.lastPathComponent)"
+    )
 
     switch shellState {
     case .warm, .document:
       // Runtime đã chạy: chỉ cần bảo nó đi lấy tệp mới ở `/document`.
       shellState = .document
-      logPdfEvent("hwp_shell_reused", "file=\(sourceURL.lastPathComponent)")
+      logPdfEvent("hwp_shell_reused", "file=\(workingURL.lastPathComponent)")
       runHost("loadDocument()")
     case .warming:
       documentLoadPending = true
@@ -146,6 +165,60 @@ final class HwpViewerView: UIView {
     case .cold:
       shellState = .document
       webView.load(URLRequest(url: pageURL))
+    }
+  }
+
+  private func resolveSourceURL(path: String, sourceIsAsset: Bool) throws -> URL {
+    guard sourceIsAsset else { return URL(fileURLWithPath: path) }
+    let assetPath = FlutterDartProject.lookupKey(forAsset: path)
+    let assetName = (assetPath as NSString).deletingPathExtension
+    let assetExtension = (assetPath as NSString).pathExtension
+    guard let url = Bundle.main.url(forResource: assetName, withExtension: assetExtension) else {
+      throw HwpError(
+        code: "asset_not_found",
+        message: "The Flutter asset was not found in the app bundle.",
+        details: assetPath
+      )
+    }
+    return url
+  }
+
+  private func makeWorkingCopy(from sourceURL: URL) throws -> URL {
+    let directory = try workingDirectory()
+    let fileName = sourceURL.lastPathComponent.isEmpty ? "document.hwp" : sourceURL.lastPathComponent
+    let workingURL = directory.appendingPathComponent(fileName)
+    try FileManager.default.copyItem(at: sourceURL, to: workingURL)
+    logPdfEvent(
+      "hwp_working_copy_created",
+      "source=\(sourceURL.lastPathComponent) working=\(workingURL.lastPathComponent)"
+    )
+    return workingURL
+  }
+
+  private func workingDirectory() throws -> URL {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("hwp_viewer_working", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory
+  }
+
+  private func clearWorkingDirectory() throws {
+    let directory = try workingDirectory()
+    let contents = try FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: nil
+    )
+    for url in contents {
+      try FileManager.default.removeItem(at: url)
+    }
+    logPdfEvent("hwp_working_directory_cleared", "count=\(contents.count)")
+  }
+
+  private func clearWorkingDirectoryIgnoringErrors() {
+    do {
+      try clearWorkingDirectory()
+    } catch {
+      logPdfEvent("hwp_working_directory_clear_failed", "error=\(error)")
     }
   }
 
@@ -334,21 +407,7 @@ final class HwpViewerView: UIView {
         self.reportSave(error: "The HWP editor closed before the file could be written.")
         return
       }
-      do {
-        // Ghi qua tệp tạm rồi thay chỗ: hỏng giữa chừng thì bản cũ vẫn nguyên.
-        let scratch = url.deletingLastPathComponent()
-          .appendingPathComponent("hwp-save-\(UUID().uuidString).tmp")
-        try data.write(to: scratch, options: .atomic)
-        _ = try FileManager.default.replaceItemAt(url, withItemAt: scratch)
-        logPdfEvent(
-          "hwp_editor_saved",
-          "file=\(url.lastPathComponent) bytes=\(data.count) loss=\(contentLoss.count)"
-        )
-        self.reportSave(error: nil, contentLoss: contentLoss)
-      } catch {
-        logPdfEvent("hwp_editor_save_failed", "error=\(error)")
-        self.reportSave(error: error.localizedDescription)
-      }
+      self.saveExportedData(data, replacing: url, contentLoss: contentLoss)
     }
 
     relay.onExportFailed = { [weak self] message in
@@ -377,10 +436,118 @@ final class HwpViewerView: UIView {
     }
   }
 
-  /// Kết quả lưu phải đi tới tận UI. Trước đây nó chỉ vào log, nên "ghi hỏng"
-  /// và "ghi xong" trông y hệt nhau trên màn hình.
-  private func reportSave(error: String?, contentLoss: String = "") {
-    delegate?.hwpViewer(self, didSaveEditsWith: error, contentLoss: contentLoss)
+  /// Cố ghi đè file đích trước; nếu đường đó hỏng thì lưu bản sao vào
+  /// Documents/Imported để người dùng không mất lần sửa vừa export.
+  private func saveExportedData(_ data: Data, replacing url: URL, contentLoss: String) {
+    guard let targetURL = saveTargetURL else {
+      logPdfEvent("hwp_editor_save_without_target", "file=\(url.lastPathComponent)")
+      saveImportedCopy(
+        data,
+        originalURL: sourceURL ?? url,
+        replaceError: nil,
+        contentLoss: contentLoss
+      )
+      return
+    }
+
+    let scratch = targetURL.deletingLastPathComponent()
+      .appendingPathComponent("hwp-save-\(UUID().uuidString).tmp")
+    do {
+      // Ghi qua tệp tạm rồi thay chỗ: hỏng giữa chừng thì bản cũ vẫn nguyên.
+      try data.write(to: scratch, options: .atomic)
+      _ = try FileManager.default.replaceItemAt(targetURL, withItemAt: scratch)
+      refreshWorkingCopy(data, at: url)
+      logPdfEvent(
+        "hwp_editor_saved",
+        "file=\(targetURL.lastPathComponent) bytes=\(data.count) loss=\(contentLoss.count)"
+      )
+      reportSave(error: nil, contentLoss: contentLoss, savedPath: targetURL.path)
+    } catch {
+      try? FileManager.default.removeItem(at: scratch)
+      logPdfEvent("hwp_editor_replace_failed", "error=\(error)")
+      saveImportedCopy(data, originalURL: targetURL, replaceError: error, contentLoss: contentLoss)
+    }
+  }
+
+  private func saveImportedCopy(
+    _ data: Data,
+    originalURL: URL,
+    replaceError: Error?,
+    contentLoss: String
+  ) {
+    do {
+      let fallbackURL = try fallbackURL(for: originalURL)
+      try data.write(to: fallbackURL, options: .atomic)
+      if let loadedURL {
+        refreshWorkingCopy(data, at: loadedURL)
+      }
+      saveTargetURL = fallbackURL
+      logPdfEvent(
+        "hwp_editor_saved_fallback",
+        "file=\(fallbackURL.lastPathComponent) bytes=\(data.count) loss=\(contentLoss.count)"
+      )
+      reportSave(
+        error: nil,
+        contentLoss: contentLoss,
+        savedPath: fallbackURL.path,
+        savedAsFallback: true
+      )
+    } catch {
+      logPdfEvent("hwp_editor_save_fallback_failed", "error=\(error)")
+      if let replaceError {
+        reportSave(
+          error: "Không ghi đè được file gốc: \(replaceError.localizedDescription). Không lưu được bản sao: \(error.localizedDescription)"
+        )
+      } else {
+        reportSave(error: "Không lưu được bản sao: \(error.localizedDescription)")
+      }
+    }
+  }
+
+  private func fallbackURL(for originalURL: URL) throws -> URL {
+    let directory = try importedDirectory()
+    let baseName = originalURL.deletingPathExtension().lastPathComponent
+    let base = baseName.isEmpty ? "HWP Edited" : "\(baseName) Edited"
+    let pathExtension = originalURL.pathExtension.isEmpty ? "hwp" : originalURL.pathExtension
+    var candidate = directory.appendingPathComponent(base).appendingPathExtension(pathExtension)
+    var suffix = 2
+    while FileManager.default.fileExists(atPath: candidate.path) {
+      candidate = directory
+        .appendingPathComponent("\(base) (\(suffix))")
+        .appendingPathExtension(pathExtension)
+      suffix += 1
+    }
+    return candidate
+  }
+
+  private func importedDirectory() throws -> URL {
+    let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    let directory = documents.appendingPathComponent("Imported", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    return directory
+  }
+
+  private func refreshWorkingCopy(_ data: Data, at url: URL) {
+    do {
+      try data.write(to: url, options: .atomic)
+    } catch {
+      logPdfEvent("hwp_working_copy_refresh_failed", "error=\(error)")
+    }
+  }
+
+  private func reportSave(
+    error: String?,
+    contentLoss: String = "",
+    savedPath: String? = nil,
+    savedAsFallback: Bool = false
+  ) {
+    delegate?.hwpViewer(
+      self,
+      didSaveEditsWith: error,
+      contentLoss: contentLoss,
+      savedPath: savedPath,
+      savedAsFallback: savedAsFallback
+    )
   }
 
   /// Màn hình Flutter đặt `resizeToAvoidBottomInset: false`, nên web view giữ
@@ -460,8 +627,8 @@ final class HwpViewerView: UIView {
     return nil
   }
 
-  /// Removes the local copy taken by the picker. The viewer owns that copy, so
-  /// nothing of the user's original file is touched.
+  /// Removes only temporary viewer copies. Files in Documents/Imported are the
+  /// user's library and must survive closing this screen.
   func close() {
     logPdfEvent("hwp_viewer_close", "file=\(loadedURL?.lastPathComponent ?? "")")
     webView.stopLoading()
@@ -479,11 +646,23 @@ final class HwpViewerView: UIView {
       webView.loadHTMLString("", baseURL: nil)
     }
     activityIndicator.stopAnimating()
-    if let loadedURL {
-      try? FileManager.default.removeItem(at: loadedURL)
-    }
+    clearWorkingDirectoryIgnoringErrors()
+    cleanupTemporaryURL(sourceURL)
+    sourceURL = nil
     loadedURL = nil
     editingURL = nil
+    saveTargetURL = nil
+  }
+
+  private func cleanupTemporaryURL(_ url: URL?) {
+    guard let url, isTemporaryURL(url) else { return }
+    try? FileManager.default.removeItem(at: url)
+  }
+
+  private func isTemporaryURL(_ url: URL) -> Bool {
+    let path = url.standardizedFileURL.path
+    let tempPath = FileManager.default.temporaryDirectory.standardizedFileURL.path
+    return path.hasPrefix(tempPath)
   }
 
   private func configureSubviews() {
