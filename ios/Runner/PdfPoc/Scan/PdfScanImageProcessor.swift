@@ -1,6 +1,7 @@
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import Foundation
+import ImageIO
 import Metal
 import UIKit
 
@@ -145,8 +146,8 @@ final class PdfScanImageProcessor {
   ) throws {
     guard preset != .original else { return }
 
-    guard let source = UIImage(contentsOfFile: page.originalURL.path),
-          let sourceCG = source.cgImage else {
+    var timer = StepTimer()
+    guard let scaled = workingImage(at: page.originalURL) else {
       throw PdfPocError(
         code: "scan_processing_failed",
         message: "Could not read the captured page for processing.",
@@ -154,9 +155,10 @@ final class PdfScanImageProcessor {
       )
     }
 
-    let scaled = downscaled(sourceCG)
+    let decodeMs = timer.lap()
     let extent = CGRect(x: 0, y: 0, width: scaled.width, height: scaled.height)
     let output = render(source: CIImage(cgImage: scaled), extent: extent, preset: preset)
+    let graphMs = timer.lap()
 
     // Encoded straight off the render rather than via `CGImage` and `UIImage`:
     // those are two extra full-page copies per page.
@@ -185,6 +187,18 @@ final class PdfScanImageProcessor {
         details: "pageId=\(page.id) \(error.localizedDescription)"
       )
     }
+
+    // CoreImage dựng đồ thị lười, nên `graph` gần như bằng 0 và toàn bộ chi phí
+    // của pipeline nằm trong `write`.
+    let writeMs = timer.lap()
+    let bytes = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.size] as? Int) ?? nil
+    logPdfEvent(
+      "scan_process_page",
+      "pageId=\(page.id) preset=\(preset.storageKey)"
+        + " src=\(scaled.width)x\(scaled.height)"
+        + " decode=\(decodeMs)ms graph=\(graphMs)ms write=\(writeMs)ms"
+        + " total=\(timer.total)ms bytes=\(bytes ?? -1)"
+    )
   }
 
   // MARK: - Pipeline
@@ -656,22 +670,16 @@ final class PdfScanImageProcessor {
     return sharpen.outputImage?.cropped(to: extent) ?? image
   }
 
-  private func downscaled(_ image: CGImage) -> CGImage {
-    let longEdge = CGFloat(max(image.width, image.height))
-    guard longEdge > PdfScanTuning.processedLongEdge else { return image }
-
-    let scale = PdfScanTuning.processedLongEdge / longEdge
-    let size = CGSize(
-      width: max((CGFloat(image.width) * scale).rounded(), 1),
-      height: max((CGFloat(image.height) * scale).rounded(), 1)
-    )
-
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 1
-    format.opaque = true
-    let renderer = UIGraphicsImageRenderer(size: size, format: format)
-    return renderer.image { _ in
-      UIImage(cgImage: image).draw(in: CGRect(origin: .zero, size: size))
-    }.cgImage ?? image
+  /// Ảnh gốc, giải mã thẳng ở cỡ làm việc: một lượt ImageIO thay vì bung đủ
+  /// ~12 megapixel rồi raster lại. Đổi preset là chạy lại cho từng trang.
+  private func workingImage(at url: URL) -> CGImage? {
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceShouldCacheImmediately: true,
+      kCGImageSourceThumbnailMaxPixelSize: PdfScanTuning.processedLongEdge,
+    ]
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+    return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
   }
 }

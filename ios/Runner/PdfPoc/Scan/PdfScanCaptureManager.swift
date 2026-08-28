@@ -88,6 +88,9 @@ final class PdfScanCaptureManager: NSObject {
 
   /// The session is created by the first page rather than at presentation, so
   /// cancelling before shooting anything leaves nothing on disk to sweep.
+  ///
+  /// Chỉ đụng tới trên `workQueue`. Trang được ghi ở đó còn lỗi lại đến từ main,
+  /// nên mọi đường vào phải quy về cùng một hàng đợi.
   private var cameraSession: PdfScanSessionRecord?
 
   /// Writes one captured page immediately. Pages are never accumulated in
@@ -102,26 +105,29 @@ final class PdfScanCaptureManager: NSObject {
           try self.appendPage(image: image, to: session)
         }
       } catch let error as PdfPocError {
-        DispatchQueue.main.async { self.failCameraSession(error) }
+        self.failCameraSession(error)
       } catch {
-        DispatchQueue.main.async {
-          self.failCameraSession(
-            PdfPocError(
-              code: "scan_failed",
-              message: "Could not store the captured page.",
-              details: error.localizedDescription
-            )
+        self.failCameraSession(
+          PdfPocError(
+            code: "scan_failed",
+            message: "Could not store the captured page.",
+            details: error.localizedDescription
           )
-        }
+        )
       }
     }
   }
 
   private func failCameraSession(_ error: PdfPocError) {
-    let session = cameraSession
-    cameraSession = nil
-    activeController?.dismiss(animated: true)
-    fail(error, discarding: session)
+    workQueue.async { [weak self] in
+      guard let self else { return }
+      let session = self.cameraSession
+      self.cameraSession = nil
+      DispatchQueue.main.async {
+        self.activeController?.dismiss(animated: true)
+        self.fail(error, discarding: session)
+      }
+    }
   }
 
   private func appendPage(image: UIImage, to session: PdfScanSessionRecord) throws {
@@ -132,6 +138,7 @@ final class PdfScanCaptureManager: NSObject {
   }
 
   private func write(image: UIImage, to destination: URL, pageId: String) throws {
+    var timer = StepTimer()
     guard let data = image.jpegData(compressionQuality: 0.95) else {
       throw PdfPocError(
         code: "scan_failed",
@@ -139,7 +146,13 @@ final class PdfScanCaptureManager: NSObject {
         details: "pageId=\(pageId)"
       )
     }
+    let encodeMs = timer.lap()
     try data.write(to: destination, options: .atomic)
+    logPdfEvent(
+      "scan_page_written",
+      "pageId=\(pageId) size=\(Int(image.size.width))x\(Int(image.size.height))"
+        + " bytes=\(data.count) encode=\(encodeMs)ms disk=\(timer.lap())ms"
+    )
   }
 
 }
@@ -170,17 +183,15 @@ extension PdfScanCaptureManager: PdfScanCameraViewControllerDelegate {
         }
         logPdfEvent("scan_capture_page_adjusted", "pageId=\(last.id)")
       } catch let error as PdfPocError {
-        DispatchQueue.main.async { self.failCameraSession(error) }
+        self.failCameraSession(error)
       } catch {
-        DispatchQueue.main.async {
-          self.failCameraSession(
-            PdfPocError(
-              code: "scan_failed",
-              message: "Could not store the adjusted page.",
-              details: error.localizedDescription
-            )
+        self.failCameraSession(
+          PdfPocError(
+            code: "scan_failed",
+            message: "Could not store the adjusted page.",
+            details: error.localizedDescription
           )
-        }
+        )
       }
     }
   }

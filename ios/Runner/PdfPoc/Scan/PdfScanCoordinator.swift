@@ -164,6 +164,7 @@ final class PdfScanCoordinator: NSObject {
     let total = Int64(pages.count)
     workQueue.async { [weak self] in
       guard let self else { return }
+      let batch = StepTimer()
       for (offset, page) in pages.enumerated() {
         if self.isCancelled(operationId) { break }
         autoreleasepool {
@@ -179,7 +180,7 @@ final class PdfScanCoordinator: NSObject {
             }
             DispatchQueue.main.async {
               self.emitPageProcessed(session: session, page: page)
-              self.reviewView?.render(session: session)
+              self.reviewView?.renderPage(session: session, pageId: page.id)
             }
           } catch let error as PdfPocError {
             DispatchQueue.main.async { self.emitFailure(operationId: operationId, error: error) }
@@ -204,6 +205,11 @@ final class PdfScanCoordinator: NSObject {
           ) { _ in }
         }
       }
+      logPdfEvent(
+        "scan_process_batch",
+        "operationId=\(operationId) pages=\(total)"
+          + " preset=\(preset.storageKey) ms=\(batch.total)"
+      )
       self.clearCancellation(operationId)
     }
   }

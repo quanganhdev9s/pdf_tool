@@ -62,6 +62,7 @@ final class PdfScanExporter {
       for (pageIndex, page) in pages.enumerated() {
         if isCancelled() { return }
         autoreleasepool {
+          var timer = StepTimer()
           guard let image = loadRenderImage(for: page, profile: profile) else {
             renderError = PdfPocError(
               code: "scan_export_failed",
@@ -70,11 +71,18 @@ final class PdfScanExporter {
             )
             return
           }
+          let loadMs = timer.lap()
           let bounds = CGRect(origin: .zero, size: image.size)
           context.beginPage(withBounds: bounds, pageInfo: [:])
           UIColor.white.setFill()
           UIRectFill(bounds)
           image.draw(in: bounds)
+          logPdfEvent(
+            "scan_export_page",
+            "page=\(pageIndex + 1)/\(pages.count)"
+              + " size=\(Int(image.size.width))x\(Int(image.size.height))"
+              + " load=\(loadMs)ms draw=\(timer.lap())ms"
+          )
         }
         if renderError != nil { return }
         onProgress(Int64(pageIndex + 1), Int64(pages.count))

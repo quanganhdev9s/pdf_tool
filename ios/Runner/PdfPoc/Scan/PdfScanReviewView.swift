@@ -57,8 +57,9 @@ final class PdfScanReviewView: UIView {
   private var isComparingOriginal = false
 
   /// Thumbnails are keyed by everything that changes their pixels, so a rotate
-  /// or a preset change invalidates exactly the entries it should.
-  private var thumbnailCache: [String: UIImage] = [:]
+  /// or a preset change invalidates exactly the entries it should. `NSCache`
+  /// vì khoá gồm cả preset lẫn góc xoay — đủ biến thể để chật bộ nhớ.
+  private let thumbnailCache = NSCache<NSString, UIImage>()
   private let renderQueue = DispatchQueue(label: "pdf.scan.review.render", qos: .userInitiated)
 
   private static let thumbnailSize = CGSize(width: 132, height: 176)
@@ -165,11 +166,28 @@ final class PdfScanReviewView: UIView {
     updatePreview()
   }
 
+  /// Cập nhật đúng một trang. `render(session:)` gọi `reloadData()`, mà áp
+  /// preset cho cả tập thì nó chạy một lần cho mỗi trang. Thêm/bớt trang thì
+  /// quay về đường cũ.
+  func renderPage(session: PdfScanSessionRecord, pageId: String) {
+    guard sessionId == session.id,
+          pages.count == session.pages.count,
+          let index = session.pages.firstIndex(where: { $0.id == pageId }) else {
+      render(session: session)
+      return
+    }
+    pages = session.pages
+    UIView.performWithoutAnimation {
+      thumbnailCollectionView.reloadItems(at: [IndexPath(item: index, section: 0)])
+    }
+    if index == currentIndex { updatePreview() }
+  }
+
   func renderEmpty() {
     sessionId = nil
     pages = []
     currentIndex = 0
-    thumbnailCache.removeAll()
+    thumbnailCache.removeAllObjects()
     emptyLabel.isHidden = false
     previewScrollView.isHidden = true
     badgeLabel.isHidden = true
@@ -187,7 +205,7 @@ final class PdfScanReviewView: UIView {
     let rotation = page.rotationDegrees
     let key = cacheKey(for: page, size: "preview")
 
-    if let cached = thumbnailCache[key] {
+    if let cached = thumbnailCache.object(forKey: key as NSString) {
       previewImageView.image = cached
       return
     }
@@ -204,7 +222,7 @@ final class PdfScanReviewView: UIView {
           return
         }
         if let image {
-          self.thumbnailCache[key] = image
+          self.thumbnailCache.setObject(image, forKey: key as NSString)
         }
         self.previewImageView.image = image
       }
@@ -274,12 +292,12 @@ extension PdfScanReviewView: UICollectionViewDataSource, UICollectionViewDelegat
     let page = pages[indexPath.item]
     let key = cacheKey(for: page, size: "thumb")
     thumbnailCell.configure(
-      image: thumbnailCache[key],
+      image: thumbnailCache.object(forKey: key as NSString),
       title: "\(indexPath.item + 1)",
       isSelected: indexPath.item == currentIndex
     )
 
-    if thumbnailCache[key] == nil {
+    if thumbnailCache.object(forKey: key as NSString) == nil {
       let url = isComparingOriginal ? page.originalURL : page.renderURL
       let rotation = page.rotationDegrees
       renderQueue.async { [weak self] in
@@ -287,7 +305,7 @@ extension PdfScanReviewView: UICollectionViewDataSource, UICollectionViewDelegat
         let image = Self.decode(url: url, rotation: rotation, fitting: Self.thumbnailSize)
         DispatchQueue.main.async {
           guard let image else { return }
-          self.thumbnailCache[key] = image
+          self.thumbnailCache.setObject(image, forKey: key as NSString)
           if let visible = collectionView.cellForItem(at: indexPath) as? PdfScanThumbnailCell {
             visible.configure(
               image: image,

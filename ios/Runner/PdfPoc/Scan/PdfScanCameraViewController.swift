@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import ImageIO
 import UIKit
 import Vision
 
@@ -48,7 +49,19 @@ final class PdfScanCameraViewController: UIViewController {
   private let sessionQueue = DispatchQueue(label: "pdf.scan.camera.session")
   private let detectionQueue = DispatchQueue(label: "pdf.scan.camera.detection")
 
+  /// Nắn phối cảnh và mã hoá JPEG của ảnh vừa chụp. Tách khỏi main: cả hai việc
+  /// đều ở độ phân giải đầy đủ và đủ nặng để thấy giật khi bấm chụp.
+  private let stillQueue = DispatchQueue(label: "pdf.scan.camera.still", qos: .userInitiated)
+
+  /// Hàng đợi riêng cho việc hâm nóng, **không** dùng chung với `stillQueue`.
+  /// Lượt hâm mất hơn 10 giây (biên dịch shader Metal), mà `stillQueue` tuần
+  /// tự — bấm chụp trong khoảng đó là ảnh phải xếp hàng sau nó.
+  private let warmUpQueue = DispatchQueue(label: "pdf.scan.camera.warmup", qos: .utility)
+
   private let detector = PdfScanDocumentDetector()
+
+  /// Thời gian dò của các khung gần đây; xem `recordDetection`.
+  private var detectionSamples: [Int] = []
   private var stability = PdfScanCaptureStability()
 
   private var device: AVCaptureDevice?
@@ -62,7 +75,13 @@ final class PdfScanCameraViewController: UIViewController {
 
   /// Detection runs on every third frame. At 30 fps that is ~10 detections a
   /// second, which is enough to feel live and leaves the frame budget alone.
-  private static let detectionFrameInterval = 3
+  private static let detectionFrameInterval = 2
+
+  /// Khớp với nhịp dò ở trên: khung vàng nội suy từ lần dò này sang lần kế tiếp
+  /// thay vì nhảy cóc. `CAShapeLayer` không nằm dưới một view nên nếu để mặc
+  /// định nó tự chạy hoạt ảnh 0.25s cho mỗi `path` mới — dài gấp ba khoảng cách
+  /// giữa hai lần dò, nên khung luôn bị bỏ dở giữa chừng và trông nhoè.
+  private static let overlayFollowDuration = 0.08
 
   /// Portrait, because the connection is. Enough resolution for segmentation to
   /// place corners within a pixel or two of where a full-size frame would.
@@ -78,6 +97,10 @@ final class PdfScanCameraViewController: UIViewController {
   /// Smoothed across detections — see `PdfScanCaptureStability.smoothingFactor`.
   private var lastQuad: PdfScanQuad?
   private var isCapturing = false
+
+  /// Mốc lúc bấm máy, để đo quãng AVFoundation giữ ảnh — quãng dài nhất trong
+  /// cả lần chụp mà trước đây không có gì đo.
+  private var shutterAt: CFTimeInterval = 0
   private var pageCount = 0
 
   /// The last still *before* perspective correction, plus the corners used on
@@ -211,8 +234,9 @@ final class PdfScanCameraViewController: UIViewController {
       }
 
       if self.session.canAddOutput(self.photoOutput) {
-        self.photoOutput.maxPhotoQualityPrioritization = .quality
+        self.photoOutput.maxPhotoQualityPrioritization = .speed
         self.session.addOutput(self.photoOutput)
+        self.limitPhotoDimensions(for: device)
       }
 
       // Detection buffers are requested small. The session preset is `.photo`,
@@ -247,7 +271,44 @@ final class PdfScanCameraViewController: UIViewController {
       guard let self, self.isSessionConfigured, !self.session.isRunning else { return }
       self.session.startRunning()
       logPdfEvent("scan_camera_started")
+      self.warmUpRenderPipeline()
     }
+  }
+
+  /// Trả trước chi phí một lần của đường xử lý ảnh tĩnh.
+  ///
+  /// Phải chạy **đúng** `quickPreview` trên một JPEG thật chứ không phải một
+  /// `CIImage(color:)`: ảnh sinh ra từ generator không có texture đầu vào, nên
+  /// CoreImage biên dịch một biến thể shader khác với biến thể mà ảnh chụp
+  /// thật sẽ dùng. Đo được: hâm bằng generator tốn 6.3s mà lần chụp đầu vẫn
+  /// phải trả thêm 3.3s; hâm đúng đường thì còn 137ms.
+  private func warmUpRenderPipeline() {
+    warmUpQueue.async {
+      var timer = StepTimer()
+      guard let seed = Self.warmUpJpeg() else { return }
+      let encodeMs = timer.lap()
+      _ = self.quickPreview(from: seed, quad: Self.fullFrameQuad)
+      logPdfEvent(
+        "scan_render_warmup",
+        "seed=\(encodeMs)ms preview=\(timer.lap())ms"
+      )
+    }
+  }
+
+  /// Ảnh giả cỡ xấp xỉ bản xem trước thật, để lượt hâm nóng đi qua đúng cỡ
+  /// texture mà lần chụp đầu sẽ dùng.
+  private static func warmUpJpeg() -> Data? {
+    let size = CGSize(width: 720, height: 960)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+    let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+      UIColor.white.setFill()
+      context.fill(CGRect(origin: .zero, size: size))
+      UIColor.darkGray.setFill()
+      context.fill(CGRect(x: 60, y: 80, width: 600, height: 40))
+    }
+    return image.jpegData(compressionQuality: 0.9)
   }
 
   /// Continuous autofocus with the page assumed to be centred, and macro-range
@@ -284,7 +345,7 @@ final class PdfScanCameraViewController: UIViewController {
   private func configureInterface() {
     overlayLayer.fillColor = UIColor.systemYellow.withAlphaComponent(0.18).cgColor
     overlayLayer.strokeColor = UIColor.systemYellow.cgColor
-    overlayLayer.lineWidth = 3
+    overlayLayer.lineWidth = 1.5
     overlayLayer.lineJoin = .round
     view.layer.addSublayer(overlayLayer)
 
@@ -493,7 +554,10 @@ final class PdfScanCameraViewController: UIViewController {
   /// UIKit's points down, hence the flip.
   private func updateOverlay(with quad: PdfScanQuad?) {
     guard let quad, bufferSize.width > 0, bufferSize.height > 0 else {
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
       overlayLayer.path = nil
+      CATransaction.commit()
       return
     }
 
@@ -514,7 +578,12 @@ final class PdfScanCameraViewController: UIViewController {
       index == 0 ? path.move(to: point) : path.addLine(to: point)
     }
     path.close()
+
+    CATransaction.begin()
+    CATransaction.setAnimationDuration(Self.overlayFollowDuration)
+    CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .linear))
     overlayLayer.path = path.cgPath
+    CATransaction.commit()
   }
 
   // MARK: - Capture
@@ -527,12 +596,36 @@ final class PdfScanCameraViewController: UIViewController {
     return device.isAdjustingFocus || device.isAdjustingExposure
   }
 
+  /// Chụp nhỏ hơn cả cảm biến.
+  ///
+  /// Trang sau khi nắn phối cảnh chưa bao giờ được dùng trên 2400px, mà ảnh cắt
+  /// ra chỉ còn ~75% khung hình — nên khoảng 3200px là đủ dư. Cảm biến đầy
+  /// (12MP) chỉ làm ISP và bước mã hoá lâu hơn.
+  private func limitPhotoDimensions(for device: AVCaptureDevice) {
+    guard #available(iOS 16.0, *) else { return }
+    let wanted: Int32 = 3200
+    let supported = device.activeFormat.supportedMaxPhotoDimensions
+    guard let pick = supported
+      .filter({ max($0.width, $0.height) >= wanted })
+      .min(by: { max($0.width, $0.height) < max($1.width, $1.height) })
+    else { return }
+    photoOutput.maxPhotoDimensions = pick
+    logPdfEvent("scan_photo_dimensions", "\(pick.width)x\(pick.height)")
+  }
+
   private func capturePhoto() {
     guard !isCapturing, session.isRunning else { return }
     isCapturing = true
+    shutterAt = CACurrentMediaTime()
 
     let settings = AVCapturePhotoSettings()
-    settings.photoQualityPrioritization = .quality
+    // `.quality` bật đường hợp nhất nhiều khung của ISP — đáng cho ảnh đời
+    // thường, nhưng đây là tờ giấy phẳng và pipeline phía sau còn san sáng rồi
+    // ép mức nữa, nên phần tinh tế mua được lại bị chính bước đó xoá đi.
+    settings.photoQualityPrioritization = .speed
+    if #available(iOS 16.0, *) {
+      settings.maxPhotoDimensions = photoOutput.maxPhotoDimensions
+    }
     settings.flashMode = .off
     photoOutput.capturePhoto(with: settings, delegate: self)
 
@@ -548,11 +641,14 @@ final class PdfScanCameraViewController: UIViewController {
   /// and a few tens of milliseconds apart — and mapping one onto the other is
   /// exactly the class of coordinate bug that is invisible until the output is
   /// subtly trapezoidal. Detecting twice costs one extra Vision pass per page.
-  private func correctedImage(from image: CIImage) -> (image: CIImage, quad: PdfScanQuad?) {
+  private func correctedImage(
+    from image: CIImage,
+    fallbackQuad: PdfScanQuad? = nil
+  ) -> (image: CIImage, quad: PdfScanQuad?) {
     // Both candidates are already validated — the detector rejects implausible
     // quads — so an unusable still detection falls through to the live one, and
     // a page with neither is left uncropped rather than sheared into a wedge.
-    guard let quad = detector.detect(in: image) ?? lastQuad else { return (image, nil) }
+    guard let quad = detector.detect(in: image) ?? fallbackQuad else { return (image, nil) }
     return (perspectiveCorrected(image, using: quad), quad)
   }
 
@@ -586,6 +682,20 @@ final class PdfScanCameraViewController: UIViewController {
 // MARK: - Live frames
 
 extension PdfScanCameraViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
+  /// Gộp lại rồi in mỗi 30 lần dò. In từng khung là log lấn át đúng thứ đang đo.
+  /// Chỉ chạm trên `detectionQueue`.
+  private func recordDetection(ms: Int) {
+    detectionSamples.append(ms)
+    guard detectionSamples.count >= 30 else { return }
+    let total = detectionSamples.reduce(0, +)
+    logPdfEvent(
+      "scan_detect_rate",
+      "frames=\(detectionSamples.count) avg=\(total / detectionSamples.count)ms"
+        + " max=\(detectionSamples.max() ?? 0)ms every=\(Self.detectionFrameInterval)"
+    )
+    detectionSamples.removeAll(keepingCapacity: true)
+  }
+
   func captureOutput(
     _ output: AVCaptureOutput,
     didOutput sampleBuffer: CMSampleBuffer,
@@ -604,7 +714,9 @@ extension PdfScanCameraViewController: AVCaptureVideoDataOutputSampleBufferDeleg
       width: CVPixelBufferGetWidth(pixelBuffer),
       height: CVPixelBufferGetHeight(pixelBuffer)
     )
+    var timer = StepTimer()
     let quad = detector.detect(in: pixelBuffer)
+    recordDetection(ms: timer.total)
     isDetecting = false
 
     DispatchQueue.main.async { [weak self] in
@@ -652,9 +764,16 @@ extension PdfScanCameraViewController: AVCapturePhotoCaptureDelegate {
     didFinishProcessingPhoto photo: AVCapturePhoto,
     error: Error?
   ) {
-    defer { isCapturing = false }
+    if shutterAt > 0 {
+      logPdfEvent(
+        "scan_shutter_latency",
+        "ms=\(Int(((CACurrentMediaTime() - shutterAt) * 1000).rounded()))"
+      )
+      shutterAt = 0
+    }
 
     if let error {
+      isCapturing = false
       delegate?.cameraController(
         self,
         didFailWith: PdfPocError(
@@ -666,9 +785,8 @@ extension PdfScanCameraViewController: AVCapturePhotoCaptureDelegate {
       return
     }
 
-    guard let data = photo.fileDataRepresentation(),
-          let captured = UIImage(data: data)?.normalizedUp(),
-          let cgImage = captured.cgImage else {
+    guard let data = photo.fileDataRepresentation() else {
+      isCapturing = false
       delegate?.cameraController(
         self,
         didFailWith: PdfPocError(
@@ -680,37 +798,194 @@ extension PdfScanCameraViewController: AVCapturePhotoCaptureDelegate {
       return
     }
 
-    let result = correctedImage(from: CIImage(cgImage: cgImage))
-    let corrected = result.image
-    storeOriginal(data, quad: result.quad ?? Self.fullFrameQuad)
+    // `lastQuad` chỉ được đụng tới trên main. Lấy một bản ở đây rồi truyền đi,
+    // để hàng đợi xử lý ảnh không phải đọc nó.
+    let quadHint = lastQuad
+    stillQueue.async { [weak self] in
+      guard let self else { return }
+      autoreleasepool {
+        self.processCapturedPhoto(data: data, quadHint: quadHint)
+      }
+    }
+  }
 
-    guard let output = PdfScanRenderContext.shared.createCGImage(corrected, from: corrected.extent) else {
-      delegate?.cameraController(
-        self,
-        didFailWith: PdfPocError(
-          code: "scan_capture_failed",
-          message: "Could not straighten the captured page.",
-          details: nil
+  /// Chạy trên `stillQueue`. Trả kết quả về main chỉ để cập nhật giao diện.
+  ///
+  /// Chia làm hai chặng có chủ đích: một bản xem trước nhỏ dựng gần như tức thì
+  /// để hoạt ảnh chạy ngay sau tiếng chụp, rồi mới tới bản đầy đủ. Nếu đợi bản
+  /// đầy đủ mới bắt đầu thì người dùng nhìn màn hình đứng im mất một lúc.
+  private func processCapturedPhoto(data: Data, quadHint: PdfScanQuad?) {
+    var timer = StepTimer()
+    // Mở cửa cho khung hình trực tiếp chỉ khi đã xong hẳn. Trước đây cờ này
+    // được nhả ngay lúc delegate trả về, nên Vision chạy song song với cả
+    // đường xử lý ảnh tĩnh và giành nhau GPU: đo được `max=12775ms` cho một
+    // lần dò.
+    defer { DispatchQueue.main.async { [weak self] in self?.isCapturing = false } }
+
+    func failOnMain(_ message: String) {
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        self.delegate?.cameraController(
+          self,
+          didFailWith: PdfPocError(code: "scan_capture_failed", message: message, details: nil)
         )
-      )
-      return
+      }
     }
 
-    let page = UIImage(cgImage: output)
-    pageCount += 1
-    doneButton.isEnabled = true
-    doneButton.setTitle("Done (\(pageCount))", for: .normal)
-    thumbnailView.image = page
-    thumbnailView.isHidden = false
-    cropBadge.isHidden = false
-    stability.reset()
+    if let preview = quickPreview(from: data, quad: quadHint) {
+      DispatchQueue.main.async { [weak self] in
+        self?.flyCaptureToThumbnail(preview)
+      }
+    }
+    let previewMs = timer.lap()
 
-    logPdfEvent("scan_camera_page_captured", "page=\(pageCount)")
-    delegate?.cameraController(self, didCapture: page)
+    guard let captured = UIImage(data: data)?.normalizedUp(),
+          let cgImage = captured.cgImage else {
+      failOnMain("Could not read the captured page.")
+      return
+    }
+    let decodeMs = timer.lap()
+
+    let result = correctedImage(from: CIImage(cgImage: cgImage), fallbackQuad: quadHint)
+    let corrected = result.image
+    let detectMs = timer.lap()
+    storeOriginal(data, quad: result.quad ?? Self.fullFrameQuad)
+    let storeMs = timer.lap()
+
+    guard let output = PdfScanRenderContext.shared.createCGImage(corrected, from: corrected.extent) else {
+      failOnMain("Could not straighten the captured page.")
+      return
+    }
+    let page = UIImage(cgImage: output)
+    logPdfEvent(
+      "scan_capture_pipeline",
+      "bytes=\(data.count) out=\(output.width)x\(output.height)"
+        + " preview=\(previewMs)ms decode=\(decodeMs)ms detect=\(detectMs)ms"
+        + " store=\(storeMs)ms raster=\(timer.lap())ms total=\(timer.total)ms"
+    )
+
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.pageCount += 1
+      self.doneButton.isEnabled = true
+      self.doneButton.setTitle("Done (\(self.pageCount))", for: .normal)
+      self.thumbnailView.image = page
+      self.thumbnailView.isHidden = false
+      self.cropBadge.isHidden = false
+      self.stability.reset()
+      logPdfEvent("scan_camera_page_captured", "page=\(self.pageCount)")
+      self.delegate?.cameraController(self, didCapture: page)
+    }
+  }
+
+  /// Ảnh nhỏ dùng cho hoạt ảnh, giải mã thẳng ở kích thước rút gọn.
+  ///
+  /// ImageIO giải nén JPEG theo bậc nên bản này rẻ hơn hẳn bản đầy đủ. Khung
+  /// dùng để cắt là khung từ luồng xem trước chứ không dò lại — đây chỉ là ảnh
+  /// để nhìn, bản chính thức vẫn được dò riêng ở dưới.
+  private func quickPreview(from data: Data, quad: PdfScanQuad?) -> UIImage? {
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: 720,
+    ]
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+          let thumb = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+      return nil
+    }
+    guard let quad else { return UIImage(cgImage: thumb) }
+
+    let corrected = perspectiveCorrected(CIImage(cgImage: thumb), using: quad)
+    guard let output = PdfScanRenderContext.shared.createCGImage(
+      corrected,
+      from: corrected.extent
+    ) else {
+      return UIImage(cgImage: thumb)
+    }
+    return UIImage(cgImage: output)
   }
 }
 
 extension PdfScanCameraViewController {
+  /// Ảnh vừa chụp hiện ra to giữa màn hình rồi bay thu nhỏ về ô thumbnail.
+  ///
+  /// Auto-capture bấm máy hộ người dùng, nên nếu không có gì báo thì họ không
+  /// biết đã chụp được hay chưa. Ảnh bay về đúng chỗ thumbnail vừa xác nhận đã
+  /// chụp, vừa chỉ luôn nơi bấm vào để chỉnh lại khung.
+  /// Ảnh đứng yên ở cỡ lớn bao lâu trước khi bay — đây mới là lúc người dùng
+  /// xác nhận vừa chụp được gì, phần bay chỉ để chỉ chỗ.
+  private static let flyHoldDuration: TimeInterval = 0.45
+  private static let flyTravelDuration: TimeInterval = 1.15
+  private static let flyBounceDuration: TimeInterval = 0.42
+
+  /// Hình chữ nhật lớn nhất mang đúng tỉ lệ [size], canh giữa trong [bounds].
+  private static func aspectFitted(_ size: CGSize, in bounds: CGRect) -> CGRect {
+    guard size.width > 0, size.height > 0 else { return bounds }
+    let scale = min(bounds.width / size.width, bounds.height / size.height)
+    let fitted = CGSize(width: size.width * scale, height: size.height * scale)
+    return CGRect(
+      x: bounds.midX - fitted.width / 2,
+      y: bounds.midY - fitted.height / 2,
+      width: fitted.width,
+      height: fitted.height
+    )
+  }
+
+  func flyCaptureToThumbnail(_ page: UIImage) {
+    // Thumbnail nhận ảnh ngay: hiệu ứng chỉ là lớp phủ tạm bên trên nó.
+    thumbnailView.image = page
+    thumbnailView.isHidden = false
+
+    view.layoutIfNeeded()
+    let destination = thumbnailView.frame
+    let stage = view.bounds
+    guard destination.width > 0, stage.width > 0 else { return }
+
+    let flyer = UIImageView(image: page)
+    // Cùng `contentMode` với đích đến, nếu không thì lúc hạ cánh ảnh đang
+    // letterbox trong khi thumbnail thật thì cắt đầy khung.
+    flyer.contentMode = .scaleAspectFill
+    flyer.clipsToBounds = true
+    flyer.layer.cornerRadius = 10
+    flyer.layer.borderWidth = 2
+    flyer.layer.borderColor = UIColor.white.cgColor
+    // Khung phải mang đúng tỉ lệ của ảnh, không phải tỉ lệ màn hình: viền và bo
+    // góc vẽ theo khung, nên khung rộng hơn ảnh là viền hở ra khỏi mép ảnh.
+    flyer.frame = Self.aspectFitted(
+      page.size,
+      in: stage.insetBy(dx: stage.width * 0.12, dy: stage.height * 0.12)
+    )
+    view.addSubview(flyer)
+
+    // Thumbnail lặn đi trong lúc ảnh đang bay tới, nếu không sẽ thấy hai ảnh.
+    thumbnailView.alpha = 0
+    cropBadge.alpha = 0
+
+    UIView.animate(
+      withDuration: Self.flyTravelDuration,
+      delay: Self.flyHoldDuration,
+      usingSpringWithDamping: 0.88,
+      initialSpringVelocity: 0.25,
+      options: [.curveEaseInOut],
+      animations: {
+        flyer.frame = destination
+        flyer.layer.cornerRadius = 6
+        flyer.alpha = 0.9
+      },
+      completion: { [weak self] _ in
+        flyer.removeFromSuperview()
+        guard let self else { return }
+        self.thumbnailView.alpha = 1
+        self.cropBadge.alpha = 1
+        // Nảy nhẹ để mắt bắt được chỗ ảnh vừa rơi vào.
+        self.thumbnailView.transform = CGAffineTransform(scaleX: 1.18, y: 1.18)
+        UIView.animate(withDuration: Self.flyBounceDuration) {
+          self.thumbnailView.transform = .identity
+        }
+      }
+    )
+  }
+
   private static let originalFileName = "pdf_scan_last_capture.jpg"
 
   private var originalFileURL: URL {

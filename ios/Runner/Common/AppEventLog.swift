@@ -30,3 +30,18 @@ func logPdfEvent(_ event: String, _ details: String? = nil) {
   let stamp = PdfEventClock.elapsedMs.map { " | t=\($0)ms" } ?? ""
   print("\(pdfEventTag) | native | \(event)\(suffix)\(stamp)")
 }
+
+/// Đo từng chặng của một việc nhiều bước. `lap()` trả mili giây kể từ lần
+/// `lap()` trước, `total` kể từ lúc tạo.
+struct StepTimer {
+  private let started = CACurrentMediaTime()
+  private var mark = CACurrentMediaTime()
+
+  mutating func lap() -> Int {
+    let now = CACurrentMediaTime()
+    defer { mark = now }
+    return Int(((now - mark) * 1000).rounded())
+  }
+
+  var total: Int { Int(((CACurrentMediaTime() - started) * 1000).rounded()) }
+}

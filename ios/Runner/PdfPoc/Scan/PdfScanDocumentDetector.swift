@@ -190,12 +190,13 @@ struct PdfScanCaptureStability {
   static let minimumArea: CGFloat = 0.18
 
   /// How far a corner may drift between detections and still count as still,
-  /// normalised to the frame.
-  static let cornerTolerance: CGFloat = 0.02
+  /// normalised to the frame. Detections are close together in time, so a
+  /// genuinely still page moves very little between two of them.
+  static let cornerTolerance: CGFloat = 0.015
 
-  /// Consecutive steady detections required. At the ~10 fps this runs at, this
+  /// Consecutive steady detections required. At the ~15 fps this runs at, this
   /// is a little over half a second.
-  static let requiredSteadyFrames = 7
+  static let requiredSteadyFrames = 10
 
   /// How far each detection pulls the smoothed quad. Low enough to absorb
   /// per-frame jitter, high enough that the overlay still tracks a moving page
