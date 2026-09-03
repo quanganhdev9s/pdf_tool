@@ -88,12 +88,18 @@ final class PdfScanCoordinator: NSObject {
 
   func deletePage(sessionId: String, pageId: String) throws {
     let session = try store.requireSession(withId: sessionId)
-    guard let index = session.index(ofPageId: pageId) else {
+    // Tra chỉ số và xoá phải nằm trong cùng một lượt khoá, không thì chỉ số có
+    // thể cũ trước khi kịp dùng.
+    let removed = session.mutate { () -> PdfScanPageRecord? in
+      guard let index = session.index(ofPageId: pageId) else { return nil }
+      let page = session.removePage(at: index)
+      session.normalizeCurrentPageIndex()
+      return page
+    }
+    guard let page = removed else {
       throw Self.pageNotFound(pageId)
     }
-    let page = session.pages.remove(at: index)
     store.removeFiles(for: page)
-    session.normalizeCurrentPageIndex()
     logPdfEvent("scan_page_deleted", "pageId=\(pageId) remaining=\(session.pages.count)")
     refresh(session: session)
   }
@@ -115,8 +121,10 @@ final class PdfScanCoordinator: NSObject {
         details: "expected=\(session.pages.count) received=\(reordered.count)"
       )
     }
-    session.pages = reordered
-    session.normalizeCurrentPageIndex()
+    session.mutate {
+      session.pages = reordered
+      session.normalizeCurrentPageIndex()
+    }
     logPdfEvent("scan_pages_reordered", "sessionId=\(sessionId)")
     refresh(session: session)
   }
@@ -133,9 +141,7 @@ final class PdfScanCoordinator: NSObject {
   func setComparingOriginal(sessionId: String, comparing: Bool) throws {
     let session = try store.requireSession(withId: sessionId)
     session.isComparingOriginal = comparing
-    DispatchQueue.main.async { [weak self] in
-      self?.reviewView?.render(session: session)
-    }
+    refresh(session: session)
   }
 
   // MARK: - Processing
@@ -300,7 +306,8 @@ final class PdfScanCoordinator: NSObject {
     stateLock.lock()
     cancelledOperationIds.insert(operationId)
     stateLock.unlock()
-    captureManager.cancel()
+    // Không đụng tới `captureManager` ở đây. Phiên chụp không có operationId,
+    // nên gọi `cancel()` là huỷ mọi tác vụ nền đều đóng luôn camera đang mở.
     logPdfEvent("scan_operation_cancel_requested", "operationId=\(operationId)")
   }
 

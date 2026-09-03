@@ -73,7 +73,7 @@ final class PdfScanCameraViewController: UIViewController {
   private var previewLayer: AVCaptureVideoPreviewLayer?
   private let overlayLayer = CAShapeLayer()
 
-  /// Detection runs on every third frame. At 30 fps that is ~10 detections a
+  /// Detection runs on every second frame. At 30 fps that is ~15 detections a
   /// second, which is enough to feel live and leaves the frame budget alone.
   private static let detectionFrameInterval = 2
 
@@ -87,7 +87,6 @@ final class PdfScanCameraViewController: UIViewController {
   /// place corners within a pixel or two of where a full-size frame would.
   private static let detectionBufferSize = (width: 720, height: 1280)
   private var frameCounter = 0
-  private var isDetecting = false
 
   /// Size of the buffers coming out of `videoOutput`, in the orientation they
   /// arrive in. Needed to map a detection onto the preview, and only known once
@@ -102,6 +101,16 @@ final class PdfScanCameraViewController: UIViewController {
   /// cả lần chụp mà trước đây không có gì đo.
   private var shutterAt: CFTimeInterval = 0
   private var pageCount = 0
+
+  /// Mốc bắt đầu lượt dò nét chủ động; 0 là chưa có lượt nào đang chạy.
+  ///
+  /// Ở chế độ nét liên tục, `isAdjustingFocus` false chỉ nghĩa là ống kính đang
+  /// đứng yên, chứ không phải nó đang nét vào tờ giấy — máy tự thấy cảnh không
+  /// đổi nên không dò lại. Nên trước mỗi lần chụp tự động phải bắt nó dò thật
+  /// một lượt rồi mới bấm.
+  private var focusRunStartedAt: CFTimeInterval = 0
+  private var didObserveFocusRun = false
+  private static let focusRunTimeout: CFTimeInterval = 1.2
 
   /// The last still *before* perspective correction, plus the corners used on
   /// it. Kept so the corner editor has something to re-crop from.
@@ -283,10 +292,12 @@ final class PdfScanCameraViewController: UIViewController {
   /// thật sẽ dùng. Đo được: hâm bằng generator tốn 6.3s mà lần chụp đầu vẫn
   /// phải trả thêm 3.3s; hâm đúng đường thì còn 137ms.
   private func warmUpRenderPipeline() {
-    warmUpQueue.async {
+    // Giữ mạnh thì Cancel xong, VC và capture session vẫn sống hết lượt hâm.
+    warmUpQueue.async { [weak self] in
       var timer = StepTimer()
       guard let seed = Self.warmUpJpeg() else { return }
       let encodeMs = timer.lap()
+      guard let self else { return }
       _ = self.quickPreview(from: seed, quad: Self.fullFrameQuad)
       logPdfEvent(
         "scan_render_warmup",
@@ -315,22 +326,66 @@ final class PdfScanCameraViewController: UIViewController {
   /// focus allowed — a sheet held at reading distance is closer than the
   /// default range expects.
   private func configureFocus(_ device: AVCaptureDevice) {
-    do {
-      try device.lockForConfiguration()
-      if device.isFocusModeSupported(.continuousAutoFocus) {
-        device.focusMode = .continuousAutoFocus
-      }
-      if device.isAutoFocusRangeRestrictionSupported {
-        device.autoFocusRangeRestriction = .near
-      }
-      if device.isExposureModeSupported(.continuousAutoExposure) {
-        device.exposureMode = .continuousAutoExposure
-      }
-      device.unlockForConfiguration()
-    } catch {
-      // Focus tuning is an improvement, not a requirement; the defaults still
-      // produce a usable capture.
+    // Focus tuning is an improvement, not a requirement; the defaults still
+    // produce a usable capture.
+    guard (try? device.lockForConfiguration()) != nil else { return }
+    defer { device.unlockForConfiguration() }
+    if device.isAutoFocusRangeRestrictionSupported {
+      device.autoFocusRangeRestriction = .near
     }
+    applyContinuousFocus(device)
+  }
+
+  private func applyContinuousFocus(_ device: AVCaptureDevice) {
+    if device.isFocusModeSupported(.continuousAutoFocus) {
+      device.focusMode = .continuousAutoFocus
+    }
+    if device.isExposureModeSupported(.continuousAutoExposure) {
+      device.exposureMode = .continuousAutoExposure
+    }
+  }
+
+  /// Bắt ống kính dò nét một lượt thật vào giữa khung, ngay trước khi chụp tự
+  /// động. Điểm ngắm lấy giữa khung chứ không lấy tâm tứ giác: tờ giấy đã chiếm
+  /// phần lớn khung hình rồi, mà đổi hệ toạ độ Vision sang hệ của thiết bị là
+  /// thêm một chỗ dễ sai.
+  private func beginFocusRun() {
+    guard let device else { return }
+    guard (try? device.lockForConfiguration()) != nil else { return }
+    defer { device.unlockForConfiguration() }
+
+    let centre = CGPoint(x: 0.5, y: 0.5)
+    if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
+      device.focusPointOfInterest = centre
+      device.focusMode = .autoFocus
+    }
+    if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.autoExpose) {
+      device.exposurePointOfInterest = centre
+      device.exposureMode = .autoExpose
+    }
+  }
+
+  private func clearFocusRun() {
+    focusRunStartedAt = 0
+    didObserveFocusRun = false
+  }
+
+  /// Huỷ lượt dò đang chạy. Phải trả ống kính về dò liên tục, không thì nó kẹt
+  /// ở chế độ nét đơn và lượt `beginFocusRun` sau không còn là một lần đổi chế
+  /// độ thật nữa.
+  private func cancelFocusRun() {
+    guard focusRunStartedAt > 0 else { return }
+    clearFocusRun()
+    resumeContinuousFocus()
+  }
+
+  /// Trả về dò liên tục sau khi chụp xong, để khung xem trước còn sống cho
+  /// trang kế tiếp thay vì đứng ở mức nét của trang vừa rồi.
+  private func resumeContinuousFocus() {
+    guard let device else { return }
+    guard (try? device.lockForConfiguration()) != nil else { return }
+    defer { device.unlockForConfiguration() }
+    applyContinuousFocus(device)
   }
 
   private func updateConnectionOrientation() {
@@ -474,53 +529,85 @@ final class PdfScanCameraViewController: UIViewController {
   }
 
   @objc private func handleShutter() {
-    capturePhoto()
+    capturePhoto(trigger: "manual")
   }
 
   /// Opens the corner editor on the page just captured.
   @objc private func handleThumbnailTap() {
-    // Orientation baked in, exactly as it was when the quad was measured — the
-    // stored file is the raw photo representation and still carries its EXIF
-    // flag, so loading it without this would show the page sideways under a
-    // quad that fits the upright one.
-    guard let url = lastOriginalURL,
-          let data = try? Data(contentsOf: url),
-          let original = UIImage(data: data)?.normalizedUp(),
-          let quad = lastAppliedQuad else {
-      return
-    }
+    guard let url = lastOriginalURL, let quad = lastAppliedQuad else { return }
 
     setTorch(on: false)
-    let editor = PdfScanCornerEditorViewController(image: original, quad: quad)
+    // Đọc và giải mã đều nặng: chạy trên main là khựng vài trăm ms trước khi
+    // editor kịp hiện. Chỉ dựng bản thu nhỏ ở đây — bản đầy đủ để tới lúc
+    // người dùng bấm xác nhận mới đọc, mà phần lớn lượt mở là bấm huỷ.
+    stillQueue.async { [weak self] in
+      guard let display = Self.editorDisplayImage(at: url) else { return }
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.presentCornerEditor(display: display, originalURL: url, quad: quad)
+      }
+    }
+  }
+
+  /// Bản thu nhỏ để editor hiển thị. Góc là toạ độ chuẩn hoá nên chỉnh góc
+  /// không cần pixel gốc.
+  ///
+  /// `kCGImageSourceCreateThumbnailWithTransform` lo phần hướng ảnh, đúng việc
+  /// mà `normalizedUp()` làm cho bản đầy đủ: file lưu là ảnh thô còn nguyên cờ
+  /// EXIF, không xoay lại thì trang nằm ngang dưới một tứ giác dựng đứng.
+  private static func editorDisplayImage(at url: URL) -> UIImage? {
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceShouldCacheImmediately: true,
+      kCGImageSourceThumbnailMaxPixelSize: 2400,
+    ]
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    else { return nil }
+    return UIImage(cgImage: thumbnail)
+  }
+
+  private func presentCornerEditor(display: UIImage, originalURL: URL, quad: PdfScanQuad) {
+    let editor = PdfScanCornerEditorViewController(image: display, quad: quad)
     editor.onCancel = { [weak self] in
       self?.dismiss(animated: true)
     }
     editor.onCommit = { [weak self] adjusted in
       guard let self else { return }
       self.dismiss(animated: true)
-      self.applyAdjustedQuad(adjusted, to: original)
+      self.applyAdjustedQuad(adjusted, originalURL: originalURL)
     }
     present(editor, animated: true)
   }
 
   /// Re-runs the correction with the corners the user set and hands the result
   /// back as a replacement for the page already delivered.
-  private func applyAdjustedQuad(_ quad: PdfScanQuad, to original: UIImage) {
-    guard let cgImage = original.cgImage else { return }
+  private func applyAdjustedQuad(_ quad: PdfScanQuad, originalURL: URL) {
     lastAppliedQuad = quad
 
-    let corrected = perspectiveCorrected(CIImage(cgImage: cgImage), using: quad)
-    guard let output = PdfScanRenderContext.shared.createCGImage(
-      corrected,
-      from: corrected.extent
-    ) else {
-      return
-    }
+    // Nắn phối cảnh full-res, cùng lý do như đường chụp. Bản đầy đủ đọc ở đây
+    // chứ không giữ sẵn suốt phiên editor.
+    stillQueue.async { [weak self] in
+      guard let data = try? Data(contentsOf: originalURL),
+            let cgImage = UIImage(data: data)?.normalizedUp()?.cgImage else { return }
+      let corrected = self?.perspectiveCorrected(CIImage(cgImage: cgImage), using: quad)
+      guard let corrected,
+            let output = PdfScanRenderContext.shared.createCGImage(
+              corrected,
+              from: corrected.extent
+            ) else {
+        return
+      }
 
-    let page = UIImage(cgImage: output)
-    thumbnailView.image = page
-    logPdfEvent("scan_camera_page_adjusted", "page=\(pageCount)")
-    delegate?.cameraController(self, didAdjustLastPage: page)
+      let page = UIImage(cgImage: output)
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.thumbnailView.image = page
+        logPdfEvent("scan_camera_page_adjusted", "page=\(self.pageCount)")
+        self.delegate?.cameraController(self, didAdjustLastPage: page)
+      }
+    }
   }
 
   @objc private func handleAutoToggle() {
@@ -613,10 +700,16 @@ final class PdfScanCameraViewController: UIViewController {
     logPdfEvent("scan_photo_dimensions", "\(pick.width)x\(pick.height)")
   }
 
-  private func capturePhoto() {
+  private func capturePhoto(trigger: String) {
     guard !isCapturing, session.isRunning else { return }
     isCapturing = true
     shutterAt = CACurrentMediaTime()
+    let lens = device.map {
+      "lens=\(String(format: "%.3f", $0.lensPosition))"
+        + " iso=\(Int($0.iso))"
+        + " exposure=\(Int(CMTimeGetSeconds($0.exposureDuration) * 1000))ms"
+    } ?? "lens=?"
+    logPdfEvent("scan_capture_trigger", "trigger=\(trigger) \(lens)")
 
     let settings = AVCapturePhotoSettings()
     // `.quality` bật đường hợp nhất nhiều khung của ISP — đáng cho ảnh đời
@@ -703,21 +796,18 @@ extension PdfScanCameraViewController: AVCaptureVideoDataOutputSampleBufferDeleg
   ) {
     frameCounter += 1
     guard frameCounter % Self.detectionFrameInterval == 0,
-          !isDetecting,
           !isCapturing,
           let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
       return
     }
 
-    isDetecting = true
     let size = CGSize(
       width: CVPixelBufferGetWidth(pixelBuffer),
       height: CVPixelBufferGetHeight(pixelBuffer)
     )
-    var timer = StepTimer()
+    let timer = StepTimer()
     let quad = detector.detect(in: pixelBuffer)
     recordDetection(ms: timer.total)
-    isDetecting = false
 
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
@@ -742,16 +832,37 @@ extension PdfScanCameraViewController: AVCaptureVideoDataOutputSampleBufferDeleg
 
       self.hintLabel.text = {
         guard smoothed != nil else { return "Point at a page" }
-        if isSettling { return "Focusing…" }
+        if self.focusRunStartedAt > 0 { return "Focusing…" }
         return self.isAutoCaptureEnabled ? "Hold steady" : "Tap the shutter"
       }()
 
       // The focus check gates auto-capture only. Manual shutter stays live: a
       // camera that never focuses would otherwise leave the user with no way to
       // take the picture at all.
-      if steady, self.isAutoCaptureEnabled, !self.isCapturing, !isSettling {
-        self.capturePhoto()
+      guard steady, self.isAutoCaptureEnabled, !self.isCapturing else {
+        self.cancelFocusRun()
+        return
       }
+
+      guard self.focusRunStartedAt > 0 else {
+        self.focusRunStartedAt = CACurrentMediaTime()
+        self.didObserveFocusRun = false
+        self.beginFocusRun()
+        return
+      }
+
+      if isSettling { self.didObserveFocusRun = true }
+      let elapsed = CACurrentMediaTime() - self.focusRunStartedAt
+      let converged = self.didObserveFocusRun && !isSettling
+      guard converged || elapsed > Self.focusRunTimeout else { return }
+
+      self.clearFocusRun()
+      self.stability.markCaptured()
+      logPdfEvent(
+        "scan_auto_focus_run",
+        "outcome=\(converged ? "converged" : "timeout") ms=\(Int(elapsed * 1000))"
+      )
+      self.capturePhoto(trigger: "auto")
     }
   }
 }
@@ -873,6 +984,8 @@ extension PdfScanCameraViewController: AVCapturePhotoCaptureDelegate {
       self.thumbnailView.isHidden = false
       self.cropBadge.isHidden = false
       self.stability.reset()
+      self.clearFocusRun()
+      self.resumeContinuousFocus()
       logPdfEvent("scan_camera_page_captured", "page=\(self.pageCount)")
       self.delegate?.cameraController(self, didCapture: page)
     }

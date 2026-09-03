@@ -60,13 +60,32 @@ final class PdfScanReviewView: UIView {
   /// or a preset change invalidates exactly the entries it should. `NSCache`
   /// vì khoá gồm cả preset lẫn góc xoay — đủ biến thể để chật bộ nhớ.
   private let thumbnailCache = NSCache<NSString, UIImage>()
-  private let renderQueue = DispatchQueue(label: "pdf.scan.review.render", qos: .userInitiated)
+
+  /// Riêng khỏi dải thumbnail: chung một hàng đợi tuần tự thì hai bên chặn nhau.
+  private let previewQueue = DispatchQueue(label: "pdf.scan.review.preview", qos: .userInitiated)
+
+  /// `OperationQueue` chứ không phải concurrent queue + semaphore: cách kia
+  /// chặn thread ở `wait()`.
+  private let thumbnailQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.maxConcurrentOperationCount = 3
+    queue.qualityOfService = .userInitiated
+    return queue
+  }()
+
+  /// `reloadData()` chạy cho mọi thay đổi session; không có tập này thì mỗi
+  /// lượt lại xếp thêm một job trùng.
+  private var inFlightThumbnails: Set<String> = []
+
+  private var lastPreviewBounds: CGSize = .zero
+  private var lastPreviewPageId: String?
 
   private static let thumbnailSize = CGSize(width: 132, height: 176)
 
   init(frame: CGRect, coordinator: PdfScanCoordinator) {
     self.coordinator = coordinator
     super.init(frame: frame)
+    thumbnailCache.totalCostLimit = 48 * 1024 * 1024
     configure()
     coordinator.attach(reviewView: self)
   }
@@ -142,9 +161,14 @@ final class PdfScanReviewView: UIView {
 
     badgeLabel.frame = CGRect(x: 16, y: 16, width: 92, height: 22)
 
-    previewScrollView.zoomScale = 1
-    previewImageView.frame = previewScrollView.bounds.insetBy(dx: 12, dy: 12)
-    previewScrollView.contentSize = previewScrollView.bounds.size
+    // Reset ở mọi lượt layout là xoá mức phóng người dùng đang đặt.
+    if lastPreviewBounds != previewScrollView.bounds.size {
+      lastPreviewBounds = previewScrollView.bounds.size
+      previewScrollView.zoomScale = 1
+      previewImageView.frame = previewScrollView.bounds.insetBy(dx: 12, dy: 12)
+      previewScrollView.contentSize = previewScrollView.bounds.size
+      updatePreview()
+    }
   }
 
   // MARK: - Rendering
@@ -201,9 +225,19 @@ final class PdfScanReviewView: UIView {
       return
     }
     let page = pages[currentIndex]
+    if lastPreviewPageId != page.id {
+      lastPreviewPageId = page.id
+      previewScrollView.zoomScale = 1
+    }
     let url = isComparingOriginal ? page.originalURL : page.renderURL
     let rotation = page.rotationDegrees
-    let key = cacheKey(for: page, size: "preview")
+    // Cỡ giải mã nằm trong khoá: dùng lại bản cũ sau khi đổi bounds thì mờ.
+    let targetSize = previewScrollView.bounds.size
+    let key = cacheKey(
+      for: page,
+      size: "preview-\(Int(targetSize.width))x\(Int(targetSize.height))",
+      comparing: isComparingOriginal
+    )
 
     if let cached = thumbnailCache.object(forKey: key as NSString) {
       previewImageView.image = cached
@@ -212,8 +246,7 @@ final class PdfScanReviewView: UIView {
 
     // Decode off the main thread; a full-resolution page would otherwise drop
     // frames every time the user steps between pages.
-    let targetSize = previewScrollView.bounds.size
-    renderQueue.async { [weak self] in
+    previewQueue.async { [weak self] in
       guard let self else { return }
       let image = Self.decode(url: url, rotation: rotation, fitting: targetSize)
       DispatchQueue.main.async {
@@ -222,15 +255,28 @@ final class PdfScanReviewView: UIView {
           return
         }
         if let image {
-          self.thumbnailCache.setObject(image, forKey: key as NSString)
+          self.store(image, forKey: key)
         }
         self.previewImageView.image = image
       }
     }
   }
 
-  private func cacheKey(for page: PdfScanPageRecord, size: String) -> String {
-    let variant = isComparingOriginal ? "orig" : page.preset.storageKey
+  /// Cost theo byte, để `totalCostLimit` có nghĩa.
+  private func store(_ image: UIImage, forKey key: String) {
+    let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+    thumbnailCache.setObject(image, forKey: key as NSString, cost: cost)
+  }
+
+  /// `comparing` chỉ đúng cho preview. Dải thumbnail luôn hiện bản đã xử lý:
+  /// đưa cờ so sánh vào khoá của cả dải nghĩa là bật tắt một cái là mười
+  /// thumbnail phải giải mã lại, hai lần.
+  private func cacheKey(
+    for page: PdfScanPageRecord,
+    size: String,
+    comparing: Bool = false
+  ) -> String {
+    let variant = comparing ? "orig" : page.preset.storageKey
     return "\(page.id)|\(variant)|\(page.rotationDegrees)|\(size)"
   }
 
@@ -291,21 +337,24 @@ extension PdfScanReviewView: UICollectionViewDataSource, UICollectionViewDelegat
 
     let page = pages[indexPath.item]
     let key = cacheKey(for: page, size: "thumb")
+    let cached = thumbnailCache.object(forKey: key as NSString)
     thumbnailCell.configure(
-      image: thumbnailCache.object(forKey: key as NSString),
+      image: cached,
       title: "\(indexPath.item + 1)",
       isSelected: indexPath.item == currentIndex
     )
 
-    if thumbnailCache.object(forKey: key as NSString) == nil {
-      let url = isComparingOriginal ? page.originalURL : page.renderURL
+    if cached == nil, !inFlightThumbnails.contains(key) {
+      inFlightThumbnails.insert(key)
+      let url = page.renderURL
       let rotation = page.rotationDegrees
-      renderQueue.async { [weak self] in
+      thumbnailQueue.addOperation { [weak self] in
         guard let self else { return }
         let image = Self.decode(url: url, rotation: rotation, fitting: Self.thumbnailSize)
         DispatchQueue.main.async {
+          self.inFlightThumbnails.remove(key)
           guard let image else { return }
-          self.thumbnailCache.setObject(image, forKey: key as NSString)
+          self.store(image, forKey: key)
           if let visible = collectionView.cellForItem(at: indexPath) as? PdfScanThumbnailCell {
             visible.configure(
               image: image,
@@ -350,26 +399,25 @@ extension PdfScanReviewView: UICollectionViewDragDelegate, UICollectionViewDropD
     _ collectionView: UICollectionView,
     performDropWith dropCoordinator: UICollectionViewDropCoordinator
   ) {
-    let destinationIndexPath = dropCoordinator.destinationIndexPath
-      ?? IndexPath(item: max(pages.count - 1, 0), section: 0)
+    let fallback = IndexPath(item: max(pages.count - 1, 0), section: 0)
+    var destinationIndexPath = dropCoordinator.destinationIndexPath ?? fallback
 
+    // Đích phải tính lại sau mỗi item: `pages` bị sửa ngay trong vòng lặp, nên
+    // một chỉ số tính sẵn từ đầu sẽ lệch kể từ item thứ hai trở đi.
     for dropItem in dropCoordinator.items {
       guard let sourceIndexPath = dropItem.sourceIndexPath else { continue }
+      var landed = destinationIndexPath
       collectionView.performBatchUpdates {
         let moved = pages.remove(at: sourceIndexPath.item)
         let destination = min(destinationIndexPath.item, pages.count)
         pages.insert(moved, at: destination)
-        collectionView.moveItem(
-          at: sourceIndexPath,
-          to: IndexPath(item: destination, section: destinationIndexPath.section)
-        )
+        landed = IndexPath(item: destination, section: destinationIndexPath.section)
+        collectionView.moveItem(at: sourceIndexPath, to: landed)
       }
-      dropCoordinator.drop(
-        dropItem.dragItem,
-        toItemAt: IndexPath(
-          item: min(destinationIndexPath.item, max(pages.count - 1, 0)),
-          section: destinationIndexPath.section
-        )
+      dropCoordinator.drop(dropItem.dragItem, toItemAt: landed)
+      destinationIndexPath = IndexPath(
+        item: min(landed.item + 1, max(pages.count - 1, 0)),
+        section: landed.section
       )
     }
     commitReorder()
@@ -402,6 +450,12 @@ final class PdfScanThumbnailCell: UICollectionViewCell {
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+
+  /// Nếu không, cell tái sử dụng hiện ảnh trang cũ tới khi giải mã xong.
+  override func prepareForReuse() {
+    super.prepareForReuse()
+    imageView.image = nil
   }
 
   override func layoutSubviews() {

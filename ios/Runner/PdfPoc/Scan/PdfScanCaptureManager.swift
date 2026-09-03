@@ -134,7 +134,7 @@ final class PdfScanCaptureManager: NSObject {
     let pageId = UUID().uuidString
     let destination = store.originalImageURL(for: session, pageId: pageId)
     try write(image: image, to: destination, pageId: pageId)
-    session.pages.append(PdfScanPageRecord(id: pageId, originalURL: destination))
+    session.appendPage(PdfScanPageRecord(id: pageId, originalURL: destination))
   }
 
   private func write(image: UIImage, to destination: URL, pageId: String) throws {

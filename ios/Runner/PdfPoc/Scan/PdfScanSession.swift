@@ -7,9 +7,13 @@ import Foundation
 final class PdfScanPageRecord {
   let id: String
   let originalURL: URL
-  var processedURL: URL?
-  var preset: PdfScanPreset
-  var rotationDegrees: Int
+
+  /// Ba trường dưới đây bị ghi từ hàng đợi xử lý ảnh và đọc từ main cùng lúc,
+  /// nên đi qua khoá. Khoá đệ quy vì `renderURL` đọc hai trường trong một lượt.
+  private let lock = NSRecursiveLock()
+  private var _processedURL: URL?
+  private var _preset: PdfScanPreset
+  private var _rotationDegrees: Int
 
   init(
     id: String = UUID().uuidString,
@@ -20,25 +24,55 @@ final class PdfScanPageRecord {
   ) {
     self.id = id
     self.originalURL = originalURL
-    self.processedURL = processedURL
-    self.preset = preset
-    self.rotationDegrees = rotationDegrees
+    self._processedURL = processedURL
+    self._preset = preset
+    self._rotationDegrees = rotationDegrees
+  }
+
+  private func locked<T>(_ body: () -> T) -> T {
+    lock.lock()
+    defer { lock.unlock() }
+    return body()
+  }
+
+  var processedURL: URL? {
+    get { locked { _processedURL } }
+    set { locked { _processedURL = newValue } }
+  }
+
+  var preset: PdfScanPreset {
+    get { locked { _preset } }
+    set { locked { _preset = newValue } }
+  }
+
+  var rotationDegrees: Int {
+    get { locked { _rotationDegrees } }
+    set { locked { _rotationDegrees = newValue } }
   }
 
   /// The image the export and the review canvas should draw. Falls back to the
   /// original whenever processing has not run or was discarded.
+  ///
+  /// `fileExists` ở đây là đường lui cho trường hợp hệ thống dọn thư mục cache
+  /// khi máy hết chỗ, chứ không phải thừa.
   var renderURL: URL {
-    if preset != .original, let processedURL, FileManager.default.fileExists(atPath: processedURL.path) {
-      return processedURL
+    locked {
+      if _preset != .original,
+         let url = _processedURL,
+         FileManager.default.fileExists(atPath: url.path) {
+        return url
+      }
+      return originalURL
     }
-    return originalURL
   }
 
   func discardProcessedImage() {
-    if let processedURL {
-      try? FileManager.default.removeItem(at: processedURL)
+    locked {
+      if let url = _processedURL {
+        try? FileManager.default.removeItem(at: url)
+      }
+      _processedURL = nil
     }
-    processedURL = nil
   }
 }
 
@@ -49,9 +83,14 @@ final class PdfScanSessionRecord {
   let createdAt: Date
   let source: PdfScanSource
   let directory: URL
-  var pages: [PdfScanPageRecord]
-  var currentPageIndex: Int
-  var isComparingOriginal: Bool
+
+  /// `pages` bị thêm từ hàng đợi chụp, bị xoá và đổi thứ tự từ main, còn từng
+  /// trang thì bị hàng đợi xử lý ảnh ghi vào. Trước đây không có đồng bộ nào,
+  /// nên đây là nguồn của những lần crash không tái hiện được.
+  private let lock = NSRecursiveLock()
+  private var _pages: [PdfScanPageRecord]
+  private var _currentPageIndex: Int
+  private var _isComparingOriginal: Bool
 
   init(
     id: String,
@@ -66,29 +105,70 @@ final class PdfScanSessionRecord {
     self.createdAt = createdAt
     self.source = source
     self.directory = directory
-    self.pages = pages
-    self.currentPageIndex = currentPageIndex
-    self.isComparingOriginal = isComparingOriginal
+    self._pages = pages
+    self._currentPageIndex = currentPageIndex
+    self._isComparingOriginal = isComparingOriginal
+  }
+
+  private func locked<T>(_ body: () -> T) -> T {
+    lock.lock()
+    defer { lock.unlock() }
+    return body()
+  }
+
+  var pages: [PdfScanPageRecord] {
+    get { locked { _pages } }
+    set { locked { _pages = newValue } }
+  }
+
+  var currentPageIndex: Int {
+    get { locked { _currentPageIndex } }
+    set { locked { _currentPageIndex = newValue } }
+  }
+
+  var isComparingOriginal: Bool {
+    get { locked { _isComparingOriginal } }
+    set { locked { _isComparingOriginal = newValue } }
+  }
+
+  /// Gộp nhiều thay đổi thành một lượt. Xoá một trang rồi kẹp lại chỉ số trang
+  /// hiện tại là hai thao tác, mà luồng khác không được phép nhìn thấy khoảng
+  /// giữa hai thao tác đó.
+  func mutate<T>(_ body: () -> T) -> T {
+    locked(body)
+  }
+
+  /// Thêm trang là đọc rồi ghi, nên phải là một thao tác chứ không phải
+  /// `pages.append` qua thuộc tính tính toán.
+  func appendPage(_ page: PdfScanPageRecord) {
+    locked { _pages.append(page) }
+  }
+
+  @discardableResult
+  func removePage(at index: Int) -> PdfScanPageRecord {
+    locked { _pages.remove(at: index) }
   }
 
   var originalsDirectory: URL { directory.appendingPathComponent("original", isDirectory: true) }
   var processedDirectory: URL { directory.appendingPathComponent("processed", isDirectory: true) }
 
   func page(withId pageId: String) -> PdfScanPageRecord? {
-    pages.first { $0.id == pageId }
+    locked { _pages.first { $0.id == pageId } }
   }
 
   func index(ofPageId pageId: String) -> Int? {
-    pages.firstIndex { $0.id == pageId }
+    locked { _pages.firstIndex { $0.id == pageId } }
   }
 
   /// Clamps into a valid range after a delete, so the review canvas never ends
   /// up pointing past the end of the list.
   func normalizeCurrentPageIndex() {
-    if pages.isEmpty {
-      currentPageIndex = 0
-    } else {
-      currentPageIndex = min(max(currentPageIndex, 0), pages.count - 1)
+    locked {
+      if _pages.isEmpty {
+        _currentPageIndex = 0
+      } else {
+        _currentPageIndex = min(max(_currentPageIndex, 0), _pages.count - 1)
+      }
     }
   }
 

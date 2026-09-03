@@ -171,10 +171,10 @@ final class PdfScanCornerEditorViewController: UIViewController {
     loupeImageLayer.frame = loupe.bounds
     loupeImageLayer.contents = image.cgImage
     loupeImageLayer.contentsGravity = .resize
-    // A 12MP capture shown on a phone is being *minified* even inside the
-    // loupe, so the filter that matters is the downscaling one. Nearest here
-    // would alias the page edge into a staircase — the one thing the user is
-    // trying to line the corner up against.
+    // Ảnh vào đây đã thu về cỡ hiển thị nhưng vẫn thừa pixel so với màn hình,
+    // nên ngay trong kính lúp nó vẫn đang bị *thu nhỏ*: bộ lọc đáng quan tâm là
+    // bộ lọc downscale. Nearest sẽ làm cạnh giấy răng cưa — đúng cái mà người
+    // dùng đang căn góc vào.
     loupeImageLayer.minificationFilter = .trilinear
     loupeImageLayer.magnificationFilter = .linear
     loupe.layer.addSublayer(loupeImageLayer)

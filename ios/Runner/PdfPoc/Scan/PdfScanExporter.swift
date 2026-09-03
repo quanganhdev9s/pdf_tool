@@ -1,6 +1,8 @@
 import Foundation
+import ImageIO
 import PDFKit
 import UIKit
+import UniformTypeIdentifiers
 
 private struct PdfScanExportProfile {
   let maxLongEdgePixels: CGFloat
@@ -21,6 +23,34 @@ private struct PdfScanExportProfile {
 /// or corrupt file is never handed to the viewer.
 final class PdfScanExporter {
   private let validator = PdfScanValidator()
+
+  /// A4 tính bằng point, đơn vị thật của PDF. Trước đây khổ trang lấy thẳng số
+  /// pixel của ảnh, nên một ảnh cao 2400px thành trang cao 33 inch và mọi trình
+  /// đọc đều hiển thị sai tỉ lệ.
+  private static let a4Portrait = CGSize(width: 595.28, height: 841.89)
+
+  /// Ảnh ngang thì trang xoay ngang theo, để không phải thu nhỏ tờ giấy vào
+  /// giữa một trang dọc.
+  private static func pageBounds(for imageSize: CGSize) -> CGRect {
+    let isLandscape = imageSize.width > imageSize.height
+    let size = isLandscape
+      ? CGSize(width: a4Portrait.height, height: a4Portrait.width)
+      : a4Portrait
+    return CGRect(origin: .zero, size: size)
+  }
+
+  /// Vừa khung và căn giữa, giữ nguyên tỉ lệ.
+  private static func imageFrame(for imageSize: CGSize, in bounds: CGRect) -> CGRect {
+    guard imageSize.width > 0, imageSize.height > 0 else { return bounds }
+    let scale = min(bounds.width / imageSize.width, bounds.height / imageSize.height)
+    let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+    return CGRect(
+      x: bounds.midX - size.width / 2,
+      y: bounds.midY - size.height / 2,
+      width: size.width,
+      height: size.height
+    )
+  }
 
   func export(
     session: PdfScanSessionRecord,
@@ -72,19 +102,21 @@ final class PdfScanExporter {
             return
           }
           let loadMs = timer.lap()
-          let bounds = CGRect(origin: .zero, size: image.size)
+          let bounds = Self.pageBounds(for: image.size)
           context.beginPage(withBounds: bounds, pageInfo: [:])
           UIColor.white.setFill()
           UIRectFill(bounds)
-          image.draw(in: bounds)
+          image.draw(in: Self.imageFrame(for: image.size, in: bounds))
           logPdfEvent(
             "scan_export_page",
             "page=\(pageIndex + 1)/\(pages.count)"
               + " size=\(Int(image.size.width))x\(Int(image.size.height))"
+              + " page=\(Int(bounds.width))x\(Int(bounds.height))pt"
               + " load=\(loadMs)ms draw=\(timer.lap())ms"
           )
         }
         if renderError != nil { return }
+        
         onProgress(Int64(pageIndex + 1), Int64(pages.count))
       }
     }
@@ -119,35 +151,52 @@ final class PdfScanExporter {
   /// Reads whichever image the page's preset selected, applies the stored
   /// rotation, and caps the long edge. Rotation lives as metadata precisely so
   /// it can be resolved here instead of invalidating the processed cache.
+  ///
+  /// Giải mã thẳng ở cỡ đích và chỉ raster khi phải xoay. Bước nén JPEG phải
+  /// giữ: nó là thứ khiến PDF nhúng ảnh đã nén thay vì bitmap thô.
   private func loadRenderImage(
     for page: PdfScanPageRecord,
     profile: PdfScanExportProfile
   ) -> UIImage? {
-    guard let source = UIImage(contentsOfFile: page.renderURL.path) else { return nil }
-    let rotated = source.rotated(byDegrees: page.rotationDegrees)
+    guard let decoded = decodedImage(at: page.renderURL, maxLongEdge: profile.maxLongEdgePixels)
+    else { return nil }
 
-    let longEdge = max(rotated.size.width, rotated.size.height)
-    let scale = min(profile.maxLongEdgePixels / max(longEdge, 1), 1)
-    let targetSize = CGSize(
-      width: max((rotated.size.width * scale).rounded(), 1),
-      height: max((rotated.size.height * scale).rounded(), 1)
+    let oriented = rotatedImage(decoded, byDegrees: page.rotationDegrees)
+    guard let data = jpegData(from: oriented, quality: profile.jpegQuality) else {
+      return UIImage(cgImage: oriented)
+    }
+    return UIImage(data: data) ?? UIImage(cgImage: oriented)
+  }
+
+  /// Bung thẳng ở cỡ cần dùng thay vì bung đủ độ phân giải rồi thu nhỏ sau.
+  private func decodedImage(at url: URL, maxLongEdge: CGFloat) -> CGImage? {
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceShouldCacheImmediately: true,
+      kCGImageSourceThumbnailMaxPixelSize: maxLongEdge,
+    ]
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+    return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+  }
+
+  /// Xoay 0 độ, trường hợp phổ biến nhất, không tốn lượt raster nào.
+  private func rotatedImage(_ image: CGImage, byDegrees degrees: Int) -> CGImage {
+    guard ((degrees % 360) + 360) % 360 != 0 else { return image }
+    let rotated = UIImage(cgImage: image).rotated(byDegrees: degrees)
+    return rotated.cgImage ?? image
+  }
+
+  private func jpegData(from image: CGImage, quality: CGFloat) -> Data? {
+    let output = NSMutableData()
+    guard let destination = CGImageDestinationCreateWithData(
+      output, UTType.jpeg.identifier as CFString, 1, nil
+    ) else { return nil }
+    CGImageDestinationAddImage(
+      destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
     )
-
-    let format = UIGraphicsImageRendererFormat()
-    format.scale = 1
-    format.opaque = true
-    let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
-    let normalized = renderer.image { context in
-      UIColor.white.setFill()
-      context.fill(CGRect(origin: .zero, size: targetSize))
-      rotated.draw(in: CGRect(origin: .zero, size: targetSize))
-    }
-
-    guard let data = normalized.jpegData(compressionQuality: profile.jpegQuality),
-          let compressed = UIImage(data: data) else {
-      return normalized
-    }
-    return compressed
+    guard CGImageDestinationFinalize(destination) else { return nil }
+    return output as Data
   }
 }
 

@@ -216,7 +216,8 @@ struct PdfScanCaptureStability {
     isLatched = true
   }
 
-  /// Returns true on the frame the capture should fire.
+  /// Chỉ *báo* là đang đứng yên, không tự chốt: người gọi còn phải qua cửa nét
+  /// nữa. Chốt ở đây thì một lần bị chặn là mất hẳn lượt chụp đó.
   mutating func update(with quad: PdfScanQuad?) -> Bool {
     guard let quad, quad.area >= Self.minimumArea else {
       previous = nil
@@ -240,9 +241,12 @@ struct PdfScanCaptureStability {
       isLatched = false
     }
 
-    guard !isLatched, steadyFrames >= Self.requiredSteadyFrames else { return false }
+    return !isLatched && steadyFrames >= Self.requiredSteadyFrames
+  }
+
+  /// Gọi đúng lúc ảnh thật sự được chụp.
+  mutating func markCaptured() {
     steadyFrames = 0
     isLatched = true
-    return true
   }
 }
